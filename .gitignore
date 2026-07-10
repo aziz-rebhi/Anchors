@@ -1,0 +1,7 @@
+build/
+build-*/
+*.o
+*.user
+Makefile*
+moc_*
+ui_*
