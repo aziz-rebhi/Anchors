@@ -6,3 +6,4 @@ Makefile*
 moc_*
 ui_*
 *.pro.user
+Tests/build/
