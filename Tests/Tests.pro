@@ -9,8 +9,11 @@ PKGCONFIG += libsodium
 
 SOURCES += \
     main.cpp \
-    ../core/crypto/cryptomanager.cpp
+    ../core/crypto/cryptomanager.cpp\
+    ../core/storage/encryptedfilestore.cpp
 
 HEADERS += \
     ../core/crypto/cryptomanager.h \
-    ../core/crypto/SecureBuffer.h
+    ../core/crypto/SecureBuffer.h \
+    ../core/storage/encryptedfilestore.h \
+    ../core/storage/FilePaths.h

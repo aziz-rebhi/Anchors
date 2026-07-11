@@ -8,12 +8,15 @@ CONFIG += c++17
 
 SOURCES += \
     core/crypto/cryptomanager.cpp \
+    core/storage/encryptedfilestore.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
     core/crypto/SecureBuffer.h \
     core/crypto/cryptomanager.h \
+    core/storage/FilePaths.h \
+    core/storage/encryptedfilestore.h \
     mainwindow.h
 
 FORMS += \
