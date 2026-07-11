@@ -8,19 +8,27 @@ CONFIG += c++17
 
 SOURCES += \
     core/crypto/cryptomanager.cpp \
+    core/models/profile.cpp \
     core/storage/encryptedfilestore.cpp \
+    core/storage/repositories/profilerepository.cpp \
+    core/storage/saltstore.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
     core/crypto/SecureBuffer.h \
     core/crypto/cryptomanager.h \
+    core/models/profile.h \
     core/storage/FilePaths.h \
     core/storage/encryptedfilestore.h \
+    core/storage/repositories/profilerepository.h \
+    core/storage/saltstore.h \
     mainwindow.h
 
 FORMS += \
     mainwindow.ui
+
+LIBS += -lsodium
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

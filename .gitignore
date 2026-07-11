@@ -7,3 +7,6 @@ moc_*
 ui_*
 *.pro.user
 Tests/build/
+Tests/.qmake.stash
+Tests/Tests
+.qtcreator/*.user

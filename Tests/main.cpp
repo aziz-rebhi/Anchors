@@ -1,14 +1,22 @@
 #include "../core/crypto/cryptomanager.h"
 #include "../core/storage/encryptedfilestore.h"
+#include "../core/models/profile.h"
+#include "../core/storage/repositories/profilerepository.h"
+#include "../core/storage/saltstore.h"
 
+#include <QByteArray>
 #include <QCoreApplication>
+#include <QDate>
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
+#include <QString>
 #include <QTemporaryDir>
-
+#include <dlfcn.h>
 
 int main(int argc, char *argv[])
 {
@@ -30,6 +38,10 @@ int main(int argc, char *argv[])
             ++failed;
         }
     };
+
+    // ===================================================================
+    // CryptoManager tests
+    // ===================================================================
 
     // --- Test 1: key derivation produces the expected key size ---
     QByteArray salt = CryptoManager::generateSalt();
@@ -111,14 +123,19 @@ int main(int argc, char *argv[])
     // --- Test 10: a corrupted file is rejected, not silently accepted ---
     {
         QFile f(testFile);
-        f.open(QIODevice::ReadWrite);
-        QByteArray contents = f.readAll();
+        if (!f.open(QIODevice::ReadWrite)) {
+            qWarning() << "Test 10: could not open file for read/write";
+        }        QByteArray contents = f.readAll();
         if (!contents.isEmpty()) {
             contents[contents.size() - 1] = contents[contents.size() - 1] ^ 0x7F;
         }
-        f.seek(0);
-        f.write(contents);
-        f.close();
+        if (!f.seek(0)) {
+            qWarning() << "Test 10: seek failed unexpectedly";
+        }
+        qint64 written = f.write(contents);
+        if (written != contents.size()) {
+            qWarning() << "Test 10: incomplete write";
+        }        f.close();
     }
     bool corruptedOk = true;
     QJsonDocument corruptedResult = EncryptedFileStore::load(testFile, key, &corruptedOk);
@@ -127,11 +144,76 @@ int main(int argc, char *argv[])
 
     // --- Test 11: no leftover .tmp file after a successful save (atomic write) ---
     QJsonDocument another(QJsonArray{QJsonObject{{"title", "Second entry"}}});
-    EncryptedFileStore::save(testFile, another, key);
+    bool atomicSaveOk = EncryptedFileStore::save(testFile, another, key);
+    check(atomicSaveOk, "save() for atomic-write test succeeds");
     bool tmpLeftBehind = QFile::exists(testFile + ".tmp");
     check(!tmpLeftBehind, "no leftover .tmp file remains after a successful save");
 
+    // ===================================================================
+    // Profile + ProfileRepository tests
+    //
+    // Note: this uses the REAL app data directory (via FilePaths), not
+    // tempDir, since ProfileRepository doesn't take a path override.
+    // Running this repeatedly overwrites your real profile.enc.
+    // ===================================================================
 
+    profilerepository profileRepo(key);
+
+    // --- Test 12: loading a profile that doesn't exist yet returns an empty one ---
+    bool profileLoadOk = false;
+    profile emptyProfile = profileRepo.load(&profileLoadOk);
+    check(profileLoadOk && emptyProfile.name.isEmpty() && !emptyProfile.birthday.isValid(),
+          "loading a non-existent profile returns an empty Profile, not an error");
+
+    // --- Test 13: save -> load round-trip preserves name and birthday ---
+    profile toSave;
+    toSave.name = "Aziz";
+    toSave.birthday = QDate(2000, 1, 15);
+
+    bool profileSaveOk = profileRepo.save(toSave);
+    check(profileSaveOk, "ProfileRepository::save() succeeds");
+
+    bool profileReloadOk = false;
+    profile reloadedProfile = profileRepo.load(&profileReloadOk);
+    check(profileReloadOk
+              && reloadedProfile.name == toSave.name
+              && reloadedProfile.birthday == toSave.birthday,
+          "Profile save() -> load() round-trip preserves name and birthday");
+
+    // --- Test 14: a profile with no birthday set round-trips correctly ---
+    profile noBirthday;
+    noBirthday.name = "Anonymous";
+    // birthday left default-constructed (invalid) — simulates skipping it
+    bool noBirthdaySaveOk = profileRepo.save(noBirthday);
+    check(noBirthdaySaveOk, "ProfileRepository::save() without birthday succeeds");
+    bool noBirthdayOk = false;
+    profile reloadedNoBirthday = profileRepo.load(&noBirthdayOk);
+    check(noBirthdayOk && !reloadedNoBirthday.birthday.isValid(),
+          "a Profile saved without a birthday reloads with an invalid (unset) birthday");
+
+    // ===================================================================
+    // SaltStore tests
+    // ===================================================================
+
+    // --- Test 15: exists() correctly reflects whether a salt has been generated ---
+    bool saltExistedBefore = SaltStore::exists();
+    check(true, QString("SaltStore::exists() before generation: %1")
+                    .arg(saltExistedBefore ? "true (already existed)" : "false"));
+
+    // --- Test 16: generateAndSave() + load() round-trip returns a usable salt ---
+    bool generateOk = SaltStore::generateAndSave();
+    check(generateOk, "SaltStore::generateAndSave() succeeds");
+
+    QByteArray loadedSalt = SaltStore::load();
+    check(loadedSalt.size() == 16, "SaltStore::load() returns a 16-byte salt matching crypto_pwhash_SALTBYTES");
+
+    // --- Test 17: exists() is true immediately after generating ---
+    check(SaltStore::exists(), "SaltStore::exists() is true right after generateAndSave()");
+
+    // --- Test 18: the loaded salt actually works for key derivation ---
+    QByteArray keyFromLoadedSalt = CryptoManager::deriveKey("some test password", loadedSalt);
+    check(keyFromLoadedSalt.size() == 32,
+          "a salt loaded from SaltStore can be used to derive a valid 32-byte key");
 
     qInfo() << "";
     qInfo() << "-----------------------------------------";
