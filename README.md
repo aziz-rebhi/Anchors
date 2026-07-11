@@ -41,7 +41,7 @@ UI  →  Repository  →  CryptoManager + EncryptedFileStore
 
 - [x] Crypto module (`CryptoManager`, `SecureBuffer`) — implemented and
       tested (7/7 tests passing)
-- [ ] Encrypted file storage (`EncryptedFileStore`)
+- [x] Encrypted file storage (`EncryptedFileStore`)
 - [ ] Login screen / session handling / auto-lock
 - [ ] Vault (passwords) — categorized by Social, Work, Learning, Entertainment
 - [ ] Notes
