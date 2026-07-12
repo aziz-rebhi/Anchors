@@ -10,6 +10,7 @@ SOURCES += \
     app/session.cpp \
     core/crypto/cryptomanager.cpp \
     core/models/profile.cpp \
+    core/security/autolockmanager.cpp \
     core/storage/encryptedfilestore.cpp \
     core/storage/repositories/profilerepository.cpp \
     core/storage/saltstore.cpp \
@@ -22,6 +23,7 @@ HEADERS += \
     core/crypto/SecureBuffer.h \
     core/crypto/cryptomanager.h \
     core/models/profile.h \
+    core/security/autolockmanager.h \
     core/storage/FilePaths.h \
     core/storage/encryptedfilestore.h \
     core/storage/repositories/profilerepository.h \

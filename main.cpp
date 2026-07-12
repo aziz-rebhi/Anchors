@@ -2,6 +2,7 @@
 #include "ui/loginscreen.h"
 #include "app/session.h"
 #include "core/crypto/cryptomanager.h"
+#include "core/security/autolockmanager.h"
 
 #include <QApplication>
 
@@ -15,40 +16,42 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // ── Create windows ──────────────────────────────────────────
+    Autolockmanager autoLockManager;
+    autoLockManager.setTimeOutSeconds(180); // 3 minutes — adjust to taste
+
     auto *loginScreen = new LoginScreen();
     loginScreen->setAttribute(Qt::WA_DeleteOnClose);
 
     MainWindow *mainWindow = nullptr;
 
-    // ── Unlock flow: correct password → unlock Session → show app
     QObject::connect(loginScreen, &LoginScreen::unlocked,
                      [&](const QByteArray &sessionKey) {
                          Session::instance()->unlock(sessionKey);
+                         autoLockManager.start();   // ← begin the countdown
 
                          mainWindow = new MainWindow();
                          mainWindow->setAttribute(Qt::WA_DeleteOnClose);
                          mainWindow->show();
 
-                         loginScreen->close();  // WA_DeleteOnClose frees it
+                         loginScreen->close();
                      });
 
-    // ── Lock flow: Session locks → show LoginScreen again
     QObject::connect(Session::instance(), &Session::locked,
                      [&]() {
-                         // MainWindow is still visible — hide it first
+                         autoLockManager.stop();    // ← pause until next unlock
+
                          if (mainWindow) {
-                             mainWindow->close();  // WA_DeleteOnClose frees it
+                             mainWindow->close();
                              mainWindow = nullptr;
                          }
 
-                         // Create a fresh login screen for re-authentication
                          loginScreen = new LoginScreen();
                          loginScreen->setAttribute(Qt::WA_DeleteOnClose);
 
                          QObject::connect(loginScreen, &LoginScreen::unlocked,
                                           [&](const QByteArray &sessionKey) {
                                               Session::instance()->unlock(sessionKey);
+                                              autoLockManager.start();
 
                                               mainWindow = new MainWindow();
                                               mainWindow->setAttribute(Qt::WA_DeleteOnClose);

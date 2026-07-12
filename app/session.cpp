@@ -1,6 +1,7 @@
 #include "session.h"
 #include <sodium.h>
 #include <QDebug>
+#include <algorithm>
 
 Session *Session::instance(){
     static Session s_instance;
