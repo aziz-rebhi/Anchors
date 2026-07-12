@@ -7,6 +7,7 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    app/session.cpp \
     core/crypto/cryptomanager.cpp \
     core/models/profile.cpp \
     core/storage/encryptedfilestore.cpp \
@@ -17,6 +18,7 @@ SOURCES += \
     ui/loginscreen.cpp
 
 HEADERS += \
+    app/session.h \
     core/crypto/SecureBuffer.h \
     core/crypto/cryptomanager.h \
     core/models/profile.h \

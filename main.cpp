@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui/loginscreen.h"
+#include "app/session.h"
 #include "core/crypto/cryptomanager.h"
 
 #include <QApplication>
@@ -7,26 +8,56 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    a.setApplicationName("Anchor"); // important: keeps app data separate
-    // from the "Tests" folder used by
-    // the test suite
+    a.setApplicationName("Anchor");
+    a.setQuitOnLastWindowClosed(true);
 
     if (!CryptoManager::init()) {
-        return 1; // libsodium failed to initialize — cannot proceed safely
+        return 1;
     }
 
+    // ── Create windows ──────────────────────────────────────────
     auto *loginScreen = new LoginScreen();
+    loginScreen->setAttribute(Qt::WA_DeleteOnClose);
+
     MainWindow *mainWindow = nullptr;
 
-    QObject::connect(loginScreen, &::LoginScreen::unlocked,
+    // ── Unlock flow: correct password → unlock Session → show app
+    QObject::connect(loginScreen, &LoginScreen::unlocked,
                      [&](const QByteArray &sessionKey) {
+                         Session::instance()->unlock(sessionKey);
+
                          mainWindow = new MainWindow();
-                         // TODO: pass sessionKey into MainWindow once it needs to use it
-                         // (e.g. mainWindow->setSessionKey(sessionKey);) — MainWindow
-                         // doesn't need it yet since no repositories are wired into the
-                         // UI at this stage.
-                         mainWindow -> show();
-                         loginScreen -> deleteLater();
+                         mainWindow->setAttribute(Qt::WA_DeleteOnClose);
+                         mainWindow->show();
+
+                         loginScreen->close();  // WA_DeleteOnClose frees it
+                     });
+
+    // ── Lock flow: Session locks → show LoginScreen again
+    QObject::connect(Session::instance(), &Session::locked,
+                     [&]() {
+                         // MainWindow is still visible — hide it first
+                         if (mainWindow) {
+                             mainWindow->close();  // WA_DeleteOnClose frees it
+                             mainWindow = nullptr;
+                         }
+
+                         // Create a fresh login screen for re-authentication
+                         loginScreen = new LoginScreen();
+                         loginScreen->setAttribute(Qt::WA_DeleteOnClose);
+
+                         QObject::connect(loginScreen, &LoginScreen::unlocked,
+                                          [&](const QByteArray &sessionKey) {
+                                              Session::instance()->unlock(sessionKey);
+
+                                              mainWindow = new MainWindow();
+                                              mainWindow->setAttribute(Qt::WA_DeleteOnClose);
+                                              mainWindow->show();
+
+                                              loginScreen->close();
+                                          });
+
+                         loginScreen->show();
                      });
 
     loginScreen->show();
