@@ -13,7 +13,8 @@ SOURCES += \
     core/storage/repositories/profilerepository.cpp \
     core/storage/saltstore.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    ui/loginscreen.cpp
 
 HEADERS += \
     core/crypto/SecureBuffer.h \
@@ -23,7 +24,8 @@ HEADERS += \
     core/storage/encryptedfilestore.h \
     core/storage/repositories/profilerepository.h \
     core/storage/saltstore.h \
-    mainwindow.h
+    mainwindow.h \
+    ui/loginscreen.h
 
 FORMS += \
     mainwindow.ui

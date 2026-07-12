@@ -9,7 +9,7 @@
 class profilerepository
 {
 public:
-    explicit profilerepository(const QByteArray &sessionKeey);
+    explicit profilerepository(const QByteArray &sessionKey);
     profile load(bool *ok = nullptr) const ;
     bool save (const profile &profile) const ;
 private :
