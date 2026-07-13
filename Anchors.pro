@@ -16,7 +16,8 @@ SOURCES += \
     core/storage/saltstore.cpp \
     main.cpp \
     mainwindow.cpp \
-    ui/loginscreen.cpp
+    ui/loginscreen.cpp \
+    ui/welcomescreen.cpp
 
 HEADERS += \
     app/session.h \
@@ -29,7 +30,8 @@ HEADERS += \
     core/storage/repositories/profilerepository.h \
     core/storage/saltstore.h \
     mainwindow.h \
-    ui/loginscreen.h
+    ui/loginscreen.h \
+    ui/welcomescreen.h
 
 FORMS += \
     mainwindow.ui
@@ -40,3 +42,7 @@ LIBS += -lsodium
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+RESOURCES += \
+    Ressource.qrc \
+    src.qrc
