@@ -16,8 +16,15 @@ SOURCES += \
     core/storage/saltstore.cpp \
     main.cpp \
     mainwindow.cpp \
+    ui/dashboardpage.cpp \
     ui/loginscreen.cpp \
-    ui/welcomescreen.cpp
+    ui/vaultentrydialog.cpp \
+    ui/vaultpage.cpp \
+    ui/welcomescreen.cpp \
+    vault/cliboardguard.cpp \
+    vault/passwordgenerator.cpp \
+    vault/vaultentry.cpp \
+    vault/vaultrepository.cpp
 
 HEADERS += \
     app/session.h \
@@ -30,8 +37,15 @@ HEADERS += \
     core/storage/repositories/profilerepository.h \
     core/storage/saltstore.h \
     mainwindow.h \
+    ui/dashboardpage.h \
     ui/loginscreen.h \
-    ui/welcomescreen.h
+    ui/vaultentrydialog.h \
+    ui/vaultpage.h \
+    ui/welcomescreen.h \
+    vault/cliboardguard.h \
+    vault/passwordgenerator.h \
+    vault/vaultentry.h \
+    vault/vaultrepository.h
 
 FORMS += \
     mainwindow.ui

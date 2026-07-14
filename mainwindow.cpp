@@ -1,5 +1,8 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "ui/dashboardpage.h"
+#include "ui/vaultpage.h"
+#include "app/session.h"
 #include <QLabel>
 #include <QIcon>
 #include <QButtonGroup>
@@ -17,6 +20,25 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->btnNotes,     &QPushButton::clicked, this, &MainWindow::switchToPage3);
     connect(ui->btnCalendar,  &QPushButton::clicked, this, &MainWindow::switchToPage4);
     connect(ui->btnTodo,      &QPushButton::clicked, this, &MainWindow::switchToPage5);
+
+    // --------DashboardPage --------
+    DashboardPage *dashboard = new DashboardPage(this);
+    ui -> stackedWidget -> removeWidget(ui ->pageDashboard);
+    ui -> stackedWidget -> insertWidget(0, dashboard);
+    delete ui -> pageDashboard;
+    ui -> pageDashboard = dashboard;
+
+    // ---------VaultPage -----------
+    QByteArray sessionKey = Session::instance() -> sessionKey();
+    VaultPage *vaultPage = new VaultPage(sessionKey, this);
+    ui -> stackedWidget -> removeWidget (ui -> pageVault);
+    ui -> stackedWidget -> insertWidget(1, vaultPage);
+    delete  ui -> pageVault;
+    ui -> pageVault = vaultPage;
+
+    // ---------FrirstPage -----------
+    ui -> stackedWidget -> setCurrentIndex(0);
+
 
     // ------Groupe button ----------
     QButtonGroup *navGroup = new QButtonGroup(this);
