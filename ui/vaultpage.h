@@ -7,12 +7,19 @@
 #include "../vault/vaultrepository.h"
 
 #include <QWidget>
+#include <QList>
 
 class QLineEdit;
 class QVBoxLayout;
 class QHBoxLayout;
 class QPushButton;
 class QFrame;
+class QComboBox;
+class QGridLayout;
+class QLabel;
+class QListWidget;
+
+struct CategoryMeta { QString name; QString icon; QString subtitle; };
 
 class VaultPage : public QWidget
 {
@@ -24,31 +31,47 @@ public:
 private slots:
     void onAddClicked();
     void onSearchChanged(const QString &text);
-    void onCategoryCardClicked(const QString &category);
-    void onSortModeChanged(bool sortAlphabetically);
+    void onCategoryClicked(const QString &category);
+    void onSortModeChanged(int index);
+    void onCategoryFilterChanged(int index);
 
 private:
     void setupUi();
     void reloadEntries();
     void rebuildCategoryCards();
     void rebuildEntriesList();
-    QFrame *createCategoryCard(const QString &icon, const QString &name,
-                               const QString &subtitle, int count);
+    void updateStatistics();
+    void createCategoryCards();
     void editEntry(const QString &id);
     void deleteEntry(const QString &id);
     void copyPassword(const QString &id);
+    QString computeStrength(const QString &password) const;
 
     VaultRepository m_repository;
     QVector<VaultEntry> m_entries;
 
-    QString m_activeCategory; // empty = no filter
+    QString m_activeCategory;
     QString m_searchText;
-    bool m_sortAlphabetically = false; // false = most recent first
+    bool m_sortAlphabetically = false;
 
+    // Category metadata (non‑static)
+    QList<CategoryMeta> m_categoryMeta;
+
+    // UI elements
     QHBoxLayout *m_categoriesLayout = nullptr;
-    QVBoxLayout *m_entriesLayout = nullptr;
+    QListWidget *m_entriesList = nullptr;
     QLineEdit *m_searchField = nullptr;
-    QPushButton *m_sortAZButton = nullptr;
-    QPushButton *m_sortRecentButton = nullptr;
+    QComboBox *m_categoryCombo = nullptr;
+    QComboBox *m_sortCombo = nullptr;
+    QGridLayout *m_statsLayout = nullptr;
+
+    // Stat cards
+    QList<QLabel*> m_statValueLabels;
+
+    // Category buttons
+    QList<QPushButton*> m_categoryButtons;
+    QList<QLabel*> m_categoryCountLabels;
+    QList<QString> m_categoryNames;
 };
+
 #endif // VAULTPAGE_H
