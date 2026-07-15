@@ -1,6 +1,6 @@
 #include "vaultpage.h"
 #include "vaultentrydialog.h"
-#include "../vault/cliboardguard.h"
+#include "../core/security/cliboardguard.h"
 
 #include <QFrame>
 #include <QHBoxLayout>

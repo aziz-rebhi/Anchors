@@ -9,43 +9,49 @@ CONFIG += c++17
 SOURCES += \
     app/session.cpp \
     core/crypto/cryptomanager.cpp \
+    core/models/noteentry.cpp \
     core/models/profile.cpp \
     core/security/autolockmanager.cpp \
     core/storage/encryptedfilestore.cpp \
+    core/storage/repositories/noterepository.cpp \
     core/storage/repositories/profilerepository.cpp \
     core/storage/saltstore.cpp \
     main.cpp \
     mainwindow.cpp \
     ui/dashboardpage.cpp \
     ui/loginscreen.cpp \
+    ui/notepage.cpp \
     ui/vaultentrydialog.cpp \
     ui/vaultpage.cpp \
     ui/welcomescreen.cpp \
-    vault/cliboardguard.cpp \
-    vault/passwordgenerator.cpp \
-    vault/vaultentry.cpp \
-    vault/vaultrepository.cpp
+    core/security/cliboardguard.cpp \
+    core/security/passwordgenerator.cpp \
+    core/models/vaultentry.cpp \
+    core/storage/repositories/vaultrepository.cpp
 
 HEADERS += \
     app/session.h \
     core/crypto/SecureBuffer.h \
     core/crypto/cryptomanager.h \
+    core/models/noteentry.h \
     core/models/profile.h \
     core/security/autolockmanager.h \
     core/storage/FilePaths.h \
     core/storage/encryptedfilestore.h \
+    core/storage/repositories/noterepository.h \
     core/storage/repositories/profilerepository.h \
     core/storage/saltstore.h \
     mainwindow.h \
     ui/dashboardpage.h \
     ui/loginscreen.h \
+    ui/notepage.h \
     ui/vaultentrydialog.h \
     ui/vaultpage.h \
     ui/welcomescreen.h \
-    vault/cliboardguard.h \
-    vault/passwordgenerator.h \
-    vault/vaultentry.h \
-    vault/vaultrepository.h
+    core/security/cliboardguard.h \
+    core/security/passwordgenerator.h \
+    core/models/vaultentry.h \
+    core/storage/repositories/vaultrepository.h
 
 FORMS += \
     mainwindow.ui

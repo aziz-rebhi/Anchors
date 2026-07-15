@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "../vault/vaultentry.h"
-#include "../vault/vaultrepository.h"
+#include "../core/models/vaultentry.h"
+#include "../core/storage/repositories/vaultrepository.h"
 
 #include <QWidget>
 #include <QList>

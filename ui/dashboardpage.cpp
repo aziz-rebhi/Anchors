@@ -22,17 +22,10 @@ DashboardPage::DashboardPage(QWidget *parent)
     : QWidget(parent)
 {
     setupUi();
-    // Empty on construction — correct, since nothing has fed real data
-    // in yet. Shows the empty states until MainWindow calls the setters.
     rebuildTasksCard();
     rebuildScheduleCard();
 }
 
-/* Clears every item from a content layout, deleting the actual widgets
-   this time (not just the layout wrapper) — this is the fix for the
-   orphaned-widget bug: we only ever clear a layout that holds nothing
-   but simple widget rows, never a layout that itself contains nested
-   layouts, so item->widget() is never null here. */
 void DashboardPage::clearLayout(QVBoxLayout *layout)
 {
     if (!layout) return;
@@ -49,15 +42,15 @@ QFrame *DashboardPage::createCard(const QString &iconEmoji, const QString &title
                                   QWidget *headerExtra, QVBoxLayout **outContentLayout)
 {
     auto *card = new QFrame(this);
+    // No border – only background and rounded corners
     card->setStyleSheet(QString(R"(
-        QFrame { background-color: %1; border: 1px solid %2; border-radius: 16px; }
-    )").arg(C_BG_CARD, C_BORDER));
+        QFrame { background-color: %1; border: none; border-radius: 16px; }
+    )").arg(C_BG_CARD));
 
     auto *outer = new QVBoxLayout(card);
     outer->setContentsMargins(20, 20, 20, 20);
     outer->setSpacing(16);
 
-    // --- Header row: icon + title + optional extra widget (e.g. "Add Task") ---
     auto *header = new QHBoxLayout();
     header->setSpacing(10);
 
@@ -79,11 +72,6 @@ QFrame *DashboardPage::createCard(const QString &iconEmoji, const QString &title
 
     outer->addLayout(header);
 
-    // --- Content area: a SEPARATE nested widget, dedicated to whatever
-    // dynamic rows get added later. Callers only ever clear/rebuild
-    // THIS layout — the header above is never touched again after
-    // construction, which is exactly what avoids the orphaned-widget
-    // bug from before. ---
     auto *contentWidget = new QWidget(card);
     contentWidget->setStyleSheet("background: transparent;");
     auto *contentLayout = new QVBoxLayout(contentWidget);
@@ -104,17 +92,14 @@ void DashboardPage::setupUi()
     mainLayout->setContentsMargins(40, 24, 40, 40);
     mainLayout->setSpacing(24);
 
-    // --- Header row ---
     auto *headerLayout = new QHBoxLayout();
     headerLayout->setSpacing(16);
 
     auto *titleLayout = new QVBoxLayout();
     titleLayout->setSpacing(2);
 
-    // Time-based greeting instead of a static "Morning Overview" label —
-    // this alone makes the header feel live rather than a mockup.
-    QString overview;
     int hour = QTime::currentTime().hour();
+    QString overview;
     if (hour < 12) overview = "MORNING OVERVIEW";
     else if (hour < 18) overview = "AFTERNOON OVERVIEW";
     else overview = "EVENING OVERVIEW";
@@ -133,9 +118,6 @@ void DashboardPage::setupUi()
 
     headerLayout->addLayout(titleLayout, 1);
 
-    // Status pill — reflects that the app is genuinely unlocked right
-    // now (this page can't even be visible while locked), rather than
-    // being a hardcoded decorative string.
     auto *statusRow = new QHBoxLayout();
     statusRow->setSpacing(8);
     auto *statusDot = new QFrame(this);
@@ -155,10 +137,6 @@ void DashboardPage::setupUi()
 
     mainLayout->addLayout(headerLayout);
 
-    // --- Grid: Tasks full-width on top; Schedule + Scratchpad below.
-    // No "Action Required" card — removed per request, which is also
-    // exactly why Tasks now spans the full width instead of sharing
-    // the top row with something else. ---
     auto *grid = new QGridLayout();
     grid->setSpacing(16);
     grid->setColumnStretch(0, 3);
@@ -181,9 +159,6 @@ void DashboardPage::setupUi()
     QFrame *scheduleCard = createCard("\U0001F4C5", "Schedule", nullptr, &m_scheduleContent);
     grid->addWidget(scheduleCard, 1, 0, 1, 1);
 
-    // Scratchpad is genuinely live (a real QTextEdit you can type into)
-    // — just not persisted anywhere yet, since there's no Notes module
-    // to save it to. Worth wiring to NotesRepository once that exists.
     QVBoxLayout *scratchContent = nullptr;
     QFrame *scratchCard = createCard("\U0001F4DD", "Scratchpad", nullptr, &scratchContent);
     auto *textEdit = new QTextEdit(scratchCard);

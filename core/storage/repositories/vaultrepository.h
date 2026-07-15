@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "vaultentry.h"
+#include "../../models/vaultentry.h"
 #include <QByteArray>
 #include <QVector>
 

@@ -2,7 +2,9 @@
 #include "ui_mainwindow.h"
 #include "ui/dashboardpage.h"
 #include "ui/vaultpage.h"
+#include "ui/notepage.h"
 #include "app/session.h"
+#include "core/storage/repositories/profilerepository.h"
 #include <QLabel>
 #include <QIcon>
 #include <QButtonGroup>
@@ -28,6 +30,15 @@ MainWindow::MainWindow(QWidget *parent)
     delete ui -> pageDashboard;
     ui -> pageDashboard = dashboard;
 
+    profilerepository profileRepo(Session::instance() -> sessionKey());
+    bool loadOk = false;
+    profile userProfile = profileRepo.load(&loadOk);
+    if (loadOk && !userProfile.name.isEmpty()){
+        dashboard -> setGreetingName(userProfile.name);
+    }else{
+        dashboard ->setGreetingName(QString());
+    }
+
     // ---------VaultPage -----------
     QByteArray sessionKey = Session::instance() -> sessionKey();
     VaultPage *vaultPage = new VaultPage(sessionKey, this);
@@ -35,6 +46,13 @@ MainWindow::MainWindow(QWidget *parent)
     ui -> stackedWidget -> insertWidget(1, vaultPage);
     delete  ui -> pageVault;
     ui -> pageVault = vaultPage;
+
+    // --------NotePage -------------
+    NotePage *notePage = new NotePage(sessionKey, this);
+    ui -> stackedWidget -> removeWidget(ui -> pageNotes);
+    ui -> stackedWidget -> insertWidget(2, notePage);
+    delete ui -> pageNotes;
+    ui -> pageNotes = notePage;
 
     // ---------FrirstPage -----------
     ui -> stackedWidget -> setCurrentIndex(0);

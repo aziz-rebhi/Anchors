@@ -1,7 +1,7 @@
 #include "vaultrepository.h"
 
-#include "../core/storage/encryptedfilestore.h"
-#include "../core/storage/FilePaths.h"
+#include "../../storage/encryptedfilestore.h"
+#include "../../storage/FilePaths.h"
 
 #include <QDateTime>
 #include <QJsonArray>

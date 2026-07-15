@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "../vault/vaultentry.h"
+#include "../core/models/vaultentry.h"
 
 #include <QDialog>
 

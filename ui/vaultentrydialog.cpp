@@ -1,5 +1,5 @@
 #include "vaultentrydialog.h"
-#include "../vault/passwordgenerator.h"
+#include "../core/security/passwordgenerator.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
