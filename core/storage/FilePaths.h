@@ -23,6 +23,7 @@ inline QString calendarFile() { return dataDir() + QStringLiteral("/calendar.enc
 inline QString resumeFile()   { return dataDir() + QStringLiteral("/resume.enc"); }
 inline QString profileFile()  { return dataDir() + QStringLiteral("/profile.enc"); }
 inline QString verifyFile ()  { return dataDir() + QStringLiteral("/verify.enc");}
+inline QString pinFile()      {return dataDir()  + QStringLiteral("/pin.enc");}
 }
 
 #endif // FILEPATHS_H

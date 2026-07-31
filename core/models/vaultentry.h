@@ -20,6 +20,7 @@ class VaultEntry
     friend class VaultRepository;
     friend class VaultEntryDialog;
     friend class VaultPage;
+    friend class VaultController;
 
     QJsonObject toJson() const;
     static VaultEntry fromJson(const QJsonObject &obj);

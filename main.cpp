@@ -1,86 +1,54 @@
-#include "core/security/autolockmanager.h"
-#include "mainwindow.h"
-#include "ui/loginscreen.h"
-#include "ui/welcomescreen.h"
-#include "app/session.h"
-#include "core/crypto/cryptomanager.h"
-#include "core/security/autolockmanager.h"
-#include "core/models/profile.h"
-#include "core/storage/repositories/profilerepository.h"
-#include "core/storage/saltstore.h"
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QDebug>
 
-#include <QApplication>
+#include "app/session.h"
+#include "app/authcontroller.h"
+#include "app/vaultcontroller.h"
+#include "app/notecontroller.h"
+#include "app/calendarcontroller.h"
+#include "app/taskcontroller.h"
+#include "core/crypto/cryptomanager.h"
 
 int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
-    a.setApplicationName("Anchor");
-    a.setQuitOnLastWindowClosed(true);
+    QGuiApplication app(argc, argv);
 
+    // Libsodium must be initialized before anything touches CryptoManager,
+    // SaltStore, or AuthController.
     if (!CryptoManager::init()) {
+        qCritical() << "ERROR: Failed to init libsodium!";
         return 1;
     }
 
-    Autolockmanager autoLockManager;
-    autoLockManager.setTimeOutSeconds(180);
+    QQmlApplicationEngine engine;
 
-    MainWindow *mainWindow = nullptr;
-    LoginScreen *loginScreen = nullptr;
+    // These are plain local objects (not singletons) - none of them hold
+    // state of their own. Each re-reads Session::instance()->sessionKey()
+    // fresh on every call, so a single instance stays correct across
+    // lock/unlock cycles for the lifetime of the app.
+    AuthController authController;
+    VaultController vaultController;
+    NoteController noteController;
+    CalendarController calendarController;
+    TaskController taskController;
 
-    profile pendingProfile;
+    engine.rootContext()->setContextProperty("authController", &authController);
+    engine.rootContext()->setContextProperty("session", Session::instance());
+    engine.rootContext()->setContextProperty("vaultController", &vaultController);
+    engine.rootContext()->setContextProperty("noteController", &noteController);
+    engine.rootContext()->setContextProperty("calendarController", &calendarController);
+    engine.rootContext()->setContextProperty("taskController", &taskController);
 
+    // Removed the objectCreationFailed connection – it does not exist in Qt6.
+    // The check for engine.rootObjects().isEmpty() below handles failure.
 
-    auto showLoginScreen = [&]() {
-        loginScreen = new LoginScreen();
-        loginScreen->setAttribute(Qt::WA_DeleteOnClose);
+    engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
 
-        QObject::connect(loginScreen, &LoginScreen::unlocked,
-                         [&](const QByteArray &sessionKey) {
-                             Session::instance()->unlock(sessionKey);
-                             autoLockManager.start();
-
-                             if (!pendingProfile.name.isEmpty() || pendingProfile.birthday.isValid()) {
-                                 profilerepository(sessionKey).save(pendingProfile);
-                             }
-
-                             mainWindow = new MainWindow();
-                             mainWindow->setAttribute(Qt::WA_DeleteOnClose);
-                             mainWindow->show();
-
-                             loginScreen->close();
-                         });
-
-        loginScreen->show();
-    };
-
-    QObject::connect(Session::instance(), &Session::locked,
-                     [&]() {
-                         autoLockManager.stop();
-
-                         if (mainWindow) {
-                             mainWindow->close();
-                             mainWindow = nullptr;
-                         }
-
-                         showLoginScreen();
-                     });
-
-    if (!SaltStore::exists()) {
-        auto *welcomeScreen = new Welcomescreen();
-        welcomeScreen->setAttribute(Qt::WA_DeleteOnClose);
-
-        QObject::connect(welcomeScreen, &Welcomescreen::continueRequested,
-                         [&, welcomeScreen](const QString &name, const QDate &birthday) {
-                             pendingProfile.name = name;
-                             pendingProfile.birthday = birthday;
-                             welcomeScreen->close();
-                             showLoginScreen();
-                         });
-
-        welcomeScreen->show();
-    } else {
-        showLoginScreen();
+    if (engine.rootObjects().isEmpty()) {
+        return -1;
     }
 
-    return QApplication::exec();
+    return app.exec();
 }

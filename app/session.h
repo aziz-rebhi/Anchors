@@ -22,9 +22,9 @@ public:
 
     void unlock (const QByteArray &key);
 
-    void lock();
-    bool isUnlocked() const;
-    bool isLocked() const;
+    Q_INVOKABLE void lock();
+    Q_INVOKABLE bool isUnlocked() const;
+    Q_INVOKABLE bool isLocked() const;
 
     state State() const;
 

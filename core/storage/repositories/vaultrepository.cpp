@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QUuid>
+#include <algorithm>
 
 VaultRepository::VaultRepository(const QByteArray &sessionKey)
     : m_sessionKey(sessionKey)
@@ -72,9 +73,11 @@ bool VaultRepository::deleteEntry(const QString &id) const
 {
     QVector<VaultEntry> entries = loadAll();
     const int before = entries.size();
-    entries.removeIf([&id](const VaultEntry &e) { return e.id == id; });
+    entries.erase(std::remove_if(entries.begin(), entries.end(),
+                                 [&id](const VaultEntry &e) { return e.id == id; }),
+                  entries.end());
     if (entries.size() == before) {
-        return false; // nothing was removed
+        return false;
     }
     return saveAll(entries);
 }

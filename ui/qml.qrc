@@ -1,0 +1,20 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>Main.qml</file>
+        <file>SetupPage.qml</file>
+        <file>LockPage.qml</file>
+        <file>WelcomePage.qml</file>
+        <file>HomePage.qml</file>
+        <file>DashboardPage.qml</file>
+        <file>VaultPage.qml</file>
+        <file>VaultEntryDialog.qml</file>
+        <file>NotesPage.qml</file>
+        <file>CalendarPage.qml</file>
+        <file>CalendarEventDialog.qml</file>
+        <file>TodoPage.qml</file>
+        <file>Theme.qml</file>
+        <file>PrimaryButton.qml</file>
+        <file>StyledTextField.qml</file>
+        <file>logo.png</file>
+    </qresource>
+</RCC>

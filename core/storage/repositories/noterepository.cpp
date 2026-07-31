@@ -1,10 +1,11 @@
 #include "noterepository.h"
-#include "../../core/storage/encryptedfilestore.h"
-#include "../../core/storage/FilePaths.h"
+#include "core/storage/encryptedfilestore.h"
+#include "core/storage/FilePaths.h"
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QUuid>
+#include <algorithm>
 
 NoteRepository::NoteRepository(const QByteArray &sessionKey)
     : m_sessionKey(sessionKey)
@@ -70,7 +71,9 @@ bool NoteRepository::deleteEntry(const QString &id) const
 {
     QVector<NoteEntry> entries = loadAll();
     const int before = entries.size();
-    entries.removeIf([&id](const NoteEntry &e) { return e.m_id == id; });
+    entries.erase(std::remove_if(entries.begin(), entries.end(),
+                                 [&id](const NoteEntry &e) { return e.m_id == id; }),
+                  entries.end());
     if (entries.size() == before) {
         return false;
     }

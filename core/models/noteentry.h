@@ -16,6 +16,7 @@ class NoteEntry
 
     friend class NoteRepository;
     friend class NotePage;
+    friend class NoteController;
 
 public:
     NoteEntry() = default;
@@ -27,6 +28,7 @@ public:
     QString title() const { return m_title;}
     QString content() const {return m_content;}
     qint64 createdAt() const {return m_createdAt;}
+    qint64 updatedAt() const {return m_updatedAt;}
 
 };
 

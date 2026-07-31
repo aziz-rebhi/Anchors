@@ -4,6 +4,7 @@
 
 #include <QDebug>
 #include <QFile>
+#include <sodium/crypto_pwhash.h>
 
 
 namespace
@@ -53,5 +54,28 @@ QByteArray SaltStore::load()
     QByteArray salt = file.readAll();
     file.close();
     return salt;
+}
+
+bool SaltStore::save(const QByteArray &salt){
+    if (salt.size() != crypto_pwhash_SALTBYTES) {
+        qWarning() << "SaltStore::save : invalid salt size, excpected"
+                   << crypto_pwhash_SALTBYTES << "got" <<salt.size();
+        return false;
+    }
+
+    QFile file(saltFilePath());
+    if (!file.open(QIODevice::WriteOnly)) {
+        qWarning() <<"SaltStore::save: could not open" << saltFilePath() << "-" << file.errorString();
+        return false;
+    }
+
+    qint64 written = file.write(salt);
+    file.close();
+
+    if (written != salt.size()) {
+        qWarning() <<"SaltStore::save : incomplete write to" << saltFilePath();
+        return false ;
+    }
+    return true;
 }
 

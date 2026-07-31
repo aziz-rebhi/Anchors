@@ -7,6 +7,7 @@
 namespace SaltStore{
 bool exists();
 bool generateAndSave();
+bool save(const QByteArray &salt);
 QByteArray load();
 }
 
