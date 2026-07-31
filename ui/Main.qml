@@ -13,6 +13,8 @@ ApplicationWindow {
     color: theme.background
     font.family: theme.bodyFont
 
+
+
     StackView {
         id: stack
         anchors.fill: parent

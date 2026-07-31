@@ -1,6 +1,6 @@
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 
 Popup {
     id: root
@@ -25,13 +25,16 @@ Popup {
         border.color: theme.border
     }
 
+    // ---- Category list (static) ----
+    readonly property var categoryOptions: ["Social", "Work", "Learning", "Finance", "Other"]
+
     function openForCreate() {
         editingId = ""
         titleField.text = ""
         usernameField.text = ""
         passwordField.text = ""
         urlField.text = ""
-        categoryField.text = ""
+        categoryCombo.currentIndex = 0 // default to first category
         errorLabel.text = ""
         open()
     }
@@ -42,7 +45,9 @@ Popup {
         usernameField.text = entry.username
         passwordField.text = entry.password
         urlField.text = entry.url
-        categoryField.text = entry.category
+        // Set the combo to the category if it matches, else "Other"
+        var idx = categoryOptions.indexOf(entry.category)
+        categoryCombo.currentIndex = (idx >= 0) ? idx : 4
         errorLabel.text = ""
         open()
     }
@@ -90,10 +95,67 @@ Popup {
             placeholderText: "URL (optional)"
             Layout.fillWidth: true
         }
-        StyledTextField {
-            id: categoryField
-            placeholderText: "Category (e.g. Social, Work, Learning, Finance)"
+
+        // ---- Category dropdown ----
+        ComboBox {
+            id: categoryCombo
             Layout.fillWidth: true
+            model: root.categoryOptions
+            // Use a custom delegate to match the StyledTextField style
+            delegate: ItemDelegate {
+                width: categoryCombo.width
+                text: modelData
+                font.family: theme.bodyFont
+                font.pixelSize: 14
+                highlighted: categoryCombo.highlightedIndex === index
+                background: Rectangle {
+                    color: highlighted ? theme.surfaceAlt : "transparent"
+                }
+            }
+            // Style the content to match dark theme
+            contentItem: Text {
+                text: categoryCombo.displayText
+                color: theme.textPrimary
+                font.family: theme.bodyFont
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignLeft
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+            background: Rectangle {
+                color: theme.surfaceAlt
+                border.color: theme.border
+                border.width: 1
+                radius: theme.radiusMedium
+                implicitHeight: 44
+                // Arrow indicator
+                Label {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: 12
+                    text: "▼"
+                    color: theme.textMuted
+                    font.pixelSize: 12
+                }
+            }
+            popup: Popup {
+                y: categoryCombo.height + 2
+                width: categoryCombo.width
+                padding: 4
+                background: Rectangle {
+                    color: theme.surfaceAlt
+                    border.color: theme.border
+                    border.width: 1
+                    radius: theme.radiusMedium
+                }
+                contentItem: ListView {
+                    clip: true
+                    implicitHeight: contentHeight
+                    model: categoryCombo.popup.visible ? categoryCombo.delegateModel : null
+                    currentIndex: categoryCombo.highlightedIndex
+                    ScrollIndicator.vertical: ScrollIndicator { }
+                }
+            }
         }
 
         Label {
@@ -126,13 +188,15 @@ Popup {
                         return
                     }
 
+                    var category = categoryCombo.displayText
+
                     var ok
                     if (root.isEditing) {
                         ok = vaultController.updateEntry(root.editingId, titleField.text, usernameField.text,
-                                                          passwordField.text, urlField.text, categoryField.text)
+                                                          passwordField.text, urlField.text, category)
                     } else {
                         ok = vaultController.addEntry(titleField.text, usernameField.text,
-                                                       passwordField.text, urlField.text, categoryField.text)
+                                                       passwordField.text, urlField.text, category)
                     }
 
                     if (ok) {
