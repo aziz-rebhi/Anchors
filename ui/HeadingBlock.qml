@@ -20,7 +20,7 @@ Rectangle {
         anchors.margins: 4
         text: root.text
         placeholderText: "Heading..."
-        font.pixelSize: level === 1 ? 28 : 22
+        font.pixelSize: root.level === 1 ? 28 : (root.level === 2 ? 22 : 18)
         font.bold: true
         color: "#222"
         background: Rectangle { color: "transparent" }
@@ -31,6 +31,7 @@ Rectangle {
         }
         Keys.onPressed: (event) => {
             if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                // Insert a paragraph after this heading
                 noteEditor.insertBlock("", 0, 0, "")
                 event.accepted = true
             }

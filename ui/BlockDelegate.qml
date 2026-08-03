@@ -3,19 +3,16 @@ import QtQuick.Controls 2.15
 
 Item {
     id: root
-    property var blockData: (model && model.data) ? model.data : null
+    property var blockData: (model && model.blockData) ? model.blockData : null
     property string blockId: (model && model.id) ? model.id : ""
 
-    // FIX: give the delegate explicit dimensions
-    // The Loader no longer uses anchors.fill (which forced 0 height
-    // because the parent Item had no height). Instead the Item
-    // sizes itself from the loaded component.
+    // Semantic types from BlockModel::TypeRole:
+    // 0=Paragraph, 1=H1, 2=H2, 3=H3, 4=Todo, 5=Code, 6=Image, 7=Table
     width: ListView.view ? ListView.view.width : 0
     height: blockLoader.item ? blockLoader.item.height : 30
 
     Loader {
         id: blockLoader
-        // Only anchor horizontally — let height come from the loaded item
         anchors.left: parent.left
         anchors.right: parent.right
         sourceComponent: {
@@ -23,8 +20,8 @@ Item {
             var type = model.type
             switch (type) {
             case "0": return paragraphComponent
-            case "1": return headingComponent
-            case "2": return headingComponent
+            case "1": case "2": case "3": return headingComponent
+            case "4": return todoComponent
             default: return paragraphComponent
             }
         }
@@ -35,8 +32,8 @@ Item {
         ParagraphBlock {
             blockId: root.blockId
             text: root.blockData ? root.blockData.text : ""
-            onContentChanged: {
-                if (noteEditor) noteEditor.updateBlockContent(blockId, contentChanged)
+            onContentChanged: function(newText) {
+                if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
             }
         }
     }
@@ -45,10 +42,25 @@ Item {
         id: headingComponent
         HeadingBlock {
             blockId: root.blockId
-            level: model && model.type === "1" ? 1 : 2
+            level: parseInt(model.type)
             text: root.blockData ? root.blockData.text : ""
-            onContentChanged: {
-                if (noteEditor) noteEditor.updateBlockContent(blockId, contentChanged)
+            onContentChanged: function(newText) {
+                if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
+            }
+        }
+    }
+
+    Component {
+        id: todoComponent
+        TodoBlock {
+            blockId: root.blockId
+            text: root.blockData ? root.blockData.text : ""
+            checked: root.blockData ? root.blockData.checked : false
+            onContentChanged: function(newText) {
+                if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
+            }
+            onTodoCheckedChanged: function(isChecked) {
+                if (noteEditor) noteEditor.toggleBlockChecked(blockId, isChecked)
             }
         }
     }

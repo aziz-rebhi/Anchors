@@ -2,6 +2,7 @@
 #include <QString>
 #include <QList>
 #include <QVariant>
+#include <variant>
 
 // Forward declarations
 struct ParagraphData;
@@ -9,6 +10,7 @@ struct HeadingData;
 struct CodeData;
 struct ImageData;
 struct TableData;
+struct TodoData;
 // ... more types later
 
 using BlockData = std::variant<
@@ -16,7 +18,8 @@ using BlockData = std::variant<
     HeadingData,
     CodeData,
     ImageData,
-    TableData
+    TableData,
+    TodoData
     >;
 
 struct ParagraphData {
@@ -44,4 +47,9 @@ struct TableData {
     int rows = 0;
     int cols = 0;
     QList<QList<QString>> cells;
+};
+
+struct TodoData{
+    QString text;
+    bool checked = false;
 };

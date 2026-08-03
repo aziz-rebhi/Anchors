@@ -34,6 +34,8 @@ public:
     void removeBlock(QUuid blockId);
     void moveBlock(QUuid blockId, QUuid newParentId, int newRow);
     void updateBlockData(QUuid blockId);
+    void notifyInserted(QUuid parentId, int row);
+    void notifyRemove(QUuid parentId, int row);
 
     // Get block by index
     Block* blockFromIndex(const QModelIndex& index) const;

@@ -1,6 +1,7 @@
 #include "noteeditorcontroller.h"
 #include "../core/models/document.h"
 #include "../core/models/blockmodel.h"
+#include "../core/models/blockdata.h"
 #include "../core/storage/notesdatabase.h"
 #include <QDebug>
 
@@ -52,11 +53,9 @@ void NoteEditorController::createNewNote(const QString& title)
     QUuid docId = QUuid::createUuid();
     m_document = new Document(docId, title.isEmpty() ? "Untitled" : title, this);
 
-    // Insert a default paragraph block so the user can start typing
     BlockData data = ParagraphData{""};
     m_document->insertBlock(QUuid(), 0, data);
 
-    // Save to database
     if (!m_db->saveDocument(*m_document)) {
         emit errorOccurred("Failed to save new note");
     }
@@ -109,6 +108,9 @@ void NoteEditorController::deleteNote()
     emit noteTitleChanged(QString());
 }
 
+// Block type constants (must match BlockModel::TypeRole values)
+// 0 = Paragraph, 1 = H1, 2 = H2, 3 = H3, 4 = Todo
+
 void NoteEditorController::insertBlock(const QString& parentId, int row, int type, const QString& content)
 {
     if (!m_document) {
@@ -123,6 +125,8 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 0: data = ParagraphData{content}; break;
     case 1: data = HeadingData{1, content}; break;
     case 2: data = HeadingData{2, content}; break;
+    case 3: data = HeadingData{3, content}; break;   // H3
+    case 4: data = TodoData{content, false}; break;  // Todo
     default:
         emit errorOccurred("Unsupported block type");
         return;
@@ -155,6 +159,8 @@ void NoteEditorController::updateBlockContent(const QString& blockId, const QStr
             return ParagraphData{content};
         } else if constexpr (std::is_same_v<T, HeadingData>) {
             return HeadingData{arg.level, content};
+        } else if constexpr (std::is_same_v<T, TodoData>) {
+            return TodoData{content, arg.checked};
         } else {
             return ParagraphData{content};
         }
@@ -163,13 +169,29 @@ void NoteEditorController::updateBlockContent(const QString& blockId, const QStr
     m_document->updateBlockData(id, newData);
 }
 
+void NoteEditorController::toggleBlockChecked(const QString& blockId, bool checked)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    if (id.isNull()) return;
+
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    // Only works on TodoData blocks
+    if (!std::holds_alternative<TodoData>(block->data())) return;
+
+    auto todo = std::get<TodoData>(block->data());
+    todo.checked = checked;
+    m_document->updateBlockData(id, todo);
+}
+
 QVariantList NoteEditorController::getDocuments() const
 {
     QVariantList list;
     if (!m_db) return list;
     QList<QUuid> ids = m_db->allDocumentIds();
     for (const QUuid& id : ids) {
-        // Load only title for now
         Document* doc = m_db->loadDocument(id);
         if (doc) {
             QVariantMap map;
@@ -206,7 +228,8 @@ bool NoteEditorController::canRedo() const
     return m_document && m_document->undoStack() && m_document->undoStack()->canRedo();
 }
 
-void NoteEditorController::loadFromContent(const QString& title, const QStringList& paragraphs){
+void NoteEditorController::loadFromContent(const QString& title, const QStringList& paragraphs)
+{
     if (m_document){
         delete m_document;
         m_document = nullptr;
@@ -217,12 +240,12 @@ void NoteEditorController::loadFromContent(const QString& title, const QStringLi
 
     int row = 0;
     if (paragraphs.isEmpty()){
-        BlockData Data = ParagraphData{""};
-        m_document->insertBlock(QUuid(), row++, Data);
+        BlockData data = ParagraphData{""};
+        m_document->insertBlock(QUuid(), row++, data);
     } else {
         for  (const QString& para : paragraphs){
-            BlockData Data = ParagraphData{para};
-            m_document->insertBlock(QUuid(), row++, Data);
+            BlockData data = ParagraphData{para};
+            m_document->insertBlock(QUuid(), row++, data);
         }
     }
 

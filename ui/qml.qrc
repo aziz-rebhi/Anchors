@@ -20,5 +20,6 @@
         <file>BlockDelegate.qml</file>
         <file>ParagraphBlock.qml</file>
         <file>HeadingBlock.qml</file>
+        <file>TodoBlock.qml</file>
     </qresource>
 </RCC>

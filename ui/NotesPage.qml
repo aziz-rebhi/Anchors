@@ -198,9 +198,9 @@ Page {
         var lines  = []
         for (var i = 0; i < model.rowCount(); i++) {
             var idx  = model.index(i, 0)
-            var data = model.data(idx, 0x0102) // BlockModel::DataRole
-            if (data && data.text !== undefined) {
-                lines.push(data.text)
+            var blockData = model.data(idx, 0x0103) // BlockModel::DataRole
+            if (blockData && blockData.text !== undefined) {
+                lines.push(blockData.text)
             }
         }
         var content = lines.join("\n")
