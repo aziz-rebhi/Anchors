@@ -16,5 +16,9 @@
         <file>PrimaryButton.qml</file>
         <file>StyledTextField.qml</file>
         <file>logo.png</file>
+        <file>BlockList.qml</file>
+        <file>BlockDelegate.qml</file>
+        <file>ParagraphBlock.qml</file>
+        <file>HeadingBlock.qml</file>
     </qresource>
 </RCC>

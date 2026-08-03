@@ -13,6 +13,7 @@ class NoteEntry
     QString m_content;
     qint64 m_createdAt;
     qint64 m_updatedAt;
+    QString m_folder;
 
     friend class NoteRepository;
     friend class NotePage;

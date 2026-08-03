@@ -10,6 +10,9 @@
 #include "app/calendarcontroller.h"
 #include "app/taskcontroller.h"
 #include "core/crypto/cryptomanager.h"
+#include "core/storage/notesdatabase.h"
+#include "core/storage/FilePaths.h"
+#include "app/noteeditorcontroller.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,6 +36,12 @@ int main(int argc, char *argv[])
     NoteController noteController;
     CalendarController calendarController;
     TaskController taskController;
+    NoteEditorController noteEditorController;
+    QString dbPath = FilePaths::dataDir() + "/notes.db";
+    if (!NotesDatabase::instance()->initialize(dbPath)) {
+        qCritical() << "Failed to initialize notes database!";
+        return 1;
+    }
 
     engine.rootContext()->setContextProperty("authController", &authController);
     engine.rootContext()->setContextProperty("session", Session::instance());
@@ -40,6 +49,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("noteController", &noteController);
     engine.rootContext()->setContextProperty("calendarController", &calendarController);
     engine.rootContext()->setContextProperty("taskController", &taskController);
+    engine.rootContext()->setContextProperty("noteEditor", &noteEditorController);
 
     // Removed the objectCreationFailed connection – it does not exist in Qt6.
     // The check for engine.rootObjects().isEmpty() below handles failure.

@@ -1,4 +1,4 @@
-QT += widgets core quick qml
+QT += widgets core quick qml sql
 
 CONFIG += c++17
 
@@ -6,7 +6,12 @@ LIBS += -lsodium
 
 SOURCES += \
     app/calendarcontroller.cpp \
+    app/noteeditorcontroller.cpp \
+    core/models/block.cpp \
+    core/models/blockmodel.cpp \
     core/models/calendarentry.cpp \
+    core/models/document.cpp \
+    core/storage/notesdatabase.cpp \
     main.cpp \
     app/session.cpp \
     app/authcontroller.cpp \
@@ -32,6 +37,7 @@ SOURCES += \
 HEADERS += \
     app/authcontroller.h \
     app/calendarcontroller.h \
+    app/noteeditorcontroller.h \
     app/session.h \
     app/vaultcontroller.h \
     app/notecontroller.h \
@@ -39,6 +45,10 @@ HEADERS += \
     core/crypto/SecureBuffer.h \
     core/crypto/cryptomanager.h \
     core/models/Calendarentry.h \
+    core/models/block.h \
+    core/models/blockdata.h \
+    core/models/blockmodel.h \
+    core/models/document.h \
     core/models/noteentry.h \
     core/models/profile.h \
     core/models/vaultentry.h \
@@ -48,6 +58,7 @@ HEADERS += \
     core/security/passwordgenerator.h \
     core/storage/FilePaths.h \
     core/storage/encryptedfilestore.h \
+    core/storage/notesdatabase.h \
     core/storage/saltstore.h \
     core/storage/repositories/calendarrepository.h \
     core/storage/repositories/noterepository.h \
