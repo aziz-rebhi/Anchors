@@ -2,26 +2,24 @@
 #define NOTESDATABASE_H
 
 #include <QObject>
-#include <QSqlDatabase>
-#include <QSqlQuery>
 #include <QUuid>
 #include <QList>
+#include <QSqlDatabase>
 
-class Document; // forward declaration
+#include <QSqlQuery>
 
-class NotesDatabase : public QObject
-{
+class Document;
+
+class NotesDatabase : public QObject {
     Q_OBJECT
+
 public:
     static NotesDatabase* instance();
+
     bool initialize(const QString& dbPath);
     void close();
     bool isOpen() const;
 
-    // Table creation
-    bool createTables();
-
-    // CRUD operations
     bool saveDocument(const Document& doc);
     Document* loadDocument(QUuid id);
     bool deleteDocument(QUuid id);
@@ -29,7 +27,8 @@ public:
 
 private:
     explicit NotesDatabase(QObject* parent = nullptr);
-    ~NotesDatabase();
+    ~NotesDatabase() override;
+    bool createTables();
 
     static NotesDatabase* s_instance;
     QSqlDatabase m_db;

@@ -14,4 +14,32 @@ ListView {
             positionViewAtEnd()
         }
     }
+
+    // --- Auto-focus mechanism ---
+    // When the controller sets pendingFocusId, find that delegate and focus it
+    Connections {
+        target: noteEditor
+        function onPendingFocusIdChanged(id) {
+            if (id.length > 0) {
+                focusTimer.targetId = id
+                focusTimer.start()
+            }
+        }
+    }
+
+    Timer {
+        id: focusTimer
+        interval: 30
+        property string targetId: ""
+        onTriggered: {
+            for (var i = 0; i < root.count; i++) {
+                var delegate = root.itemAtIndex(i)
+                if (delegate && delegate.blockId === targetId) {
+                    delegate.focusInput()
+                    root.positionViewAtIndex(i, ListView.Contain)
+                    break
+                }
+            }
+        }
+    }
 }

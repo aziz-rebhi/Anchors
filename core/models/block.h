@@ -1,7 +1,10 @@
-#pragma once
+#ifndef BLOCK_H
+#define BLOCK_H
+
+#include "blockdata.h"
 #include <QUuid>
 #include <QDateTime>
-#include "blockdata.h"
+#include <QJsonObject>
 
 class Block {
 public:
@@ -12,6 +15,7 @@ public:
     QUuid parentId() const;
     int orderIndex() const;
     const BlockData& data() const;
+    BlockData& data();
     QDateTime created() const;
     QDateTime updated() const;
 
@@ -20,15 +24,16 @@ public:
     void setData(const BlockData& data);
     void updateTimestamp();
 
-    // Serialization
     QJsonObject toJson() const;
     static Block fromJson(const QJsonObject& obj);
 
 private:
     QUuid m_id;
     QUuid m_parentId;
-    int m_orderIndex = 0;
-    BlockData m_data = ParagraphData{""};
+    int m_orderIndex;
+    BlockData m_data;
     QDateTime m_created;
     QDateTime m_updated;
 };
+
+#endif // BLOCK_H

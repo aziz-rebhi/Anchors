@@ -17,7 +17,7 @@ Page {
         width: Math.min(parent.width * 0.8, 360)
 
         Image {
-            source: "assets/logo.png"
+            source: "logo.png"
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 88
             Layout.preferredHeight: 88 * (sourceSize.height / Math.max(sourceSize.width, 1))

@@ -1,26 +1,30 @@
-// blockmodel.h
-#pragma once
-#include <QAbstractItemModel>
-#include <QList>
-#include <QUuid>
-#include "block.h"
+#ifndef BLOCKMODEL_H
+#define BLOCKMODEL_H
 
+#include <QAbstractItemModel>
+#include <QUuid>
+#include <QHash>
+#include <QList>
+
+
+
+class Block;
 class Document;
 
 class BlockModel : public QAbstractItemModel {
     Q_OBJECT
+
 public:
     enum Roles {
         IdRole = Qt::UserRole + 1,
-        TypeRole,
-        DataRole,
-        // etc.
+        TypeRole = Qt::UserRole + 2,
+        DataRole = Qt::UserRole + 3
     };
 
     explicit BlockModel(Document* doc, QObject* parent = nullptr);
-    ~BlockModel();
+    ~BlockModel() override;
 
-    // QAbstractItemModel overrides
+    // QAbstractItemModel interface
     QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex& child) const override;
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -29,25 +33,20 @@ public:
     Qt::ItemFlags flags(const QModelIndex& index) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    // Add/remove/move (called by Document or commands)
-    void insertBlock(QUuid parentId, int row, const Block& block);
-    void removeBlock(QUuid blockId);
-    void moveBlock(QUuid blockId, QUuid newParentId, int newRow);
-    void updateBlockData(QUuid blockId);
-    void notifyInserted(QUuid parentId, int row);
-    void notifyRemove(QUuid parentId, int row);
-
-    // Get block by index
+    // Helpers
     Block* blockFromIndex(const QModelIndex& index) const;
+    QModelIndex indexForId(QUuid id, const QModelIndex& parent = QModelIndex()) const;
     void rebuildMaps();
+    void notifyInserted(int row, const QUuid& blockId);
+    void notifyRemove(int row);
+
+    // Use index-based access instead of raw pointers
+    Block* blockAt(int index) const;
 
 private:
-    Document* m_document;
-    QHash<QUuid, QList<QUuid>> m_childrenMap; // parentId -> list of child ids
-    QHash<QUuid, Block*> m_blockMap; // id -> Block*
-    QList<QUuid> m_rootIds; // top-level ids
-
-    // Helper: find index of a block id
-    QModelIndex indexForId(QUuid id, const QModelIndex& parent = QModelIndex()) const;
-
+    Document* m_document = nullptr;
+    QList<QUuid> m_rootIds;
+    QHash<QUuid, QList<QUuid>> m_childrenMap;
 };
+
+#endif // BLOCKMODEL_H

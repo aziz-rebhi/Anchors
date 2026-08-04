@@ -26,5 +26,7 @@
         <file>CodeBlock.qml</file>
         <file>ImageBlock.qml</file>
         <file>TableBlock.qml</file>
+        <file>SlashCommandMenu.qml</file>
+        <file>EditorToolbar.qml</file>
     </qresource>
 </RCC>

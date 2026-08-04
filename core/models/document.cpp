@@ -1,9 +1,11 @@
 #include "document.h"
 #include "blockmodel.h"
-#include "qjsonobject.h"
+#include "blockcommands.h"
+#include "core/storage/notesdatabase.h"
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QUndoStack>
 #include <algorithm>
-#include <QJsonArray>
 
 Document::Document(QUuid id, const QString& title, QObject* parent)
     : QObject(parent)
@@ -38,17 +40,19 @@ Block* Document::findBlock(QUuid id)
     return nullptr;
 }
 
-QList<Block*> Document::childrenOf(QUuid parentId)
+int Document::findBlockIndex(QUuid id) const
 {
-    QList<Block*> children;
-    for (Block& block : m_blocks) {
-        if (block.parentId() == parentId)
-            children.append(&block);
+    for (int i = 0; i < m_blocks.size(); ++i) {
+        if (m_blocks[i].id() == id)
+            return i;
     }
-    std::sort(children.begin(), children.end(), [](Block* a, Block* b) {
-        return a->orderIndex() < b->orderIndex();
-    });
-    return children;
+    return -1;
+}
+
+Block* Document::blockAt(int index)
+{
+    if (index < 0 || index >= m_blocks.size()) return nullptr;
+    return &m_blocks[index];
 }
 
 void Document::insertBlock(QUuid parentId, int row, const BlockData& data)
@@ -64,7 +68,6 @@ void Document::deleteBlock(QUuid blockId)
 
 void Document::moveBlock(QUuid blockId, QUuid newParentId, int newRow)
 {
-    // Stub – implement later
     Q_UNUSED(blockId);
     Q_UNUSED(newParentId);
     Q_UNUSED(newRow);
@@ -75,7 +78,6 @@ void Document::updateBlockData(QUuid blockId, const BlockData& newData)
     Block* block = findBlock(blockId);
     if (!block) return;
     block->setData(newData);
-
     emit blockDataChanged(blockId);
     emit documentModified();
 }
@@ -83,66 +85,43 @@ void Document::updateBlockData(QUuid blockId, const BlockData& newData)
 QUndoStack* Document::undoStack() const { return m_undoStack; }
 BlockModel* Document::model() const { return m_blockModel; }
 
-void Document::loadFromDatabase(NotesDatabase* db)
-{
-    Q_UNUSED(db);
-}
-
-void Document::saveToDatabase(NotesDatabase* db)
-{
-    Q_UNUSED(db);
-}
-
 QJsonObject Document::toJson() const
 {
     QJsonObject obj;
-    obj["id"]    = m_id.toString(QUuid::WithoutBraces);
+    obj["id"] = m_id.toString(QUuid::WithoutBraces);
     obj["title"] = m_title;
-
     QJsonArray blocksArr;
     for (const Block& block : m_blocks) {
         blocksArr.append(block.toJson());
     }
     obj["blocks"] = blocksArr;
-
     return obj;
 }
 
 Document* Document::fromJson(const QJsonObject& obj, NotesDatabase* db)
 {
     Q_UNUSED(db);
-
     QUuid id = QUuid::fromString(obj["id"].toString());
-    QString title = obj["title"].toString("Untitled");
-
-    Document* doc = new Document(id, title, nullptr);
+    QString title = obj["title"].toString();
+    auto* doc = new Document(id, title);
 
     QJsonArray blocksArr = obj["blocks"].toArray();
-    int order = 0;
     for (const QJsonValue& val : blocksArr) {
         Block block = Block::fromJson(val.toObject());
-        block.setOrderIndex(order++);
         doc->m_blocks.append(block);
     }
-
-    // Rebuild the model after loading blocks
-    if (doc->m_blockModel)
-        doc->m_blockModel->rebuildMaps();
-
+    doc->m_blockModel->rebuildMaps();
     return doc;
-}
-
-void Document::reorderSiblings(QUuid parentId)
-{
-    Q_UNUSED(parentId);
 }
 
 void Document::insertBlockInternal(QUuid parentId, int row, const Block& block)
 {
     m_blocks.insert(row, block);
-    if (m_blockModel) {
-        m_blockModel->rebuildMaps();  // rebuild from m_blocks
+
+    if (m_blockModel){
+        m_blockModel->notifyInserted(row, block.id());
     }
+
     emit blockInserted(block.id(), parentId, row);
     emit documentModified();
 }
@@ -157,25 +136,11 @@ void Document::removeBlockInternal(QUuid blockId)
         }
     }
     if (index < 0) return;
-    QUuid parentId = m_blocks[index].parentId();
-    m_blocks.removeAt(index);
+    // Proper model notification: beginRemove BEFORE modifying the list
     if (m_blockModel) {
-        m_blockModel->rebuildMaps();
+        m_blockModel->notifyRemove(index);
     }
+    m_blocks.removeAt(index);
     emit blockDeleted(blockId);
     emit documentModified();
-}
-
-
-int Document::findBlockIndex(QUuid id) const {
-    for (int i = 0; i < m_blocks.size(); ++i){
-        if (m_blocks[i].id() == id)
-            return i;
-    }
-}
-
-Block* Document::blockAt(int index)
-{
-    if (index < 0 || index >= m_blocks.size()) return nullptr;
-    return &m_blocks[index];
 }

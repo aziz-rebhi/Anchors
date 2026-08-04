@@ -3,64 +3,77 @@
 
 #include <QObject>
 #include <QUuid>
-#include <QAbstractItemModel>
 #include <QVariantList>
+#include <QAbstractItemModel>
 
 class Document;
 class NotesDatabase;
 
-class NoteEditorController : public QObject
-{
+class NoteEditorController : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QAbstractItemModel* model READ model NOTIFY documentChanged)
+    Q_PROPERTY(QAbstractItemModel* model READ model NOTIFY modelChanged)
     Q_PROPERTY(QString noteTitle READ noteTitle WRITE setNoteTitle NOTIFY noteTitleChanged)
-    Q_PROPERTY(QUuid documentId READ documentId NOTIFY documentChanged)
+    Q_PROPERTY(bool canUndo READ canUndo NOTIFY canUndoChanged)
+    Q_PROPERTY(bool canRedo READ canRedo NOTIFY canRedoChanged)
+    Q_PROPERTY(QString pendingFocusId READ pendingFocusId NOTIFY pendingFocusIdChanged)
+    Q_PROPERTY(QString focusedBlockId READ focusedBlockId NOTIFY focusedBlockIdChanged)
 
 public:
     explicit NoteEditorController(QObject* parent = nullptr);
     ~NoteEditorController();
 
-    // Model access
     QAbstractItemModel* model() const;
-
-    // Document properties
     QString noteTitle() const;
     void setNoteTitle(const QString& title);
     QUuid documentId() const;
+    bool canUndo() const;
+    bool canRedo() const;
+    QString pendingFocusId() const;
+    QString focusedBlockId() const;
 
-    // Document management
-    Q_INVOKABLE void createNewNote(const QString& title);
+    Q_INVOKABLE void createNewNote(const QString& title = "");
     Q_INVOKABLE void loadNote(const QString& id);
     Q_INVOKABLE void saveNote();
     Q_INVOKABLE void deleteNote();
-
-    // Block operations
-    Q_INVOKABLE void insertBlock(const QString& parentId, int row, int type, const QString& content);
-    Q_INVOKABLE void insertBlockAfter(const QString& blockId, int type, const QString& content);
-    Q_INVOKABLE void deleteBlock(const QString& blockId);
-    Q_INVOKABLE void updateBlockContent(const QString& blockId, const QString& content);
-    Q_INVOKABLE void loadFromContent(const QString& title, const QStringList& paragraphs);
-    Q_INVOKABLE void toggleBlockChecked(const QString& blockId, bool checked);
-    Q_INVOKABLE void mergeWithPrevious(const QString& blockId);
-
-    // List all documents
-    Q_INVOKABLE QVariantList getDocuments() const;
-
-    // Undo/redo
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
-    Q_INVOKABLE bool canUndo() const;
-    Q_INVOKABLE bool canRedo() const;
+
+    // Block operations
+    // type: 0=Paragraph, 1=H1, 2=H2, 3=H3, 4=Todo, 5=Code, 6=Image, 7=Table, 8=Divider, 9=Quote
+    Q_INVOKABLE void insertBlock(const QString& parentId, int row, int type, const QString& content = "");
+    Q_INVOKABLE void insertBlockAfter(const QString& blockId, int type, const QString& content = "");
+    Q_INVOKABLE void deleteBlock(const QString& blockId);
+    Q_INVOKABLE void updateBlockContent(const QString& blockId, const QString& content);
+    Q_INVOKABLE void updateBlockCodeLanguage(const QString& blockId, const QString& language);
+    Q_INVOKABLE void updateBlockImageSource(const QString& blockId, const QString& source);
+    Q_INVOKABLE void updateBlockTableData(const QString& blockId, const QVariantList& cells);
+    Q_INVOKABLE void updateBlockDividerOrientation(const QString& blockId, int orientation);
+    Q_INVOKABLE void toggleBlockChecked(const QString& blockId);
+    Q_INVOKABLE void mergeWithPrevious(const QString& blockId);
+    Q_INVOKABLE void changeBlockType(const QString& blockId, int newType);
+    Q_INVOKABLE void setFocusedBlock(const QString& blockId);
+
+    Q_INVOKABLE QVariantList getDocuments() const;
+    Q_INVOKABLE void loadFromContent(const QString& title, const QStringList& paragraphs);
+    Q_INVOKABLE QString documentToJson() const;
+    Q_INVOKABLE void loadFromJson(const QString& title, const QString& jsonContent);
 
 signals:
-    void documentChanged();
-    void noteTitleChanged(const QString& title);
-    void errorOccurred(const QString& error);
     void modelChanged();
+    void noteTitleChanged(const QString& title);
+    void documentChanged();
+    void canUndoChanged();
+    void canRedoChanged();
+    void pendingFocusIdChanged(const QString& id);
+    void focusedBlockIdChanged(const QString& id);
+    void errorOccurred(const QString& message);
+    void documentModified();
 
 private:
     Document* m_document = nullptr;
     NotesDatabase* m_db = nullptr;
+    QString m_pendingFocusId;
+    QString m_focusedBlockId;
 };
 
 #endif // NOTEEDITORCONTROLLER_H

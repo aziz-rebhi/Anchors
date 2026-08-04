@@ -7,26 +7,26 @@ Page {
 
     Theme { id: theme }
 
-    // ---- Data (same as before) ----
+    // ---- Data ----
     property var allNotes: []
     property string searchText: ""
     property string selectedId: ""
     property bool loadingEditor: false
 
-    // ---- Tree model (same as before) ----
+    // ---- Tree model ----
     ListModel {
         id: treeModel
     }
 
     property var expandedPaths: ({})
-    property string currentFolderPath: ""  // for note creation inside folder
+    property string currentFolderPath: ""
     property bool sortByRecent: false
 
-    // ---- Inline folder creation (same) ----
+    // ---- Inline folder creation ----
     property bool isCreatingFolder: false
     property string newFolderName: ""
 
-    // ---- Computed visible notes (same) ----
+    // ---- Computed visible notes ----
     property var filteredNotes: {
         var list = allNotes.filter(function (n) {
             if (n.title && n.title.startsWith("_")) return false
@@ -41,15 +41,15 @@ Page {
         return list
     }
 
-    // ---- Build tree (same) ----
+    // ---- Build tree ----
     function buildTree() {
         treeModel.clear()
         if (allNotes.length === 0) return
 
-        var root = { children: {}, notes: [] }
+        var rootNode = { children: {}, notes: [] }
 
         function getNode(pathParts) {
-            var node = root
+            var node = rootNode
             for (var i = 0; i < pathParts.length; i++) {
                 var part = pathParts[i]
                 if (!node.children[part]) {
@@ -78,7 +78,7 @@ Page {
             node._count = count
             return count
         }
-        computeCounts(root)
+        computeCounts(rootNode)
 
         function flatten(node, depth, pathParts) {
             var folderNames = Object.keys(node.children).sort()
@@ -100,15 +100,17 @@ Page {
 
                 if (isExpanded) {
                     var notesInFolder = childNode.notes.slice()
-                    notesInFolder.sort(root.sortByRecent ? function (a, b) { return b.updatedAt - a.updatedAt } : function (a, b) { return a.title.localeCompare(b.title) })
+                    notesInFolder.sort(root.sortByRecent
+                        ? function (a, b) { return b.updatedAt - a.updatedAt }
+                        : function (a, b) { return a.title.localeCompare(b.title) })
                     for (var j = 0; j < notesInFolder.length; j++) {
-                        var note = notesInFolder[j]
+                        var n = notesInFolder[j]
                         treeModel.append({
                             type: "note",
-                            name: note.title || "Untitled",
+                            name: n.title || "Untitled",
                             depth: depth + 1,
                             expanded: false,
-                            noteId: note.id,
+                            noteId: n.id,
                             folderPath: fullPath,
                             noteCount: 0
                         })
@@ -118,10 +120,12 @@ Page {
             }
         }
 
-        flatten(root, 0, [])
+        flatten(rootNode, 0, [])
 
-        var rootNotes = root.notes.slice()
-        rootNotes.sort(root.sortByRecent ? function (a, b) { return b.updatedAt - a.updatedAt } : function (a, b) { return a.title.localeCompare(b.title) })
+        var rootNotes = rootNode.notes.slice()
+        rootNotes.sort(root.sortByRecent
+            ? function (a, b) { return b.updatedAt - a.updatedAt }
+            : function (a, b) { return a.title.localeCompare(b.title) })
         for (var k = 0; k < rootNotes.length; k++) {
             var rootNote = rootNotes[k]
             treeModel.append({
@@ -136,13 +140,13 @@ Page {
         }
     }
 
-    // ---- Toggle folder (same) ----
+    // ---- Toggle folder ----
     function toggleFolder(fullPath) {
         expandedPaths[fullPath] = !expandedPaths[fullPath]
         buildTree()
     }
 
-    // ---- Create folder (same) ----
+    // ---- Create folder ----
     function createFolder(name) {
         if (name.trim().length === 0) {
             isCreatingFolder = false
@@ -155,17 +159,16 @@ Page {
             currentFolderPath = folderName
             expandedPaths[folderName] = true
             refresh(false)
-            var newNote = allNotes.find(function(n) { return n.folder === folderName && n.title === "New note" })
+            var newNote = allNotes.find(function(n) {
+                return n.folder === folderName && n.title === "New note"
+            })
             if (newNote) {
                 selectNote(newNote)
                 scrollToNote(newNote.id)
             }
-            isCreatingFolder = false
-            newFolderName = ""
-        } else {
-            isCreatingFolder = false
-            newFolderName = ""
         }
+        isCreatingFolder = false
+        newFolderName = ""
     }
 
     // ---- Refresh ----
@@ -182,35 +185,25 @@ Page {
         if (selectedId.length === 0 && allNotes.length > 0) {
             if (filteredNotes.length > 0)
                 selectNote(filteredNotes[0])
-            else if (allNotes.length > 0)
+            else
                 selectNote(allNotes[0])
         }
         isCreatingFolder = false
         newFolderName = ""
     }
 
-    // ---- Save current note back through noteController ----
+    // ---- Save current note ----
     function saveCurrentNote() {
         if (selectedId.length === 0 || !noteEditor || !noteEditor.model) return
 
         var title = noteEditor.noteTitle
-        var model  = noteEditor.model
-        var lines  = []
-        for (var i = 0; i < model.rowCount(); i++) {
-            var idx  = model.index(i, 0)
-            var blockData = model.data(idx, 0x0103) // BlockModel::DataRole
-            if (blockData && blockData.text !== undefined) {
-                lines.push(blockData.text)
-            }
-        }
-        var content = lines.join("\n")
-
-        noteController.updateEntry(selectedId, title, content)
+        var json = noteEditor.documentToJson()
+        noteController.updateEntry(selectedId, title, json)
         allNotes = noteController.entries()
-            buildTree()
+        buildTree()
     }
 
-    // ---- Select a note (loads it into the new editor) ----
+    // ---- Select a note ----
     function selectNote(note) {
         if (!note) return
         // Save the previous note first
@@ -221,12 +214,11 @@ Page {
         titleField.loadingEditor = true
         var title = note.title
         var content = note.content || ""
-        var paragraphs = content.split(/\n/)
-        noteEditor.loadFromContent(title, paragraphs)
+        noteEditor.loadFromJson(title, content)
         titleField.loadingEditor = false
     }
 
-    // ---- Scroll to a note in the sidebar (same) ----
+    // ---- Scroll to a note in the sidebar ----
     function scrollToNote(noteId) {
         Qt.callLater(function () {
             for (var i = 0; i < treeModel.count; i++) {
@@ -239,11 +231,6 @@ Page {
         })
     }
 
-    // ---- Pagination functions (old, no longer needed but kept to avoid errors) ----
-    // We'll keep them as stubs or remove them since we replaced the editor.
-    // Actually we can remove all pagination code because we are using BlockList now.
-    // But to avoid breaking anything, we'll keep the properties and functions as no-ops.
-
     // ---- UI ----
     background: Rectangle { color: theme.background }
 
@@ -251,7 +238,7 @@ Page {
         anchors.fill: parent
         spacing: 0
 
-        // ---- Sidebar (unchanged) ----
+        // ---- Sidebar ----
         Rectangle {
             Layout.preferredWidth: 280
             Layout.fillHeight: true
@@ -282,7 +269,9 @@ Page {
 
                     Label {
                         id: locationLabel
-                        text: root.currentFolderPath.length > 0 ? ("\u2192 " + root.currentFolderPath) : "NOTES"
+                        text: root.currentFolderPath.length > 0
+                              ? ("\u2192 " + root.currentFolderPath)
+                              : "NOTES"
                         color: root.currentFolderPath.length > 0 ? theme.tertiary : theme.textMuted
                         font.family: theme.labelFont
                         font.pixelSize: 10
@@ -305,20 +294,22 @@ Page {
                     }
 
                     SidebarIconButton {
-                        glyph: "\u2302" // reset to root
+                        glyph: "\u2302"
                         tooltipText: "New notes go to root"
                         visible: root.currentFolderPath.length > 0
                         onClicked: root.currentFolderPath = ""
                     }
                     SidebarIconButton {
-                        glyph: "\u270E" // new note
+                        glyph: "\u270E"
                         tooltipText: "New note"
                         onClicked: {
                             var folder = root.currentFolderPath
                             var ok = noteController.addEntryInFolder("Untitled note", "", folder)
                             if (ok) {
                                 root.refresh(false)
-                                var newNote = root.allNotes.find(function (n) { return n.folder === folder && n.title === "Untitled note" })
+                                var newNote = root.allNotes.find(function (n) {
+                                    return n.folder === folder && n.title === "Untitled note"
+                                })
                                 if (newNote) {
                                     root.selectNote(newNote)
                                     root.scrollToNote(newNote.id)
@@ -327,7 +318,7 @@ Page {
                         }
                     }
                     SidebarIconButton {
-                        glyph: "\u2795" // new folder
+                        glyph: "\u2795"
                         tooltipText: "New folder"
                         onClicked: {
                             root.newFolderName = ""
@@ -335,7 +326,7 @@ Page {
                         }
                     }
                     SidebarIconButton {
-                        glyph: "\u21C5" // sort
+                        glyph: "\u21C5"
                         tooltipText: root.sortByRecent ? "Sorted by recent" : "Sorted by name"
                         onClicked: {
                             root.sortByRecent = !root.sortByRecent
@@ -343,7 +334,7 @@ Page {
                         }
                     }
                     SidebarIconButton {
-                        glyph: "\u229F" // collapse all
+                        glyph: "\u229F"
                         tooltipText: "Collapse all"
                         onClicked: {
                             root.expandedPaths = ({})
@@ -365,7 +356,6 @@ Page {
                         spacing: 0
                         clip: true
 
-                        // ---- Inline folder creation ----
                         header: Item {
                             id: headerItem
                             width: parent.width
@@ -417,13 +407,12 @@ Page {
             }
         }
 
-        // ---- Editor (new block editor) ----
+        // ---- Editor ----
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: noteEditor && noteEditor.model !== null
 
-            // Title
             TextField {
                 id: titleField
                 Layout.fillWidth: true
@@ -445,7 +434,22 @@ Page {
                 property bool loadingEditor: false
             }
 
-            // Block list
+            EditorToolbar {
+                id: editorToolbar
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                onInsertType: function(typeCode) {
+                    if (!noteEditor) return
+                    if (noteEditor.focusedBlockId && noteEditor.focusedBlockId.length > 0) {
+                        noteEditor.insertBlockAfter(noteEditor.focusedBlockId, typeCode, "")
+                    } else {
+                        var count = noteEditor.model ? noteEditor.model.rowCount() : 0
+                        noteEditor.insertBlock("", count, typeCode, "")
+                    }
+                }
+            }
+
             BlockList {
                 id: blockList
                 Layout.fillWidth: true
@@ -457,6 +461,13 @@ Page {
                 id: saveTimer
                 interval: 800
                 onTriggered: root.saveCurrentNote()
+            }
+
+            Connections {
+                target: noteEditor
+                function onDocumentModified() {
+                    saveTimer.restart()
+                }
             }
         }
 
@@ -475,7 +486,7 @@ Page {
         }
     }
 
-    // ---- Tree Delegate (unchanged) ----
+    // ---- Sidebar icon button ----
     component SidebarIconButton : Rectangle {
         id: iconBtn
         property string glyph: ""
@@ -507,6 +518,7 @@ Page {
         ToolTip.delay: 500
     }
 
+    // ---- Tree delegate ----
     component TreeDelegate : Item {
         id: delegateItem
         property var item: (index >= 0 && index < treeModel.count) ? treeModel.get(index) : null
@@ -542,7 +554,7 @@ Page {
             Text {
                 id: folderArrow
                 visible: item && item.type === "folder"
-                text: (item && item.expanded) ? "▼ " : "▶ "
+                text: (item && item.expanded) ? "\u25BC " : "\u25B6 "
                 color: theme.textMuted
                 font.pixelSize: 10
                 anchors.left: parent.left
@@ -555,9 +567,8 @@ Page {
                     if (!item) return ""
                     if (item.type === "folder") {
                         return item.expanded ? item.name : item.name + " (" + item.noteCount + ")"
-                    } else {
-                        return item.name || "Untitled"
                     }
+                    return item.name || "Untitled"
                 }
                 color: {
                     if (!item) return theme.textSecondary
@@ -593,7 +604,9 @@ Page {
                             root.currentFolderPath = item.folderPath
                             root.toggleFolder(item.folderPath)
                         } else {
-                            var note = root.allNotes.find(function (n) { return n.id === item.noteId })
+                            var note = root.allNotes.find(function (n) {
+                                return n.id === item.noteId
+                            })
                             if (note) {
                                 root.selectNote(note)
                                 root.currentFolderPath = note.folder || ""
@@ -605,7 +618,7 @@ Page {
         }
     }
 
-    // ---- Context Menu (unchanged) ----
+    // ---- Folder context menu ----
     Menu {
         id: folderContextMenu
         property string targetFolder: ""
@@ -630,7 +643,9 @@ Page {
                 var ok = noteController.addEntryInFolder("Untitled note", "", folder)
                 if (ok) {
                     root.refresh(false)
-                    var newNote = root.allNotes.find(function (n) { return n.folder === folder && n.title === "Untitled note" })
+                    var newNote = root.allNotes.find(function (n) {
+                        return n.folder === folder && n.title === "Untitled note"
+                    })
                     if (newNote) {
                         root.selectNote(newNote)
                         root.scrollToNote(newNote.id)
@@ -640,7 +655,7 @@ Page {
         }
     }
 
-    // ---- Rename Folder Dialog (unchanged) ----
+    // ---- Rename folder dialog ----
     Dialog {
         id: renameFolderDialog
         property string folderName: ""
@@ -657,7 +672,11 @@ Page {
             spacing: 12
             anchors.fill: parent
             anchors.margins: 16
-            Label { text: "New name for '" + renameFolderDialog.folderName + "':"; color: theme.textPrimary; font.pixelSize: 14 }
+            Label {
+                text: "New name for '" + renameFolderDialog.folderName + "':"
+                color: theme.textPrimary
+                font.pixelSize: 14
+            }
             StyledTextField {
                 id: renameFolderNameField
                 Layout.fillWidth: true
@@ -695,8 +714,6 @@ Page {
             }
         }
     }
+
     Component.onCompleted: refresh(false)
-
-
-    // ---- Removed pagination components ----
 }
