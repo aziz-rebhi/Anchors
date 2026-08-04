@@ -3,6 +3,7 @@
 #include "qjsonobject.h"
 #include <QUndoStack>
 #include <algorithm>
+#include <QJsonArray>
 
 Document::Document(QUuid id, const QString& title, QObject* parent)
     : QObject(parent)
@@ -94,14 +95,41 @@ void Document::saveToDatabase(NotesDatabase* db)
 
 QJsonObject Document::toJson() const
 {
-    return QJsonObject();
+    QJsonObject obj;
+    obj["id"]    = m_id.toString(QUuid::WithoutBraces);
+    obj["title"] = m_title;
+
+    QJsonArray blocksArr;
+    for (const Block& block : m_blocks) {
+        blocksArr.append(block.toJson());
+    }
+    obj["blocks"] = blocksArr;
+
+    return obj;
 }
 
-Document Document::fromJson(const QJsonObject& obj, NotesDatabase* db)
+Document* Document::fromJson(const QJsonObject& obj, NotesDatabase* db)
 {
-    Q_UNUSED(obj);
     Q_UNUSED(db);
-    return Document(QUuid::createUuid(), "Untitled");
+
+    QUuid id = QUuid::fromString(obj["id"].toString());
+    QString title = obj["title"].toString("Untitled");
+
+    Document* doc = new Document(id, title, nullptr);
+
+    QJsonArray blocksArr = obj["blocks"].toArray();
+    int order = 0;
+    for (const QJsonValue& val : blocksArr) {
+        Block block = Block::fromJson(val.toObject());
+        block.setOrderIndex(order++);
+        doc->m_blocks.append(block);
+    }
+
+    // Rebuild the model after loading blocks
+    if (doc->m_blockModel)
+        doc->m_blockModel->rebuildMaps();
+
+    return doc;
 }
 
 void Document::reorderSiblings(QUuid parentId)
@@ -136,4 +164,18 @@ void Document::removeBlockInternal(QUuid blockId)
     }
     emit blockDeleted(blockId);
     emit documentModified();
+}
+
+
+int Document::findBlockIndex(QUuid id) const {
+    for (int i = 0; i < m_blocks.size(); ++i){
+        if (m_blocks[i].id() == id)
+            return i;
+    }
+}
+
+Block* Document::blockAt(int index)
+{
+    if (index < 0 || index >= m_blocks.size()) return nullptr;
+    return &m_blocks[index];
 }

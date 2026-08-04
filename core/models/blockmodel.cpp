@@ -173,6 +173,8 @@ QVariant BlockModel::data(const QModelIndex& index, int role) const
             else if constexpr (std::is_same_v<T, CodeData>)    return 5;
             else if constexpr (std::is_same_v<T, ImageData>)   return 6;
             else if constexpr (std::is_same_v<T, TableData>)   return 7;
+            else if constexpr (std::is_same_v<T, QuoteData>)   return 8;
+            else if constexpr (std::is_same_v<T, DividerData>) return 9;
             else return 0;
         }, block->data());
     }
@@ -200,7 +202,10 @@ QVariant BlockModel::data(const QModelIndex& index, int role) const
                 map["rows"] = arg.rows;
                 map["cols"] = arg.cols;
                 map["cells"] = QVariant::fromValue(arg.cells);
-            }
+            } else if constexpr (std::is_same_v<T, QuoteData>) {
+            map["text"] = arg.text;
+            } else if constexpr (std::is_same_v<T, DividerData>) {
+             }
         }, block->data());
         return map;
     }

@@ -5,38 +5,45 @@ Rectangle {
     id: root
     property string blockId: ""
     property string text: ""
-    property bool checked: false
+    property string language: ""
     property alias textArea: textArea
 
     signal contentChanged(string newText)
-    signal todoCheckedChanged(bool checked)
 
     width: parent ? parent.width : 0
-    height: Math.max(30, row.implicitHeight + 8)
-    color: "transparent"
+    height: Math.max(60, langRow.height + textArea.implicitHeight + 16)
+    color: "#f7f7f8"
+    radius: 4
 
-    Row {
-        id: row
-        anchors.fill: parent
-        anchors.margins: 4
-        spacing: 8
+    Column {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 8
+        spacing: 4
 
-        CheckBox {
-            id: checkBox
-            checked: root.checked
-            anchors.verticalCenter: parent.verticalCenter
-            onToggled: root.todoCheckedChanged(checked)
+        Row {
+            id: langRow
+            width: parent.width
+            height: 16
+
+            Text {
+                text: root.language || "code"
+                font.pixelSize: 11
+                font.family: "monospace"
+                color: "#999"
+            }
         }
 
         TextArea {
             id: textArea
-            width: parent.width - checkBox.width - parent.spacing
+            width: parent.width
             text: root.text
-            placeholderText: "To-do..."
-            wrapMode: Text.Wrap
-            font.pixelSize: 14
-            color: root.checked ? "#999" : "#222"
-            font.strikeout: root.checked
+            placeholderText: "Write code..."
+            wrapMode: Text.NoWrap
+            font.pixelSize: 13
+            font.family: "monospace"
+            color: "#e06c75"
             background: Rectangle { color: "transparent"; border.width: 0 }
             onTextChanged: {
                 if (text !== root.text) {
@@ -45,11 +52,7 @@ Rectangle {
             }
             Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
-                    if (event.modifiers & Qt.ShiftModifier) {
-                        noteEditor.redo()
-                    } else {
-                        noteEditor.undo()
-                    }
+                    event.modifiers & Qt.ShiftModifier ? noteEditor.redo() : noteEditor.undo()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Y && (event.modifiers & Qt.ControlModifier)) {
                     noteEditor.redo()
@@ -60,7 +63,7 @@ Rectangle {
                     var after = textArea.text.substring(pos)
                     textArea.text = before
                     root.contentChanged(before)
-                    noteEditor.insertBlockAfter(blockId, 0, after)
+                    noteEditor.insertBlockAfter(blockId, 5, after)
                     event.accepted = true
                 } else if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
                     noteEditor.mergeWithPrevious(blockId)

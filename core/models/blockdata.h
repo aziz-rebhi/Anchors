@@ -11,6 +11,9 @@ struct CodeData;
 struct ImageData;
 struct TableData;
 struct TodoData;
+struct QuoteData;
+struct DividerData;
+
 // ... more types later
 
 using BlockData = std::variant<
@@ -19,7 +22,9 @@ using BlockData = std::variant<
     CodeData,
     ImageData,
     TableData,
-    TodoData
+    TodoData,
+    QuoteData,
+    DividerData
     >;
 
 struct ParagraphData {
@@ -53,3 +58,9 @@ struct TodoData{
     QString text;
     bool checked = false;
 };
+
+struct QuoteData {
+    QString text;
+};
+
+struct DividerData {};

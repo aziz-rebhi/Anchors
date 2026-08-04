@@ -21,5 +21,10 @@
         <file>ParagraphBlock.qml</file>
         <file>HeadingBlock.qml</file>
         <file>TodoBlock.qml</file>
+        <file>DividerBlock.qml</file>
+        <file>QuoteBlock.qml</file>
+        <file>CodeBlock.qml</file>
+        <file>ImageBlock.qml</file>
+        <file>TableBlock.qml</file>
     </qresource>
 </RCC>

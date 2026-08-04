@@ -3,6 +3,7 @@
 #include "../core/models/blockmodel.h"
 #include "../core/models/blockdata.h"
 #include "../core/storage/notesdatabase.h"
+#include "../core/models/blockcommands.h"
 #include <QDebug>
 
 NoteEditorController::NoteEditorController(QObject* parent)
@@ -125,14 +126,19 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 0: data = ParagraphData{content}; break;
     case 1: data = HeadingData{1, content}; break;
     case 2: data = HeadingData{2, content}; break;
-    case 3: data = HeadingData{3, content}; break;   // H3
-    case 4: data = TodoData{content, false}; break;  // Todo
+    case 3: data = HeadingData{3, content}; break;
+    case 4: data = TodoData{content, false}; break;
+    case 5: data = CodeData{"", content}; break;
+    case 6: data = ImageData{"", "", 0, 0}; break;
+    case 7: data = TableData{}; break;
+    case 8: data = QuoteData{content}; break;
+    case 9: data = DividerData{}; break;
     default:
         emit errorOccurred("Unsupported block type");
         return;
     }
 
-    m_document->insertBlock(parentUuid, row, data);
+    m_document->undoStack()->push(new InsertBlockCommand(m_document, parentUuid, row, data));
 }
 
 void NoteEditorController::deleteBlock(const QString& blockId)
@@ -140,7 +146,7 @@ void NoteEditorController::deleteBlock(const QString& blockId)
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
-    m_document->deleteBlock(id);
+    m_document->undoStack()->push(new DeleteBlockCommand(m_document, id));
 }
 
 void NoteEditorController::updateBlockContent(const QString& blockId, const QString& content)
@@ -152,7 +158,8 @@ void NoteEditorController::updateBlockContent(const QString& blockId, const QStr
     Block* block = m_document->findBlock(id);
     if (!block) return;
 
-    // Preserve the existing block type — only update the text
+    BlockData oldData = block->data();
+
     BlockData newData = std::visit([&content](auto&& arg) -> BlockData {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, ParagraphData>) {
@@ -161,12 +168,16 @@ void NoteEditorController::updateBlockContent(const QString& blockId, const QStr
             return HeadingData{arg.level, content};
         } else if constexpr (std::is_same_v<T, TodoData>) {
             return TodoData{content, arg.checked};
+        } else if constexpr (std::is_same_v<T, QuoteData>) {
+            return QuoteData{content};
+        } else if constexpr (std::is_same_v<T, CodeData>) {
+            return CodeData{arg.language, content};
         } else {
             return ParagraphData{content};
         }
-    }, block->data());
+    }, oldData);
 
-    m_document->updateBlockData(id, newData);
+    m_document->undoStack()->push(new EditTextCommand(m_document, id, oldData, newData));
 }
 
 void NoteEditorController::toggleBlockChecked(const QString& blockId, bool checked)
@@ -177,13 +188,13 @@ void NoteEditorController::toggleBlockChecked(const QString& blockId, bool check
 
     Block* block = m_document->findBlock(id);
     if (!block) return;
-
-    // Only works on TodoData blocks
     if (!std::holds_alternative<TodoData>(block->data())) return;
 
-    auto todo = std::get<TodoData>(block->data());
+    BlockData oldData = block->data();
+    auto todo = std::get<TodoData>(oldData);
     todo.checked = checked;
-    m_document->updateBlockData(id, todo);
+
+    m_document->undoStack()->push(new EditTextCommand(m_document, id, oldData, todo));
 }
 
 QVariantList NoteEditorController::getDocuments() const
@@ -252,4 +263,66 @@ void NoteEditorController::loadFromContent(const QString& title, const QStringLi
     emit documentChanged();
     emit noteTitleChanged(title);
     emit modelChanged();
+}
+
+
+void NoteEditorController::insertBlockAfter(const QString& blockId, int type, const QString& content)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    if (id.isNull()) return;
+
+    int row = m_document->findBlockIndex(id);
+    if (row < 0) return;
+
+    insertBlock("", row + 1, type, content);
+}
+
+void NoteEditorController::mergeWithPrevious(const QString& blockId)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    if (id.isNull()) return;
+
+    int row = m_document->findBlockIndex(id);
+    if (row <= 0) return;
+
+    Block* current = m_document->findBlock(id);
+    Block* previous = m_document->blockAt(row - 1);
+    if (!current || !previous) return;
+
+    // Get text from current block
+    QString curText = std::visit([](auto&& arg) -> QString {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ParagraphData>)   return arg.text;
+        else if constexpr (std::is_same_v<T, HeadingData>) return arg.text;
+        else if constexpr (std::is_same_v<T, TodoData>)    return arg.text;
+        else return "";
+    }, current->data());
+
+    if (curText.isEmpty()) {
+        // Empty block — just delete it
+        deleteBlock(blockId);
+        return;
+    }
+
+    // Get previous block's text length (for cursor positioning later)
+    QString prevText = std::visit([](auto&& arg) -> QString {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ParagraphData>)   return arg.text;
+        else if constexpr (std::is_same_v<T, HeadingData>) return arg.text;
+        else if constexpr (std::is_same_v<T, TodoData>)    return arg.text;
+        else return "";
+    }, previous->data());
+
+    // Wrap both ops in one undo step
+    m_document->undoStack()->beginMacro("Merge block");
+
+    // Append current text to previous block (preserves previous block's type)
+    updateBlockContent(previous->id().toString(QUuid::WithoutBraces), prevText + curText);
+
+    // Delete current block
+    deleteBlock(blockId);
+
+    m_document->undoStack()->endMacro();
 }

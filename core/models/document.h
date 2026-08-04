@@ -11,6 +11,12 @@ class BlockFactory;
 
 class Document : public QObject {
     Q_OBJECT
+
+    friend class InsertBlockCommand;
+    friend class DeleteBlockCommand;
+    friend class EditTextCommand;
+
+
 public:
     explicit Document(QUuid id, const QString& title, QObject* parent = nullptr);
     ~Document();
@@ -41,7 +47,10 @@ public:
 
     // Serialization (JSON)
     QJsonObject toJson() const;
-    static Document fromJson(const QJsonObject& obj, NotesDatabase* db = nullptr);
+    static Document* fromJson(const QJsonObject& obj, NotesDatabase* db = nullptr);
+
+    int findBlockIndex(QUuid id) const;
+    Block* blockAt(int index);
 
 signals:
     void titleChanged(const QString& title);

@@ -8,6 +8,7 @@ SOURCES += \
     app/calendarcontroller.cpp \
     app/noteeditorcontroller.cpp \
     core/models/block.cpp \
+    core/models/blockcommands.cpp \
     core/models/blockmodel.cpp \
     core/models/calendarentry.cpp \
     core/models/document.cpp \
@@ -46,6 +47,7 @@ HEADERS += \
     core/crypto/cryptomanager.h \
     core/models/Calendarentry.h \
     core/models/block.h \
+    core/models/blockcommands.h \
     core/models/blockdata.h \
     core/models/blockmodel.h \
     core/models/document.h \

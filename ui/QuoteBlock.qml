@@ -5,38 +5,35 @@ Rectangle {
     id: root
     property string blockId: ""
     property string text: ""
-    property bool checked: false
     property alias textArea: textArea
 
     signal contentChanged(string newText)
-    signal todoCheckedChanged(bool checked)
 
     width: parent ? parent.width : 0
-    height: Math.max(30, row.implicitHeight + 8)
+    height: Math.max(30, textArea.implicitHeight + 8)
     color: "transparent"
 
     Row {
-        id: row
         anchors.fill: parent
         anchors.margins: 4
-        spacing: 8
+        spacing: 10
 
-        CheckBox {
-            id: checkBox
-            checked: root.checked
-            anchors.verticalCenter: parent.verticalCenter
-            onToggled: root.todoCheckedChanged(checked)
+        Rectangle {
+            width: 3
+            height: parent.height
+            radius: 1.5
+            color: "#888"
         }
 
         TextArea {
             id: textArea
-            width: parent.width - checkBox.width - parent.spacing
+            width: parent.width - 3 - parent.spacing
             text: root.text
-            placeholderText: "To-do..."
+            placeholderText: "Quote..."
             wrapMode: Text.Wrap
             font.pixelSize: 14
-            color: root.checked ? "#999" : "#222"
-            font.strikeout: root.checked
+            font.italic: true
+            color: "#555"
             background: Rectangle { color: "transparent"; border.width: 0 }
             onTextChanged: {
                 if (text !== root.text) {
@@ -45,11 +42,7 @@ Rectangle {
             }
             Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
-                    if (event.modifiers & Qt.ShiftModifier) {
-                        noteEditor.redo()
-                    } else {
-                        noteEditor.undo()
-                    }
+                    event.modifiers & Qt.ShiftModifier ? noteEditor.redo() : noteEditor.undo()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Y && (event.modifiers & Qt.ControlModifier)) {
                     noteEditor.redo()

@@ -29,10 +29,22 @@ Rectangle {
                 root.contentChanged(text)
             }
         }
-        Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                // Insert a paragraph after this heading
-                noteEditor.insertBlock("", 0, 0, "")
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    noteEditor.redo()
+                } else {
+                    noteEditor.undo()
+                }
+                event.accepted = true
+            } else if (event.key === Qt.Key_Y && (event.modifiers & Qt.ControlModifier)) {
+                noteEditor.redo()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                noteEditor.insertBlockAfter(blockId, 0, "")
+                event.accepted = true
+            } else if (event.key === Qt.Key_Backspace && textField.cursorPosition === 0) {
+                noteEditor.mergeWithPrevious(blockId)
                 event.accepted = true
             }
         }

@@ -29,5 +29,29 @@ Rectangle {
                 root.contentChanged(text)
             }
         }
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    noteEditor.redo()
+                } else {
+                    noteEditor.undo()
+                }
+                event.accepted = true
+            } else if (event.key === Qt.Key_Y && (event.modifiers & Qt.ControlModifier)) {
+                noteEditor.redo()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                var pos = textArea.cursorPosition
+                var before = textArea.text.substring(0, pos)
+                var after = textArea.text.substring(pos)
+                textArea.text = before
+                root.contentChanged(before)
+                noteEditor.insertBlockAfter(blockId, 0, after)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
+                noteEditor.mergeWithPrevious(blockId)
+                event.accepted = true
+            }
+        }
     }
 }

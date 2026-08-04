@@ -36,10 +36,12 @@ public:
 
     // Block operations
     Q_INVOKABLE void insertBlock(const QString& parentId, int row, int type, const QString& content);
+    Q_INVOKABLE void insertBlockAfter(const QString& blockId, int type, const QString& content);
     Q_INVOKABLE void deleteBlock(const QString& blockId);
     Q_INVOKABLE void updateBlockContent(const QString& blockId, const QString& content);
     Q_INVOKABLE void loadFromContent(const QString& title, const QStringList& paragraphs);
     Q_INVOKABLE void toggleBlockChecked(const QString& blockId, bool checked);
+    Q_INVOKABLE void mergeWithPrevious(const QString& blockId);
 
     // List all documents
     Q_INVOKABLE QVariantList getDocuments() const;
