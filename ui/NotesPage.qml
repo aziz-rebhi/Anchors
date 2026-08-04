@@ -153,19 +153,36 @@ Page {
             newFolderName = ""
             return
         }
-        var folderName = name.trim()
-        var ok = noteController.addEntryInFolder("New note", "", folderName)
+        var leaf = name.trim()
+        var folderPath = root.currentFolderPath.length > 0
+                         ? (root.currentFolderPath + "/" + leaf)
+                         : leaf
+
+        var ok = noteController.addEntryInFolder("New note", "", folderPath)
         if (ok) {
-            currentFolderPath = folderName
-            expandedPaths[folderName] = true
-            refresh(false)
-            var newNote = allNotes.find(function(n) {
-                return n.folder === folderName && n.title === "New note"
-            })
-            if (newNote) {
-                selectNote(newNote)
-                scrollToNote(newNote.id)
+            currentFolderPath = folderPath
+
+            // Reassign the whole object so QML sees the change
+            var ep = Object.assign({}, expandedPaths)
+            var parts = folderPath.split("/")
+            var acc = ""
+            for (var i = 0; i < parts.length; i++) {
+                acc = (i === 0) ? parts[i] : (acc + "/" + parts[i])
+                ep[acc] = true
             }
+            expandedPaths = ep
+
+            // Defer so the controller has finished writing
+            Qt.callLater(function () {
+                root.refresh(false)
+                var newNote = root.allNotes.find(function (n) {
+                    return n.folder === folderPath && n.title === "New note"
+                })
+                if (newNote) {
+                    root.selectNote(newNote)
+                    root.scrollToNote(newNote.id)
+                }
+            })
         }
         isCreatingFolder = false
         newFolderName = ""
@@ -469,6 +486,13 @@ Page {
                     saveTimer.restart()
                 }
             }
+
+            Connections {
+                target: noteController
+                function onEntriesChanged() {
+                    root.refresh(true)
+                }
+            }
         }
 
         // ---- Empty state ----
@@ -651,6 +675,14 @@ Page {
                         root.scrollToNote(newNote.id)
                     }
                 }
+            }
+        }
+        MenuItem {
+            text : "New Subfolder"
+            onTriggered: {
+                root.currentFolderPath = folderContextMenu.targetFolder
+                root.newFolderName = ""
+                root.isCreatingFolder = true
             }
         }
     }

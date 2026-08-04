@@ -174,13 +174,19 @@ bool NoteController::renameFolder(const QString &oldName, const QString &newName
 {
     if (oldName.isEmpty() || newName.isEmpty() || oldName == newName) return false;
     if (!Session::instance()->isUnlocked()) return false;
+
     NoteRepository repo(Session::instance()->sessionKey());
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
+
+    const QString oldPrefix = oldName + "/";
     bool changed = false;
     for (auto &e : all) {
         if (e.m_folder == oldName) {
             e.m_folder = newName;
+            changed = true;
+        } else if (e.m_folder.startsWith(oldPrefix)) {
+            e.m_folder = newName + e.m_folder.mid(oldName.size());
             changed = true;
         }
     }
@@ -191,14 +197,22 @@ bool NoteController::deleteFolder(const QString &folderName)
 {
     if (folderName.isEmpty()) return false;
     if (!Session::instance()->isUnlocked()) return false;
+
     NoteRepository repo(Session::instance()->sessionKey());
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
-    // Move all notes in this folder to "" (no folder)
+
+    const QString prefix = folderName + "/";
+    // Move notes to the parent folder (or root if top-level)
+    QString parent;
+    int slash = folderName.lastIndexOf('/');
+    if (slash >= 0)
+        parent = folderName.left(slash);
+
     bool changed = false;
     for (auto &e : all) {
-        if (e.m_folder == folderName) {
-            e.m_folder = "";
+        if (e.m_folder == folderName || e.m_folder.startsWith(prefix)) {
+            e.m_folder = parent;
             changed = true;
         }
     }
