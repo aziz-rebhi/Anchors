@@ -29,4 +29,5 @@
         <file>SlashCommandMenu.qml</file>
         <file>EditorToolbar.qml</file>
     </qresource>
+    <qresource prefix="/"/>
 </RCC>

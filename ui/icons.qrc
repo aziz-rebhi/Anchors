@@ -1,0 +1,22 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>icons/todo-white.svg</file>
+        <file>icons/todo-black.svg</file>
+        <file>icons/shield-lock-white.svg</file>
+        <file>icons/shield-lock-black.svg</file>
+        <file>icons/settings-white.svg</file>
+        <file>icons/settings-black.svg</file>
+        <file>icons/note-white.svg</file>
+        <file>icons/note-black.svg</file>
+        <file>icons/double-arrow-right-white.svg</file>
+        <file>icons/double-arrow-right-black.svg</file>
+        <file>icons/double-arrow-left-white.svg</file>
+        <file>icons/double-arrow-left-black.svg</file>
+        <file>icons/dashboard-white.svg</file>
+        <file>icons/dashboard-black.svg</file>
+        <file>icons/calendar-white.svg</file>
+        <file>icons/calendar-black.svg</file>
+        <file>icons/lock-white.svg</file>
+        <file>icons/lock-black.svg</file>
+    </qresource>
+</RCC>

@@ -69,4 +69,5 @@ HEADERS += \
     core/storage/repositories/taskrepository.h
 
 RESOURCES += \
+    ui/icons.qrc \
     ui/qml.qrc

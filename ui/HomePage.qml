@@ -8,12 +8,17 @@ Page {
     Theme { id: theme }
 
     property string activeKey: "dashboard"
+    property bool sidebarCollapsed: true
+
+    readonly property int sidebarExpandedWidth: 220
+    readonly property int sidebarCollapsedWidth: 72
+
     readonly property var navItems: [
-        { label: "Dashboard", glyph: "\u25A6", key: "dashboard" },
-        { label: "Vault",     glyph: "\u25C6", key: "vault" },
-        { label: "Notes",     glyph: "\u2261", key: "notes" },
-        { label: "Calendar",  glyph: "\u25A1", key: "calendar" },
-        { label: "To-Do",     glyph: "\u2713", key: "todo" }
+        { label: "Dashboard", iconSource: "qrc:/icons/icons/dashboard-white.svg",   key: "dashboard" },
+        { label: "Vault",     iconSource: "qrc:/icons/icons/shield-lock-white.svg", key: "vault"     },
+        { label: "Notes",     iconSource: "qrc:/icons/icons/note-white.svg",        key: "notes"     },
+        { label: "Calendar",  iconSource: "qrc:/icons/icons/calendar-white.svg",    key: "calendar"  },
+        { label: "To-Do",     iconSource: "qrc:/icons/icons/todo-white.svg",        key: "todo"      }
     ]
 
     background: Rectangle { color: theme.background }
@@ -22,139 +27,307 @@ Page {
         anchors.fill: parent
         spacing: 0
 
-        // --- Sidebar ---
         Rectangle {
-            Layout.preferredWidth: 208
+            id: sidebar
+            Layout.preferredWidth: root.sidebarCollapsed
+                                   ? root.sidebarCollapsedWidth
+                                   : root.sidebarExpandedWidth
             Layout.fillHeight: true
             color: theme.surface
+            clip: true
+
+            // Click empty space → toggle collapse
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+                onClicked: root.sidebarCollapsed = !root.sidebarCollapsed
+            }
+
+            Rectangle {
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                width: 1
+                color: theme.border
+                opacity: 0.55
+            }
+
+            Behavior on Layout.preferredWidth {
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 4
+                anchors.topMargin: 16
+                anchors.bottomMargin: 12
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 2
 
-                RowLayout {
-                    spacing: 10
-                    Layout.bottomMargin: 20
+                // ── Brand + collapse (header only) ───────────────
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 44
+                    Layout.bottomMargin: 14
 
-                    Image {
-                        source: "logo.png"
-                        Layout.preferredWidth: 32
-                        Layout.preferredHeight: 32 * (sourceSize.height / Math.max(sourceSize.width, 1))
-                        fillMode: Image.PreserveAspectFit
+                    // Block empty-space click from stealing logo/nav clicks
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {}   // swallow
                     }
 
-                    ColumnLayout {
-                        spacing: 0
+                    Image {
+                        id: logo
+                        source: "qrc:/qml/logo.png"
+                        width: 28
+                        height: 28
+                        fillMode: Image.PreserveAspectFit
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: root.sidebarCollapsed ? undefined : parent.left
+                        anchors.leftMargin: 6
+                        anchors.horizontalCenter: root.sidebarCollapsed ? parent.horizontalCenter : undefined
+                    }
+
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: logo.right
+                        anchors.leftMargin: 10
+                        spacing: 1
+                        visible: !root.sidebarCollapsed
+
                         Label {
                             text: "Anchor"
                             color: theme.textPrimary
                             font.family: theme.headlineFont
                             font.bold: true
-                            font.pixelSize: 15
+                            font.pixelSize: 14
                         }
                         Label {
-                            text: "Productivity Suite"
+                            text: "Productivity"
                             color: theme.textMuted
                             font.family: theme.bodyFont
                             font.pixelSize: 10
                         }
                     }
-                }
 
-                Repeater {
-                    model: root.navItems
-                    delegate: Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        radius: theme.radiusSmall
-                        color: modelData.key === root.activeKey
-                               ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.16)
-                               : "transparent"
+                    // Collapse only when expanded
+                    Item {
+                        id: collapseTop
+                        width: 28
+                        height: 28
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: parent.right
+                        visible: !root.sidebarCollapsed
+                        property bool hovered: false
 
                         Rectangle {
-                            visible: modelData.key === root.activeKey
-                            width: 3
-                            height: parent.height - 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.left: parent.left
-                            radius: 2
-                            color: theme.tertiary
+                            anchors.fill: parent
+                            radius: 8
+                            color: collapseTop.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
                         }
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 14
-                            spacing: 10
-
-                            Label {
-                                text: modelData.glyph
-                                color: modelData.key === root.activeKey ? theme.tertiary : theme.textSecondary
-                                font.pixelSize: 14
-                            }
-                            Label {
-                                text: modelData.label
-                                color: modelData.key === root.activeKey ? theme.tertiary : theme.textSecondary
-                                font.family: theme.bodyFont
-                                font.pixelSize: 13
-                            }
+                        Image {
+                            source: "qrc:/icons/icons/double-arrow-left-white.svg"
+                            width: 16
+                            height: 16
+                            anchors.centerIn: parent
+                            fillMode: Image.PreserveAspectFit
+                            sourceSize: Qt.size(32, 32)
                         }
 
                         MouseArea {
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
+                            onEntered: collapseTop.hovered = true
+                            onExited: collapseTop.hovered = false
+                            onClicked: root.sidebarCollapsed = true
+                        }
+                    }
+                }
+
+                // ── Nav ──────────────────────────────────────────
+                Repeater {
+                    model: root.navItems
+
+                    delegate: Item {
+                        id: navItem
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 42
+                        property bool hovered: false
+                        property bool active: modelData.key === root.activeKey
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 10
+                            color: navItem.active
+                                   ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.16)
+                                   : navItem.hovered
+                                     ? Qt.rgba(1, 1, 1, 0.05)
+                                     : "transparent"
+                            Behavior on color { ColorAnimation { duration: 100 } }
+
+                            Rectangle {
+                                visible: navItem.active
+                                width: 3
+                                height: 16
+                                radius: 1.5
+                                color: theme.tertiary
+                                anchors.left: parent.left
+                                anchors.leftMargin: 3
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        Image {
+                            id: navIcon
+                            source: modelData.iconSource
+                            width: 22
+                            height: 22
+                            fillMode: Image.PreserveAspectFit
+                            sourceSize.width: 44
+                            sourceSize.height: 44
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: root.sidebarCollapsed ? undefined : parent.left
+                            anchors.leftMargin: root.sidebarCollapsed ? 0 : 14
+                            anchors.horizontalCenter: root.sidebarCollapsed ? parent.horizontalCenter : undefined
+                            opacity: navItem.active ? 1.0 : 0.75
+                        }
+
+                        Label {
+                            text: modelData.label
+                            color: navItem.active ? theme.tertiary : theme.textSecondary
+                            font.family: theme.bodyFont
+                            font.pixelSize: 13
+                            font.weight: navItem.active ? Font.DemiBold : Font.Normal
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: navIcon.right
+                            anchors.leftMargin: 12
+                            visible: opacity > 0
+                            opacity: root.sidebarCollapsed ? 0 : 1
+                            Behavior on opacity { NumberAnimation { duration: 100 } }
+                        }
+
+                        ToolTip {
+                            visible: root.sidebarCollapsed && navItem.hovered
+                            text: modelData.label
+                            delay: 300
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: navItem.hovered = true
+                            onExited: navItem.hovered = false
                             onClicked: root.activeKey = modelData.key
                         }
                     }
                 }
 
-                Item { Layout.fillHeight: true }
+                Item { Layout.fillHeight: true }  // empty zone → parent MouseArea toggles
 
                 Rectangle {
                     Layout.fillWidth: true
+                    Layout.bottomMargin: 4
                     height: 1
                     color: theme.border
-                    Layout.bottomMargin: 8
+                    opacity: 0.45
+                    visible: !root.sidebarCollapsed
                 }
 
-                Label {
-                    text: "Settings"
-                    color: theme.textSecondary
-                    font.family: theme.bodyFont
-                    font.pixelSize: 12
-                    Layout.bottomMargin: 4
-                }
-                Label {
-                    text: "Lock now"
-                    color: theme.textSecondary
-                    font.family: theme.bodyFont
-                    font.pixelSize: 12
+                // No collapse/expand button here when collapsed
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: session.lock()
-                    }
+                SidebarBtn {
+                    iconSource: "qrc:/icons/icons/settings-white.svg"
+                    label: "Settings"
+                    collapsed: root.sidebarCollapsed
+                    onClicked: { /* settings later */ }
+                }
+
+                SidebarBtn {
+                    iconSource: "qrc:/icons/icons/lock-white.svg"
+                    label: "Lock now"
+                    collapsed: root.sidebarCollapsed
+                    onClicked: session.lock()
                 }
             }
         }
 
-        // --- Content ---
         Loader {
-            id: contentLoader
             Layout.fillWidth: true
             Layout.fillHeight: true
-
             sourceComponent: {
                 switch (root.activeKey) {
                 case "dashboard": return dashboardComponent
-                case "vault": return vaultComponent
-                case "notes": return notesComponent
-                case "calendar": return calendarComponent
-                case "todo": return todoComponent
-                default: return dashboardComponent
+                case "vault":     return vaultComponent
+                case "notes":     return notesComponent
+                case "calendar":  return calendarComponent
+                case "todo":      return todoComponent
+                default:          return dashboardComponent
                 }
             }
+        }
+    }
+
+    component SidebarBtn : Item {
+        id: btn
+        property string iconSource: ""
+        property string label: ""
+        property bool collapsed: false
+        signal clicked()
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 38
+        property bool hovered: false
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 10
+            color: btn.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+        }
+
+        Image {
+            id: btnIcon
+            source: btn.iconSource
+            width: 18
+            height: 18
+            fillMode: Image.PreserveAspectFit
+            sourceSize.width: 36
+            sourceSize.height: 36
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: btn.collapsed ? undefined : parent.left
+            anchors.leftMargin: btn.collapsed ? 0 : 14
+            anchors.horizontalCenter: btn.collapsed ? parent.horizontalCenter : undefined
+            opacity: btn.hovered ? 1.0 : 0.75
+        }
+
+        Label {
+            text: btn.label
+            color: btn.hovered ? theme.textPrimary : theme.textSecondary
+            font.family: theme.bodyFont
+            font.pixelSize: 12
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: btnIcon.right
+            anchors.leftMargin: 12
+            visible: opacity > 0
+            opacity: btn.collapsed ? 0 : 1
+            Behavior on opacity { NumberAnimation { duration: 100 } }
+        }
+
+        ToolTip {
+            visible: btn.collapsed && btn.hovered
+            text: btn.label
+            delay: 300
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: btn.hovered = true
+            onExited: btn.hovered = false
+            onClicked: btn.clicked()
         }
     }
 
@@ -164,8 +337,8 @@ Page {
             onNavigateRequested: function (pageName) { root.activeKey = pageName }
         }
     }
-    Component { id: vaultComponent; VaultPage {} }
-    Component { id: notesComponent; NotesPage {} }
+    Component { id: vaultComponent;    VaultPage {} }
+    Component { id: notesComponent;    NotesPage {} }
     Component { id: calendarComponent; CalendarPage {} }
-    Component { id: todoComponent; TodoPage {} }
+    Component { id: todoComponent;     TodoPage {} }
 }
