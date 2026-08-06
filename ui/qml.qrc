@@ -28,6 +28,8 @@
         <file>TableBlock.qml</file>
         <file>SlashCommandMenu.qml</file>
         <file>EditorToolbar.qml</file>
+        <file>BulletBlock.qml</file>
+        <file>CalloutBlock.qml</file>
     </qresource>
     <qresource prefix="/"/>
 </RCC>

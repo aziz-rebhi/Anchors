@@ -5,205 +5,220 @@ import QtQuick.Layouts 1.15
 Popup {
     id: menu
 
-    // Set by the parent block when '/' is typed
     property string blockId: ""
     property string filterText: ""
-    property var onSelectBlock: null  // function(blockId, typeCode) called when user picks a type
-
-    // Position relative to the TextArea cursor
     property real cursorX: 0
     property real cursorY: 0
 
-    x: cursorX - 10
-    y: cursorY + 24  // below the cursor line
-    width: 280
-    height: Math.min(listView.contentHeight + 16, 320)
-    padding: 8
+    signal blockSelected(string blockId, int typeCode)
 
+    x: cursorX
+    y: cursorY
+    width: 300
+    height: Math.min(listColumn.implicitHeight + 16, 360)
+    padding: 8
     modal: false
     focus: false
-    closePolicy: Popup.NoAutoClose
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     background: Rectangle {
-        color: "#2a2a3a"
-        border.color: "#555555"
+        color: "#1e1e28"
+        border.color: "#3a3a4a"
         border.width: 1
-        radius: 8
+        radius: 10
     }
 
-    // Block type definitions for the menu
-    property var blockTypes: [
-        { type: 0,  name: "Text",        desc: "Plain text block",           icon: "T"  },
-        { type: 1,  name: "Heading 1",   desc: "Large section heading",       icon: "H1" },
-        { type: 2,  name: "Heading 2",   desc: "Medium section heading",     icon: "H2" },
-        { type: 3,  name: "Heading 3",   desc: "Small section heading",      icon: "H3" },
-        { type: 4,  name: "To-do",       desc: "Checkbox with text",         icon: "\u2611" },
-        { type: 5,  name: "Code",        desc: "Code snippet block",         icon: "</>" },
-        { type: 8,  name: "Divider",     desc: "Horizontal / Vertical divider", icon: "---" },
-        { type: 9,  name: "Quote",       desc: "Block quote",                icon: "\u201C" },
-        { type: 6,  name: "Image",       desc: "Embed an image",             icon: "\u25A3" },
-        { type: 7,  name: "Table",       desc: "Simple table",               icon: "\u2637" }
+    readonly property var allItems: [
+        { section: "Basic blocks", type: 0,  name: "Text",          shortcut: "",     icon: "T",   keywords: "text paragraph plain" },
+        { section: "Basic blocks", type: 1,  name: "Heading 1",     shortcut: "#",    icon: "H1",  keywords: "heading h1 title" },
+        { section: "Basic blocks", type: 2,  name: "Heading 2",     shortcut: "##",   icon: "H2",  keywords: "heading h2" },
+        { section: "Basic blocks", type: 3,  name: "Heading 3",     shortcut: "###",  icon: "H3",  keywords: "heading h3" },
+        { section: "Basic blocks", type: 10, name: "Heading 4",     shortcut: "####", icon: "H4",  keywords: "heading h4" },
+        { section: "Basic blocks", type: 11, name: "Bulleted list", shortcut: "-",    icon: "•",   keywords: "bullet list unordered" },
+        { section: "Basic blocks", type: 4,  name: "To-do list",    shortcut: "[]",   icon: "☑",   keywords: "todo task check" },
+        { section: "Basic blocks", type: 9,  name: "Quote",         shortcut: "\"",   icon: "“",   keywords: "quote cite" },
+        { section: "Basic blocks", type: 12, name: "Callout",       shortcut: "",     icon: "💡",  keywords: "callout note tip" },
+        { section: "Basic blocks", type: 8,  name: "Divider",       shortcut: "---",  icon: "—",   keywords: "divider line hr" },
+        { section: "Media",        type: 6,  name: "Image",         shortcut: "",     icon: "🖼",  keywords: "image photo picture" },
+        { section: "Media",        type: 5,  name: "Code",          shortcut: "```",  icon: "</>", keywords: "code snippet" },
+        { section: "Media",        type: 7,  name: "Table",         shortcut: "",     icon: "▦",   keywords: "table grid" }
     ]
 
-    // Filtered list
-    property var filteredTypes: {
-        if (!filterText || filterText.length === 0) {
-            return blockTypes
-        }
-        var q = filterText.toLowerCase()
-        return blockTypes.filter(function(item) {
-            return item.name.toLowerCase().indexOf(q) >= 0 ||
-                   item.desc.toLowerCase().indexOf(q) >= 0
+    property var filteredItems: {
+        var q = (filterText || "").trim().toLowerCase()
+        if (!q.length)
+            return allItems
+        return allItems.filter(function (it) {
+            return it.name.toLowerCase().indexOf(q) >= 0
+                || it.keywords.indexOf(q) >= 0
+                || it.shortcut.indexOf(q) >= 0
         })
     }
 
-    // --- Public API called from ParagraphBlock's Keys.onPressed ---
+    property var displayModel: {
+        var rows = []
+        var lastSection = ""
+        var items = filteredItems
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i]
+            if (it.section !== lastSection) {
+                rows.push({ kind: "header", title: it.section })
+                lastSection = it.section
+            }
+            rows.push({
+                kind: "item",
+                type: it.type,
+                name: it.name,
+                shortcut: it.shortcut,
+                icon: it.icon,
+                itemIndex: i
+            })
+        }
+        return rows
+    }
+
+    property int selectedItemIndex: 0
+
     function moveUp() {
-        listView.currentIndex = Math.max(0, listView.currentIndex - 1)
-        listView.positionViewAtIndex(listView.currentIndex, ListView.Contain)
+        if (filteredItems.length === 0) return
+        selectedItemIndex = (selectedItemIndex - 1 + filteredItems.length) % filteredItems.length
+        listView.positionViewAtIndex(indexOfSelectedRow(), ListView.Contain)
     }
 
     function moveDown() {
-        listView.currentIndex = Math.min(listView.count - 1, listView.currentIndex + 1)
-        listView.positionViewAtIndex(listView.currentIndex, ListView.Contain)
+        if (filteredItems.length === 0) return
+        selectedItemIndex = (selectedItemIndex + 1) % filteredItems.length
+        listView.positionViewAtIndex(indexOfSelectedRow(), ListView.Contain)
+    }
+
+    function indexOfSelectedRow() {
+        for (var i = 0; i < displayModel.length; i++) {
+            if (displayModel[i].kind === "item" && displayModel[i].itemIndex === selectedItemIndex)
+                return i
+        }
+        return 0
     }
 
     function selectCurrent() {
-        if (listView.currentIndex >= 0 && listView.currentIndex < filteredTypes.length) {
-            var selected = filteredTypes[listView.currentIndex]
-            if (menu.onSelectBlock) {
-                menu.onSelectBlock(menu.blockId, selected.type)
-            }
-        }
+        if (selectedItemIndex < 0 || selectedItemIndex >= filteredItems.length)
+            return
+        var it = filteredItems[selectedItemIndex]
+        menu.blockSelected(menu.blockId, it.type)
         menu.close()
     }
 
+    onFilterTextChanged: selectedItemIndex = 0
+    onOpened: selectedItemIndex = 0
+
     ColumnLayout {
+        id: listColumn
         anchors.fill: parent
         spacing: 4
 
-        // Search hint
-        Rectangle {
+        Text {
             Layout.fillWidth: true
-            Layout.preferredHeight: 20
-            color: "transparent"
-
-            Text {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Filter..."
-                font.pixelSize: 11
-                color: "#888888"
-            }
+            Layout.leftMargin: 6
+            text: filterText.length ? ("/" + filterText) : "Type to filter..."
+            color: "#777777"
+            font.pixelSize: 11
         }
 
-        // Separator
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            color: "#444444"
+            height: 1
+            color: "#333333"
         }
 
-        // Block type list
         ListView {
             id: listView
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.preferredHeight: Math.min(contentHeight, 280)
             clip: true
-            model: menu.filteredTypes
-            currentIndex: 0
-            highlightMoveDuration: 100
+            model: menu.displayModel
+            spacing: 1
+            currentIndex: menu.indexOfSelectedRow()
 
-            highlight: Rectangle {
-                color: "#3a3a4a"
-                radius: 4
-            }
-
-            delegate: ItemDelegate {
-                id: delegate
+            delegate: Item {
                 width: listView.width
-                height: 44
+                height: modelData.kind === "header" ? 22 : 36
 
-                background: Rectangle {
-                    color: delegate.hovered || listView.currentIndex === index ? "#3a3a4a" : "transparent"
-                    radius: 4
+                Text {
+                    visible: modelData.kind === "header"
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: modelData.title || ""
+                    color: "#666666"
+                    font.pixelSize: 10
+                    font.bold: true
                 }
 
-                contentItem: RowLayout {
-                    spacing: 12
+                Rectangle {
+                    visible: modelData.kind === "item"
+                    anchors.fill: parent
+                    radius: 6
+                    color: (modelData.itemIndex === menu.selectedItemIndex) ? "#2f2f3d" : "transparent"
 
-                    // Icon area
-                    Rectangle {
-                        Layout.preferredWidth: 40
-                        Layout.preferredHeight: 32
-                        color: "#333344"
-                        radius: 4
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 10
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.icon
-                            font.pixelSize: 12
-                            font.bold: true
-                            color: "#aaaaaa"
+                        Rectangle {
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 28
+                            radius: 6
+                            color: "#2a2a36"
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.icon || ""
+                                color: "#cccccc"
+                                font.pixelSize: 12
+                            }
                         }
-                    }
-
-                    // Name + description
-                    Column {
-                        spacing: 2
-                        Layout.fillWidth: true
 
                         Text {
-                            text: modelData.name
+                            Layout.fillWidth: true
+                            text: modelData.name || ""
+                            color: "#eeeeee"
                             font.pixelSize: 13
-                            font.weight: Font.Medium
-                            color: "#ffffff"
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            text: modelData.desc
+                            text: modelData.shortcut || ""
+                            color: "#666666"
                             font.pixelSize: 11
-                            color: "#888888"
+                            visible: (modelData.shortcut || "").length > 0
                         }
                     }
-                }
 
-                onClicked: {
-                    if (menu.onSelectBlock) {
-                        menu.onSelectBlock(menu.blockId, modelData.type)
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onEntered: menu.selectedItemIndex = modelData.itemIndex
+                        onClicked: {
+                            menu.blockSelected(menu.blockId, modelData.type)
+                            menu.close()
+                        }
                     }
-                    menu.close()
                 }
             }
         }
 
-        // Bottom hint
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 20
-            color: "transparent"
+            height: 1
+            color: "#333333"
+        }
 
-            Row {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 12
-
-                Text {
-                    text: "\u2191\u2193 navigate"
-                    font.pixelSize: 10
-                    color: "#666666"
-                }
-                Text {
-                    text: "Enter select"
-                    font.pixelSize: 10
-                    color: "#666666"
-                }
-                Text {
-                    text: "Esc dismiss"
-                    font.pixelSize: 10
-                    color: "#666666"
-                }
-            }
+        Text {
+            Layout.fillWidth: true
+            Layout.leftMargin: 6
+            text: "Close menu  ·  esc"
+            color: "#555555"
+            font.pixelSize: 10
         }
     }
 }

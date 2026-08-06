@@ -38,7 +38,6 @@ public:
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
 
-    // Block operations
     // type: 0=Paragraph, 1=H1, 2=H2, 3=H3, 4=Todo, 5=Code, 6=Image, 7=Table, 8=Divider, 9=Quote
     Q_INVOKABLE void insertBlock(const QString& parentId, int row, int type, const QString& content = "");
     Q_INVOKABLE void insertBlockAfter(const QString& blockId, int type, const QString& content = "");
@@ -46,12 +45,14 @@ public:
     Q_INVOKABLE void updateBlockContent(const QString& blockId, const QString& content);
     Q_INVOKABLE void updateBlockCodeLanguage(const QString& blockId, const QString& language);
     Q_INVOKABLE void updateBlockImageSource(const QString& blockId, const QString& source);
+    Q_INVOKABLE void updateBlockImageCaption(const QString& blockId, const QString& caption);
     Q_INVOKABLE void updateBlockTableData(const QString& blockId, const QVariantList& cells);
     Q_INVOKABLE void updateBlockDividerOrientation(const QString& blockId, int orientation);
     Q_INVOKABLE void toggleBlockChecked(const QString& blockId);
     Q_INVOKABLE void mergeWithPrevious(const QString& blockId);
     Q_INVOKABLE void changeBlockType(const QString& blockId, int newType);
     Q_INVOKABLE void setFocusedBlock(const QString& blockId);
+    Q_INVOKABLE void moveBlock(const QString& blockId, int newRow);
 
     Q_INVOKABLE QVariantList getDocuments() const;
     Q_INVOKABLE void loadFromContent(const QString& title, const QStringList& paragraphs);
@@ -70,6 +71,8 @@ signals:
     void documentModified();
 
 private:
+    void bindDocumentSignals();
+
     Document* m_document = nullptr;
     NotesDatabase* m_db = nullptr;
     QString m_pendingFocusId;

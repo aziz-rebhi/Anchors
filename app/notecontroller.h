@@ -22,6 +22,7 @@ public:
     Q_INVOKABLE bool addEntry(const QString &title, const QString &content);
     Q_INVOKABLE bool updateEntry(const QString &id, const QString &title, const QString &content);
     Q_INVOKABLE bool deleteEntry(const QString &id);
+    Q_INVOKABLE bool renameEntry(const QString &id, const QString &newTitle);
 
     //folder methode
     Q_INVOKABLE QStringList getFolders() const;
@@ -30,6 +31,7 @@ public:
     Q_INVOKABLE bool moveNoteToFolder(const QString &noteId, const QString &folderName);
     Q_INVOKABLE bool renameFolder(const QString &oldName, const QString &newName);
     Q_INVOKABLE bool deleteFolder(const QString &folderName);
+
 
 signals:
     void entriesChanged();

@@ -47,7 +47,15 @@ static QJsonObject blockDataToJson(const BlockData& data)
         } else if constexpr (std::is_same_v<T, QuoteData>) {
             obj["type"] = "quote";
             obj["text"] = arg.text;
+        } else if constexpr (std::is_same_v<T, BulletData>) {
+            obj["type"] = "bullet";
+            obj["text"] = arg.text;
+        } else if constexpr (std::is_same_v<T, CalloutData>) {
+            obj["type"] = "callout";
+            obj["text"] = arg.text;
+            obj["emoji"] = arg.emoji;
         }
+
     }, data);
     return obj;
 }
@@ -81,9 +89,16 @@ static BlockData blockDataFromJson(const QJsonObject& obj)
     } else if (type == "todo") {
         return TodoData{obj["text"].toString(), obj["checked"].toBool()};
     } else if (type == "divider") {
-        return DividerData{};
+        return DividerData{obj["orientation"].toInt(0)};
     } else if (type == "quote") {
         return QuoteData{obj["text"].toString()};
+    } else if (type == "bullet") {
+        return BulletData{obj["text"].toString()};
+    } else if (type == "callout") {
+        return CalloutData{
+            obj["text"].toString(),
+            obj.contains("emoji") ? obj["emoji"].toString() : QStringLiteral("💡")
+        };
     }
     return ParagraphData{""};
 }

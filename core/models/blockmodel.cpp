@@ -98,6 +98,7 @@ static int blockTypeCode(const BlockData& data)
         if constexpr (std::is_same_v<T, ParagraphData>) {
             return 0;
         } else if constexpr (std::is_same_v<T, HeadingData>) {
+            if (arg.level >= 4) return 10;
             return arg.level; // 1, 2, or 3
         } else if constexpr (std::is_same_v<T, TodoData>) {
             return 4;
@@ -111,6 +112,10 @@ static int blockTypeCode(const BlockData& data)
             return 8;
         } else if constexpr (std::is_same_v<T, QuoteData>) {
             return 9;
+        } else if constexpr (std::is_same_v<T, BulletData>){
+            return 11;
+        } else if constexpr (std::is_same_v<T, CalloutData>){
+            return 12;
         }
         return 0;
     }, data);
@@ -166,6 +171,11 @@ QVariant BlockModel::data(const QModelIndex& index, int role) const
                 map["orientation"] = arg.orientation;
             } else if constexpr (std::is_same_v<T, QuoteData>) {
                 map["text"] = arg.text;
+            } else if constexpr (std::is_same_v<T, BulletData>) {
+                map["text"] = arg.text;
+            } else if constexpr (std::is_same_v<T, CalloutData>) {
+                map["text"] = arg.text;
+                map["emoji"] = arg.emoji;
             }
         }, block->data());
         return map;

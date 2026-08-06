@@ -179,7 +179,7 @@ bool NoteController::renameFolder(const QString &oldName, const QString &newName
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
 
-    const QString oldPrefix = oldName + "/";
+    const QString oldPrefix = oldName + QLatin1String("/");
     bool changed = false;
     for (auto &e : all) {
         if (e.m_folder == oldName) {
@@ -190,7 +190,10 @@ bool NoteController::renameFolder(const QString &oldName, const QString &newName
             changed = true;
         }
     }
-    return changed && repo.saveAll(all);
+    if (!changed) return false;
+    const bool saved = repo.saveAll(all);
+    if (saved) emit entriesChanged();
+    return saved;
 }
 
 bool NoteController::deleteFolder(const QString &folderName)
@@ -202,13 +205,12 @@ bool NoteController::deleteFolder(const QString &folderName)
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
 
-    const QString prefix = folderName + "/";
-    // Move notes to the parent folder (or root if top-level)
     QString parent;
-    int slash = folderName.lastIndexOf('/');
+    const int slash = folderName.lastIndexOf(QLatin1Char('/'));
     if (slash >= 0)
         parent = folderName.left(slash);
 
+    const QString prefix = folderName + QLatin1String("/");
     bool changed = false;
     for (auto &e : all) {
         if (e.m_folder == folderName || e.m_folder.startsWith(prefix)) {
@@ -216,7 +218,10 @@ bool NoteController::deleteFolder(const QString &folderName)
             changed = true;
         }
     }
-    return changed && repo.saveAll(all);
+    if (!changed) return false;
+    const bool saved = repo.saveAll(all);
+    if (saved) emit entriesChanged();
+    return saved;
 }
 
 bool NoteController::addEntryInFolder(const QString &title, const QString &content, const QString &folderName)
@@ -239,4 +244,21 @@ bool NoteController::addEntryInFolder(const QString &title, const QString &conte
         emit operationFailed(QStringLiteral("Could not save the note."));
     }
     return ok;
+}
+
+bool NoteController::renameEntry(const QString &id, const QString &newTitle)
+{
+    if (!Session::instance()->isUnlocked()) return false;
+    NoteRepository repo(Session::instance()->sessionKey());
+    bool ok; auto all = repo.loadAll(&ok);
+    if (!ok) return false;
+    for (auto &e : all) {
+        if (e.m_id == id) {
+            e.m_title = newTitle;
+            const bool saved = repo.saveAll(all);
+            if (saved) emit entriesChanged();
+            return saved;
+        }
+    }
+    return false;
 }

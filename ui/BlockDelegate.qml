@@ -37,6 +37,9 @@ Item {
             case 7:  return tableComponent
             case 8:  return dividerComponent
             case 9:  return quoteComponent
+            case 10: return headingComponent
+            case 11: return bulletComponent
+            case 12: return calloutComponent
             default: return paragraphComponent
             }
         }
@@ -57,7 +60,9 @@ Item {
         id: headingComponent
         HeadingBlock {
             blockId: root.blockId
-            level: root.blockType
+            level: root.blockData && root.blockData.level !== undefined
+                           ? root.blockData.level
+                           : (root.blockType <= 3 ? root.blockType : 4)
             text: root.blockData ? root.blockData.text || "" : ""
             onContentChanged: function(newText) {
                 if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
@@ -119,6 +124,29 @@ Item {
     Component {
         id: quoteComponent
         QuoteBlock {
+            blockId: root.blockId
+            text: root.blockData ? root.blockData.text || "" : ""
+            onContentChanged: function(newText) {
+                if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
+            }
+        }
+    }
+
+    Component {
+        id: calloutComponent
+        CalloutBlock {
+            blockId: root.blockId
+            text: root.blockData ? root.blockData.text || "" : ""
+            emoji: root.blockData ? root.blockData.emoji || "💡" : "💡"
+            onContentChanged: function(newText) {
+                if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
+            }
+        }
+    }
+
+    Component {
+        id: bulletComponent
+        BulletBlock {
             blockId: root.blockId
             text: root.blockData ? root.blockData.text || "" : ""
             onContentChanged: function(newText) {

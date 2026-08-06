@@ -135,6 +135,10 @@ Item {
             color: "#cccccc"
             placeholderTextColor: "#666666"
             background: Rectangle { color: "transparent" }
+            onEditingFinished: {
+                if (noteEditor && text !== root.caption)
+                    noteEditor.updateBlockImageCaption(root.blockId, text)
+            }
             onActiveFocusChanged: {
                 if (activeFocus && noteEditor)
                     noteEditor.setFocusedBlock(root.blockId)
@@ -157,6 +161,10 @@ Item {
     }
 
     Keys.onPressed: function(event) {
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                // Clipboard image: user can still use file dialog; full clipboard image
+                // needs C++ helper — file dialog remains primary
+            }
         if (event.key === Qt.Key_Backspace && root.source === "") {
             noteEditor.deleteBlock(root.blockId)
             event.accepted = true

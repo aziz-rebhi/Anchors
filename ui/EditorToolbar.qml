@@ -95,6 +95,24 @@ Rectangle {
             tooltip: "Table"
             onClicked: root.insertType(7)
         }
+        ToolbarButton {
+            label: "↶"
+            tooltip: "Undo (Ctrl+Z)"
+            enabled: noteEditor && noteEditor.canUndo
+            opacity: enabled ? 1 : 0.35
+            onClicked: if (noteEditor) noteEditor.undo()
+        }
+        ToolbarButton {
+            label: "↷"
+            tooltip: "Redo (Ctrl+Shift+Z)"
+            enabled: noteEditor && noteEditor.canRedo
+            opacity: enabled ? 1 : 0.35
+            onClicked: if (noteEditor) noteEditor.redo()
+        }
+        Rectangle {
+            width: 1; height: 20; color: "#555555"
+            anchors.verticalCenter: parent.verticalCenter
+        }
     }
 
     component ToolbarButton : Rectangle {

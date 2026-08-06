@@ -45,8 +45,17 @@ struct QuoteData {
     QString text;
 };
 
+struct BulletData {
+    QString text;
+};
+
+struct CalloutData {
+    QString text;
+    QString emoji = "💡";
+};
+
 #include <variant>
-using BlockData = std::variant<ParagraphData, HeadingData, CodeData, ImageData, TableData, TodoData, DividerData, QuoteData>;
+using BlockData = std::variant<ParagraphData, HeadingData, CodeData, ImageData, TableData, TodoData, DividerData, QuoteData, BulletData, CalloutData>;
 
 // Type indices (matches variant order):
 //  0 = Paragraph

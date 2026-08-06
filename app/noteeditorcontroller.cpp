@@ -3,9 +3,11 @@
 #include "../core/models/blockmodel.h"
 #include "../core/models/blockcommands.h"
 #include "../core/storage/notesdatabase.h"
+
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QUndoStack>
 
 NoteEditorController::NoteEditorController(QObject* parent)
     : QObject(parent)
@@ -16,6 +18,21 @@ NoteEditorController::NoteEditorController(QObject* parent)
 NoteEditorController::~NoteEditorController()
 {
     delete m_document;
+}
+
+void NoteEditorController::bindDocumentSignals()
+{
+    if (!m_document) return;
+
+    connect(m_document, &Document::documentModified,
+            this, &NoteEditorController::documentModified);
+
+    if (m_document->undoStack()) {
+        connect(m_document->undoStack(), &QUndoStack::canUndoChanged,
+                this, &NoteEditorController::canUndoChanged);
+        connect(m_document->undoStack(), &QUndoStack::canRedoChanged,
+                this, &NoteEditorController::canRedoChanged);
+    }
 }
 
 QAbstractItemModel* NoteEditorController::model() const
@@ -36,6 +53,7 @@ void NoteEditorController::setNoteTitle(const QString& title)
     if (m_document->title() == title) return;
     m_document->setTitle(title);
     emit noteTitleChanged(title);
+    emit documentModified();
 }
 
 QUuid NoteEditorController::documentId() const
@@ -65,22 +83,21 @@ void NoteEditorController::createNewNote(const QString& title)
         m_document = nullptr;
     }
 
-
     QUuid docId = QUuid::createUuid();
-    m_document = new Document(docId, title.isEmpty() ? "Untitled" : title, this);
-    connect(m_document, &Document::documentModified,
-            this, &NoteEditorController::documentModified);
+    m_document = new Document(docId, title.isEmpty() ? QStringLiteral("Untitled") : title, this);
+    bindDocumentSignals();
 
     BlockData data = ParagraphData{""};
     m_document->insertBlock(QUuid(), 0, data);
 
-    if (!m_db->saveDocument(*m_document)) {
-        emit errorOccurred("Failed to save new note");
-    }
+    if (m_db && !m_db->saveDocument(*m_document))
+        emit errorOccurred(QStringLiteral("Failed to save new note"));
 
     emit documentChanged();
     emit noteTitleChanged(m_document->title());
     emit modelChanged();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 void NoteEditorController::loadNote(const QString& id)
@@ -94,43 +111,49 @@ void NoteEditorController::loadNote(const QString& id)
         m_document = nullptr;
     }
 
-    m_document = m_db->loadDocument(docId);
+    m_document = m_db ? m_db->loadDocument(docId) : nullptr;
     if (!m_document) {
-        emit errorOccurred("Failed to load note");
+        emit errorOccurred(QStringLiteral("Failed to load note"));
         return;
     }
-    connect(m_document, &Document::documentModified,
-            this, &NoteEditorController::documentModified);
+    m_document->setParent(this);
+    bindDocumentSignals();
+
     emit documentChanged();
     emit noteTitleChanged(m_document->title());
     emit modelChanged();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 void NoteEditorController::saveNote()
 {
-    if (!m_document) return;
-    if (!m_db->saveDocument(*m_document)) {
-        emit errorOccurred("Failed to save note");
-    }
+    if (!m_document || !m_db) return;
+    if (!m_db->saveDocument(*m_document))
+        emit errorOccurred(QStringLiteral("Failed to save note"));
 }
 
 void NoteEditorController::deleteNote()
 {
-    if (!m_document) return;
+    if (!m_document || !m_db) return;
     if (!m_db->deleteDocument(m_document->id())) {
-        emit errorOccurred("Failed to delete note");
+        emit errorOccurred(QStringLiteral("Failed to delete note"));
         return;
     }
     delete m_document;
     m_document = nullptr;
     emit documentChanged();
     emit noteTitleChanged(QString());
+    emit modelChanged();
 }
 
 void NoteEditorController::undo()
 {
     if (m_document && m_document->undoStack()) {
         m_document->undoStack()->undo();
+        emit canUndoChanged();
+        emit canRedoChanged();
+        emit documentModified();
     }
 }
 
@@ -138,10 +161,12 @@ void NoteEditorController::redo()
 {
     if (m_document && m_document->undoStack()) {
         m_document->undoStack()->redo();
+        emit canUndoChanged();
+        emit canRedoChanged();
+        emit documentModified();
     }
 }
 
-// Helper to set pending focus and emit
 void NoteEditorController::setFocusedBlock(const QString& blockId)
 {
     if (m_focusedBlockId != blockId) {
@@ -150,11 +175,10 @@ void NoteEditorController::setFocusedBlock(const QString& blockId)
     }
 }
 
-// type: 0=Paragraph, 1=H1, 2=H2, 3=H3, 4=Todo, 5=Code, 6=Image, 7=Table, 8=Divider, 9=Quote
 void NoteEditorController::insertBlock(const QString& parentId, int row, int type, const QString& content)
 {
     if (!m_document) {
-        emit errorOccurred("No note open");
+        emit errorOccurred(QStringLiteral("No note open"));
         return;
     }
 
@@ -170,14 +194,17 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 5: data = CodeData{"", content}; break;
     case 6: data = ImageData{content, "", 0, 0}; break;
     case 7: {
-        QVector<QVector<QString>> initCells(3, QVector<QString>(1, ""));
+        QVector<QVector<QString>> initCells(1, QVector<QString>(1, ""));
         data = TableData{1, 1, initCells};
         break;
     }
     case 8: data = DividerData{}; break;
     case 9: data = QuoteData{content}; break;
+    case 10: data = HeadingData{4, content}; break;
+    case 11: data = BulletData{content}; break;
+    case 12: data = CalloutData{content, QStringLiteral("💡")}; break;
     default:
-        emit errorOccurred("Unsupported block type");
+        emit errorOccurred(QStringLiteral("Unsupported block type"));
         return;
     }
 
@@ -185,10 +212,11 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     auto* cmd = new InsertBlockCommand(m_document, parentUuid, row, data, newId);
     m_document->undoStack()->push(cmd);
 
-    // Notify QML to focus the new block
     m_pendingFocusId = newId.toString(QUuid::WithoutBraces);
     emit pendingFocusIdChanged(m_pendingFocusId);
     emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 void NoteEditorController::insertBlockAfter(const QString& blockId, int type, const QString& content)
@@ -197,7 +225,7 @@ void NoteEditorController::insertBlockAfter(const QString& blockId, int type, co
     QUuid id = QUuid::fromString(blockId);
     int idx = m_document->findBlockIndex(id);
     if (idx < 0) return;
-    insertBlock("", idx + 1, type, content);
+    insertBlock(QString(), idx + 1, type, content);
 }
 
 void NoteEditorController::deleteBlock(const QString& blockId)
@@ -209,24 +237,20 @@ void NoteEditorController::deleteBlock(const QString& blockId)
     int idx = m_document->findBlockIndex(id);
     if (idx < 0) return;
 
-    // Decide which block should receive focus after deletion
     QString focusId;
-    int total = m_document->blocks().size();
+    const int total = m_document->blocks().size();
     if (total > 1) {
-        // Prefer previous block; if deleting the first, focus the next one
-        int focusIdx = (idx > 0) ? idx - 1 : 1;
-        Block* focusBlock = m_document->blockAt(focusIdx);
-        if (focusBlock)
+        const int focusIdx = (idx > 0) ? idx - 1 : 1;
+        if (Block* focusBlock = m_document->blockAt(focusIdx))
             focusId = focusBlock->id().toString(QUuid::WithoutBraces);
     }
 
     auto* cmd = new DeleteBlockCommand(m_document, id);
     m_document->undoStack()->push(cmd);
 
-    // If document became empty, create a fresh empty paragraph
     if (m_document->blocks().isEmpty()) {
-        insertBlock("", 0, 0, "");
-        return; // insertBlock already sets pendingFocusId
+        insertBlock(QString(), 0, 0, QString());
+        return;
     }
 
     if (!focusId.isEmpty()) {
@@ -234,6 +258,8 @@ void NoteEditorController::deleteBlock(const QString& blockId)
         emit pendingFocusIdChanged(m_pendingFocusId);
     }
     emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 void NoteEditorController::updateBlockContent(const QString& blockId, const QString& content)
@@ -245,6 +271,8 @@ void NoteEditorController::updateBlockContent(const QString& blockId, const QStr
     auto* cmd = new EditTextCommand(m_document, id, content);
     m_document->undoStack()->push(cmd);
     emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 void NoteEditorController::updateBlockCodeLanguage(const QString& blockId, const QString& language)
@@ -252,11 +280,9 @@ void NoteEditorController::updateBlockCodeLanguage(const QString& blockId, const
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
-
     Block* block = m_document->findBlock(id);
     if (!block) return;
 
-    // Only works on CodeData blocks
     std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, CodeData>) {
@@ -277,9 +303,8 @@ void NoteEditorController::toggleBlockChecked(const QString& blockId)
 
     BlockData newData = std::visit([](auto&& arg) -> BlockData {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, TodoData>) {
+        if constexpr (std::is_same_v<T, TodoData>)
             return TodoData{arg.text, !arg.checked};
-        }
         return arg;
     }, block->data());
 
@@ -292,10 +317,11 @@ void NoteEditorController::mergeWithPrevious(const QString& blockId)
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     int idx = m_document->findBlockIndex(id);
+
     if (idx <= 0) {
         Block* block = m_document->findBlock(id);
         if (block) {
-            bool isEmpty = std::visit([](auto&& arg) -> bool {
+            const bool isEmpty = std::visit([](auto&& arg) -> bool {
                 using T = std::decay_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, ParagraphData>) return arg.text.isEmpty();
                 else if constexpr (std::is_same_v<T, HeadingData>) return arg.text.isEmpty();
@@ -325,19 +351,17 @@ void NoteEditorController::mergeWithPrevious(const QString& blockId)
         }, d);
     };
 
-    QString currentText = extractText(current->data());
-    QString prevText = extractText(prev->data());
+    const QString currentText = extractText(current->data());
+    const QString prevText = extractText(prev->data());
 
-    m_document->undoStack()->beginMacro("Merge block");
-
-    auto* editCmd = new EditTextCommand(m_document, prev->id(), prevText + currentText);
-    m_document->undoStack()->push(editCmd);
-
-    auto* delCmd = new DeleteBlockCommand(m_document, id);
-    m_document->undoStack()->push(delCmd);
-
+    m_document->undoStack()->beginMacro(QStringLiteral("Merge block"));
+    m_document->undoStack()->push(new EditTextCommand(m_document, prev->id(), prevText + currentText));
+    m_document->undoStack()->push(new DeleteBlockCommand(m_document, id));
     m_document->undoStack()->endMacro();
+
     emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 void NoteEditorController::changeBlockType(const QString& blockId, int newType)
@@ -366,14 +390,17 @@ void NoteEditorController::changeBlockType(const QString& blockId, int newType)
     case 3: newData = HeadingData{3, currentText}; break;
     case 4: newData = TodoData{currentText, isChecked}; break;
     case 5: newData = CodeData{"", currentText}; break;
-    case 6: newData = ImageData{"", "", 0, 0}; break;          // Image
-    case 7: {                                                     // Table 1×1
+    case 6: newData = ImageData{"", "", 0, 0}; break;
+    case 7: {
         QVector<QVector<QString>> initCells(1, QVector<QString>(1, ""));
         newData = TableData{1, 1, initCells};
         break;
     }
     case 8: newData = DividerData{}; break;
     case 9: newData = QuoteData{currentText}; break;
+    case 10: newData = HeadingData{4, currentText}; break;
+    case 11: newData = BulletData{currentText}; break;
+    case 12: newData = CalloutData{currentText, QStringLiteral("💡")}; break;
     default: return;
     }
 
@@ -383,59 +410,11 @@ void NoteEditorController::changeBlockType(const QString& blockId, int newType)
     emit documentModified();
 }
 
-QVariantList NoteEditorController::getDocuments() const
-{
-    QVariantList list;
-    if (!m_db) return list;
-    QList<QUuid> ids = m_db->allDocumentIds();
-    for (const QUuid& id : ids) {
-        Document* doc = m_db->loadDocument(id);
-        if (doc) {
-            QVariantMap map;
-            map["id"] = doc->id().toString(QUuid::WithoutBraces);
-            map["title"] = doc->title();
-            list.append(map);
-            delete doc;
-        }
-    }
-    return list;
-}
-
-void NoteEditorController::loadFromContent(const QString& title, const QStringList& paragraphs)
-{
-    if (m_document) {
-        delete m_document;
-        m_document = nullptr;
-    }
-
-
-    QUuid docId = QUuid::createUuid();
-    m_document = new Document(docId, title, this);
-    connect(m_document, &Document::documentModified,
-            this, &NoteEditorController::documentModified);
-
-    int row = 0;
-    if (paragraphs.isEmpty()) {
-        BlockData data = ParagraphData{""};
-        m_document->insertBlock(QUuid(), row++, data);
-    } else {
-        for (const QString& para : paragraphs) {
-            BlockData data = ParagraphData{para};
-            m_document->insertBlock(QUuid(), row++, data);
-        }
-    }
-
-    emit documentChanged();
-    emit noteTitleChanged(title);
-    emit modelChanged();
-}
-
 void NoteEditorController::updateBlockImageSource(const QString& blockId, const QString& source)
 {
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
-
     Block* block = m_document->findBlock(id);
     if (!block) return;
 
@@ -450,12 +429,29 @@ void NoteEditorController::updateBlockImageSource(const QString& blockId, const 
     emit documentModified();
 }
 
+void NoteEditorController::updateBlockImageCaption(const QString& blockId, const QString& caption)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ImageData>) {
+            ImageData updated = arg;
+            updated.caption = caption;
+            m_document->updateBlockData(id, updated);
+        }
+    }, block->data());
+    emit documentModified();
+}
+
 void NoteEditorController::updateBlockTableData(const QString& blockId, const QVariantList& cells)
 {
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
-
     Block* block = m_document->findBlock(id);
     if (!block) return;
 
@@ -463,17 +459,16 @@ void NoteEditorController::updateBlockTableData(const QString& blockId, const QV
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, TableData>) {
             TableData updated = arg;
-            int rows = cells.size();
+            const int rows = cells.size();
             int cols = 0;
             updated.cells.clear();
             updated.cells.resize(rows);
             for (int r = 0; r < rows; ++r) {
-                QVariantList rowList = cells[r].toList();
-                cols = std::max(cols, (int)rowList.size());
+                const QVariantList rowList = cells[r].toList();
+                cols = std::max(cols, static_cast<int>(rowList.size()));
                 updated.cells[r].resize(rowList.size());
-                for (int c = 0; c < rowList.size(); ++c) {
+                for (int c = 0; c < rowList.size(); ++c)
                     updated.cells[r][c] = rowList[c].toString();
-                }
             }
             updated.rows = rows;
             updated.cols = cols;
@@ -488,7 +483,6 @@ void NoteEditorController::updateBlockDividerOrientation(const QString& blockId,
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
-
     Block* block = m_document->findBlock(id);
     if (!block) return;
 
@@ -503,11 +497,62 @@ void NoteEditorController::updateBlockDividerOrientation(const QString& blockId,
     emit documentModified();
 }
 
+void NoteEditorController::moveBlock(const QString& blockId, int newRow)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    if (id.isNull() || newRow < 0) return;
+    m_document->moveBlock(id, QUuid(), newRow);
+    emit documentModified();
+}
+
+QVariantList NoteEditorController::getDocuments() const
+{
+    QVariantList list;
+    if (!m_db) return list;
+    const QList<QUuid> ids = m_db->allDocumentIds();
+    for (const QUuid& id : ids) {
+        Document* doc = m_db->loadDocument(id);
+        if (doc) {
+            QVariantMap map;
+            map[QStringLiteral("id")] = doc->id().toString(QUuid::WithoutBraces);
+            map[QStringLiteral("title")] = doc->title();
+            list.append(map);
+            delete doc;
+        }
+    }
+    return list;
+}
+
+void NoteEditorController::loadFromContent(const QString& title, const QStringList& paragraphs)
+{
+    if (m_document) {
+        delete m_document;
+        m_document = nullptr;
+    }
+
+    m_document = new Document(QUuid::createUuid(), title, this);
+    bindDocumentSignals();
+
+    int row = 0;
+    if (paragraphs.isEmpty()) {
+        m_document->insertBlock(QUuid(), row++, ParagraphData{""});
+    } else {
+        for (const QString& para : paragraphs)
+            m_document->insertBlock(QUuid(), row++, ParagraphData{para});
+    }
+
+    emit documentChanged();
+    emit noteTitleChanged(title);
+    emit modelChanged();
+    emit canUndoChanged();
+    emit canRedoChanged();
+}
+
 QString NoteEditorController::documentToJson() const
 {
-    if (!m_document) return "{}";
-    QJsonObject obj = m_document->toJson();
-    return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    if (!m_document) return QStringLiteral("{}");
+    return QString::fromUtf8(QJsonDocument(m_document->toJson()).toJson(QJsonDocument::Compact));
 }
 
 void NoteEditorController::loadFromJson(const QString& title, const QString& jsonContent)
@@ -517,29 +562,24 @@ void NoteEditorController::loadFromJson(const QString& title, const QString& jso
         m_document = nullptr;
     }
 
-
-    // Try to parse as our JSON block format
     QJsonParseError err;
-    QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8(), &err);
-
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8(), &err);
     if (err.error == QJsonParseError::NoError && doc.isObject()) {
-        QJsonObject obj = doc.object();
-        // Check if it has a "blocks" array (our Document format)
-        if (obj.contains("blocks") && obj["blocks"].isArray()) {
+        const QJsonObject obj = doc.object();
+        if (obj.contains(QLatin1String("blocks")) && obj.value(QLatin1String("blocks")).isArray()) {
             m_document = Document::fromJson(obj, nullptr);
             if (m_document) {
                 m_document->setParent(this);
-                connect(m_document, &Document::documentModified,
-                        this, &NoteEditorController::documentModified);
+                bindDocumentSignals();
                 emit documentChanged();
-                emit noteTitleChanged(m_document->title());
+                emit noteTitleChanged(m_document->title().isEmpty() ? title : m_document->title());
                 emit modelChanged();
+                emit canUndoChanged();
+                emit canRedoChanged();
                 return;
             }
         }
     }
 
-    // Fallback: plain text paragraphs
-    QStringList paragraphs = jsonContent.split('\n');
-    loadFromContent(title, paragraphs);
+    loadFromContent(title, jsonContent.split(QLatin1Char('\n')));
 }
