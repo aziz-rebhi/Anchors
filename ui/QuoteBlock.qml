@@ -23,7 +23,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 3
-        color: "#666666"
+        color: "#6c7086"
         radius: 1
     }
 
@@ -42,40 +42,43 @@ Rectangle {
         wrapMode: Text.Wrap
         font.pixelSize: 14
         font.italic: true
-        color: "#dddddd"
+        color: "#cdd6f4"
         background: Rectangle { color: "transparent" }
 
         onTextChanged: {
-            if (text !== root.text) {
+            if (text !== root.text)
                 root.contentChanged(text)
-            }
         }
 
         onActiveFocusChanged: {
-            if (activeFocus && noteEditor) {
+            if (activeFocus && noteEditor)
                 noteEditor.setFocusedBlock(root.blockId)
-            }
         }
 
-        Keys.onPressed: function(event) {
+        Keys.onPressed: function (event) {
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
-                if (event.modifiers & Qt.ShiftModifier)
-                    noteEditor.redo()
-                else
-                    noteEditor.undo()
+                if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
+                else noteEditor.undo()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Tab) {
-                textArea.insert(textArea.cursorPosition, "    ")
-                event.accepted = true
-            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                return
+            }
+            if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                 var pos = textArea.cursorPosition
                 var after = text.substring(pos)
                 textArea.text = text.substring(0, pos)
                 root.contentChanged(textArea.text)
-                noteEditor.insertBlockAfter(root.blockId, 0, after)
+                if (event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
+                    noteEditor.exitContainer(root.blockId, 0, after)
+                else
+                    noteEditor.insertBlockAfter(root.blockId, 0, after)
                 event.accepted = true
-            } else if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
-                noteEditor.mergeWithPrevious(root.blockId)
+                return
+            }
+            if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
+                if (textArea.text.length === 0)
+                    noteEditor.deleteBlock(root.blockId)
+                else
+                    noteEditor.mergeWithPrevious(root.blockId)
                 event.accepted = true
             }
         }

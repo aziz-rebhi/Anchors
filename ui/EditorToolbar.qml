@@ -10,109 +10,66 @@ Rectangle {
     signal insertType(int typeCode)
     signal changeType(int typeCode)
 
-    Row {
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left
+    Flickable {
+        anchors.fill: parent
         anchors.leftMargin: 4
-        spacing: 2
+        contentWidth: row.width
+        contentHeight: height
+        clip: true
+        flickableDirection: Flickable.HorizontalFlick
+        interactive: contentWidth > width
 
-        // Text
-        ToolbarButton {
-            label: "T"
-            tooltip: "Text (Paragraph)"
-            onClicked: root.insertType(0)
-        }
-
-        // H1
-        ToolbarButton {
-            label: "H1"
-            tooltip: "Heading 1"
-            onClicked: root.insertType(1)
-        }
-
-        // H2
-        ToolbarButton {
-            label: "H2"
-            tooltip: "Heading 2"
-            onClicked: root.insertType(2)
-        }
-
-        // H3
-        ToolbarButton {
-            label: "H3"
-            tooltip: "Heading 3"
-            onClicked: root.insertType(3)
-        }
-
-        // Separator
-        Rectangle {
-            width: 1
-            height: 20
-            color: "#555555"
+        Row {
+            id: row
             anchors.verticalCenter: parent.verticalCenter
-        }
+            spacing: 2
 
-        // To-do
-        ToolbarButton {
-            label: "\u2611"
-            tooltip: "To-do"
-            onClicked: root.insertType(4)
-        }
+            ToolbarButton { label: "T";   tooltip: "Text";            onClicked: root.insertType(0) }
+            ToolbarButton { label: "H1";  tooltip: "Heading 1";       onClicked: root.insertType(1) }
+            ToolbarButton { label: "H2";  tooltip: "Heading 2";       onClicked: root.insertType(2) }
+            ToolbarButton { label: "H3";  tooltip: "Heading 3";       onClicked: root.insertType(3) }
+            ToolbarButton { label: "H4";  tooltip: "Heading 4";       onClicked: root.insertType(10) }
 
-        // Code
-        ToolbarButton {
-            label: "</>"
-            tooltip: "Code"
-            font.pixelSize: 11
-            onClicked: root.insertType(5)
-        }
+            ToolSep {}
 
-        // Quote
-        ToolbarButton {
-            label: "\u201C"
-            tooltip: "Quote"
-            onClicked: root.insertType(9)
-        }
+            ToolbarButton { label: "•";   tooltip: "Bulleted list";   onClicked: root.insertType(11) }
+            ToolbarButton { label: "1.";  tooltip: "Numbered list";   onClicked: root.insertType(13) }
+            ToolbarButton { label: "☑";   tooltip: "To-do";           onClicked: root.insertType(4) }
+            ToolbarButton { label: "▶";   tooltip: "Toggle";          onClicked: root.insertType(15) }
 
-        // Divider
-        ToolbarButton {
-            label: "---"
-            tooltip: "Divider"
-            font.pixelSize: 10
-            onClicked: root.insertType(8)
-        }
+            ToolSep {}
 
-        // Image
-        ToolbarButton {
-            label: "\u25A3"
-            tooltip: "Image"
-            onClicked: root.insertType(6)
-        }
+            ToolbarButton { label: "“";   tooltip: "Quote";           onClicked: root.insertType(9) }
+            ToolbarButton { label: "💡";  tooltip: "Callout";         onClicked: root.insertType(12) }
+            ToolbarButton { label: "∑";   tooltip: "Equation";        onClicked: root.insertType(14) }
+            ToolbarButton { label: "</>"; tooltip: "Code"; font.pixelSize: 11; onClicked: root.insertType(5) }
 
-        // Table
-        ToolbarButton {
-            label: "\u2637"
-            tooltip: "Table"
-            onClicked: root.insertType(7)
+            ToolSep {}
+
+            ToolbarButton { label: "—";   tooltip: "Divider"; font.pixelSize: 10; onClicked: root.insertType(8) }
+            ToolbarButton { label: "🖼";  tooltip: "Image";           onClicked: root.insertType(6) }
+            ToolbarButton { label: "▦";   tooltip: "Table";           onClicked: root.insertType(7) }
+
+            ToolSep {}
+
+            ToolbarButton {
+                label: "↶"; tooltip: "Undo (Ctrl+Z)"
+                enabled: noteEditor && noteEditor.canUndo
+                opacity: enabled ? 1 : 0.35
+                onClicked: if (noteEditor) noteEditor.undo()
+            }
+            ToolbarButton {
+                label: "↷"; tooltip: "Redo (Ctrl+Shift+Z)"
+                enabled: noteEditor && noteEditor.canRedo
+                opacity: enabled ? 1 : 0.35
+                onClicked: if (noteEditor) noteEditor.redo()
+            }
         }
-        ToolbarButton {
-            label: "↶"
-            tooltip: "Undo (Ctrl+Z)"
-            enabled: noteEditor && noteEditor.canUndo
-            opacity: enabled ? 1 : 0.35
-            onClicked: if (noteEditor) noteEditor.undo()
-        }
-        ToolbarButton {
-            label: "↷"
-            tooltip: "Redo (Ctrl+Shift+Z)"
-            enabled: noteEditor && noteEditor.canRedo
-            opacity: enabled ? 1 : 0.35
-            onClicked: if (noteEditor) noteEditor.redo()
-        }
-        Rectangle {
-            width: 1; height: 20; color: "#555555"
-            anchors.verticalCenter: parent.verticalCenter
-        }
+    }
+
+    component ToolSep : Rectangle {
+        width: 1; height: 20; color: "#555555"
+        anchors.verticalCenter: parent ? parent.verticalCenter : undefined
     }
 
     component ToolbarButton : Rectangle {
@@ -122,7 +79,7 @@ Rectangle {
         property alias font: labelItem.font
         signal clicked()
 
-        width: 32
+        width: Math.max(32, labelItem.implicitWidth + 12)
         height: 28
         radius: 4
         color: btnArea.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
@@ -147,6 +104,6 @@ Rectangle {
 
         ToolTip.visible: btnArea.containsMouse && btn.tooltip.length > 0
         ToolTip.text: btn.tooltip
-        ToolTip.delay: 500
+        ToolTip.delay: 400
     }
 }

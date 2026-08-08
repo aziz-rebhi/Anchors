@@ -21,31 +21,53 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 4
         spacing: 8
+
         Text {
             text: root.number + "."
-            color: "#aaa"
+            color: "#a6adc8"
             font.pixelSize: 14
             Layout.alignment: Qt.AlignTop
             Layout.topMargin: 6
             Layout.preferredWidth: 28
             horizontalAlignment: Text.AlignRight
         }
+
         TextArea {
             id: input
             Layout.fillWidth: true
             text: root.text
             wrapMode: Text.Wrap
             font.pixelSize: 14
-            color: "#ddd"
+            color: "#dddddd"
             background: Item {}
+
             onTextChanged: if (text !== root.text) root.contentChanged(text)
             onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
+
             Keys.onPressed: function (e) {
-                if (e.key === Qt.Key_Return && !(e.modifiers & Qt.ShiftModifier)) {
-                    noteEditor.insertBlockAfter(root.blockId, 13, "")
+                if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Z) {
+                    if (e.modifiers & Qt.ShiftModifier) noteEditor.redo()
+                    else noteEditor.undo()
                     e.accepted = true
-                } else if (e.key === Qt.Key_Backspace && text.length === 0) {
-                    noteEditor.changeBlockType(root.blockId, 0)
+                    return
+                }
+                if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                    var pos = input.cursorPosition
+                    var after = text.substring(pos)
+                    input.text = text.substring(0, pos)
+                    root.contentChanged(input.text)
+                    if (e.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
+                        noteEditor.exitContainer(root.blockId, 0, after)
+                    else
+                        noteEditor.insertBlockAfter(root.blockId, 13, after)
+                    e.accepted = true
+                    return
+                }
+                if (e.key === Qt.Key_Backspace && input.cursorPosition === 0) {
+                    if (text.length === 0)
+                        noteEditor.changeBlockType(root.blockId, 0)
+                    else
+                        noteEditor.mergeWithPrevious(root.blockId)
                     e.accepted = true
                 }
             }

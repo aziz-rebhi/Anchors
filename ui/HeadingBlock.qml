@@ -25,42 +25,50 @@ Rectangle {
         anchors.margins: 4
         text: root.text
         placeholderText: "Heading..."
-        font.pixelSize: level === 1 ? 28 : (level === 2 ? 22 : 18)
+        font.pixelSize: level === 1 ? 28 : (level === 2 ? 22 : (level === 3 ? 18 : 16))
         font.bold: true
-        color: "#222"
+        color: "#e8e8e8"
         background: Rectangle { color: "transparent" }
 
         onTextChanged: {
-            if (text !== root.text) {
+            if (text !== root.text)
                 root.contentChanged(text)
-            }
         }
 
         onActiveFocusChanged: {
-            if (activeFocus && noteEditor) {
+            if (activeFocus && noteEditor)
                 noteEditor.setFocusedBlock(root.blockId)
-            }
         }
 
-        Keys.onPressed: function(event) {
+        Keys.onPressed: function (event) {
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
-                if (event.modifiers & Qt.ShiftModifier)
-                    noteEditor.redo()
-                else
-                    noteEditor.undo()
+                if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
+                else noteEditor.undo()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Tab) {
+                return
+            }
+            if (event.key === Qt.Key_Tab) {
                 textField.insert(textField.cursorPosition, "    ")
                 event.accepted = true
-            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                return
+            }
+            if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                 var pos = textField.cursorPosition
                 var after = textField.text.substring(pos)
                 textField.text = textField.text.substring(0, pos)
                 root.contentChanged(textField.text)
-                noteEditor.insertBlockAfter(root.blockId, 0, after)
+                if (event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
+                    noteEditor.exitContainer(root.blockId, 0, after)
+                else
+                    noteEditor.insertBlockAfter(root.blockId, 0, after)
                 event.accepted = true
-            } else if (event.key === Qt.Key_Backspace && textField.cursorPosition === 0) {
-                noteEditor.mergeWithPrevious(root.blockId)
+                return
+            }
+            if (event.key === Qt.Key_Backspace && textField.cursorPosition === 0) {
+                if (textField.text.length === 0)
+                    noteEditor.deleteBlock(root.blockId)
+                else
+                    noteEditor.mergeWithPrevious(root.blockId)
                 event.accepted = true
             }
         }

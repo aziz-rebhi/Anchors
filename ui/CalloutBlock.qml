@@ -50,27 +50,31 @@ Rectangle {
             }
 
             Keys.onPressed: function (event) {
-                // Ctrl+Enter or plain Enter → new paragraph after callout
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    if ((event.modifiers & Qt.ControlModifier) || !(event.modifiers & Qt.ShiftModifier)) {
-                        noteEditor.insertBlockAfter(root.blockId, 0, "")
-                        event.accepted = true
-                        return
-                    }
-                    // Shift+Enter → newline inside callout (default)
-                }
-
-                if (event.key === Qt.Key_Backspace && text.length === 0) {
-                    noteEditor.deleteBlock(root.blockId)
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
+                    if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
+                    else noteEditor.undo()
                     event.accepted = true
                     return
                 }
 
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
-                    if (event.modifiers & Qt.ShiftModifier)
-                        noteEditor.redo()
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    var pos = input.cursorPosition
+                    var after = text.substring(pos)
+                    input.text = text.substring(0, pos)
+                    root.contentChanged(input.text)
+                    if (event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
+                        noteEditor.exitContainer(root.blockId, 0, after)
                     else
-                        noteEditor.undo()
+                        noteEditor.insertBlockAfter(root.blockId, 0, after)
+                    event.accepted = true
+                    return
+                }
+
+                if (event.key === Qt.Key_Backspace && input.cursorPosition === 0) {
+                    if (text.length === 0)
+                        noteEditor.deleteBlock(root.blockId)
+                    else
+                        noteEditor.mergeWithPrevious(root.blockId)
                     event.accepted = true
                 }
             }
