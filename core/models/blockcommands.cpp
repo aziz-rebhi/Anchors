@@ -23,8 +23,30 @@ void InsertBlockCommand::undo()
 
 void InsertBlockCommand::redo()
 {
-    Block block(m_generatedId, m_parentId, m_row, m_data);
-    m_doc->insertBlockInternal(m_parentId, m_row, block);
+    int insertAt = m_row;
+
+    if (!m_parentId.isNull()) {
+        const int parentIdx = m_doc->findBlockIndex(m_parentId);
+        if (parentIdx < 0)
+            return;
+
+        int childCount = 0;
+        for (const Block& b : m_doc->blocks()) {
+            if (b.parentId() == m_parentId)
+                ++childCount;
+        }
+
+        if (m_row >= 0 && m_row <= childCount)
+            insertAt = parentIdx + 1 + m_row;
+        else
+            insertAt = parentIdx + 1 + childCount;
+    }
+
+    if (insertAt < 0 || insertAt > m_doc->blocks().size())
+        insertAt = m_doc->blocks().size();
+
+    Block block(m_generatedId, m_parentId, insertAt, m_data);
+    m_doc->insertBlockInternal(m_parentId, insertAt, block);
 }
 
 // --- DeleteBlockCommand ---
@@ -34,7 +56,6 @@ DeleteBlockCommand::DeleteBlockCommand(Document* doc, QUuid blockId, QUndoComman
     , m_doc(doc)
     , m_blockId(blockId)
 {
-    // Capture current state
     int idx = m_doc->findBlockIndex(blockId);
     if (idx >= 0) {
         Block* b = m_doc->blockAt(idx);
@@ -63,7 +84,6 @@ EditTextCommand::EditTextCommand(Document* doc, QUuid blockId, const QString& ne
     , m_blockId(blockId)
     , m_newText(newText)
 {
-    // Capture old text
     Block* block = doc->findBlock(blockId);
     if (block) {
         std::visit([&](auto&& arg) {
@@ -78,8 +98,18 @@ EditTextCommand::EditTextCommand(Document* doc, QUuid blockId, const QString& ne
                 m_oldText = arg.text;
             } else if constexpr (std::is_same_v<T, CodeData>) {
                 m_oldText = arg.code;
+            } else if constexpr (std::is_same_v<T, BulletData>) {
+                m_oldText = arg.text;
+            } else if constexpr (std::is_same_v<T, CalloutData>) {
+                m_oldText = arg.text;
+            } else if constexpr (std::is_same_v<T, NumberedData>) {
+                m_oldText = arg.text;
+            } else if constexpr (std::is_same_v<T, ToggleData>) {
+                m_oldText = arg.text;
+            } else if constexpr (std::is_same_v<T, EquationData>) {
+                m_oldText = arg.latex;
             } else {
-                m_oldText = "";
+                m_oldText = QString();
             }
         }, block->data());
     }
@@ -92,19 +122,17 @@ void EditTextCommand::undo()
 
     BlockData newData = std::visit([&](auto&& arg) -> BlockData {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, ParagraphData>) {
-            return ParagraphData{m_oldText};
-        } else if constexpr (std::is_same_v<T, HeadingData>) {
-            return HeadingData{arg.level, m_oldText};
-        } else if constexpr (std::is_same_v<T, TodoData>) {
-            return TodoData{m_oldText, arg.checked};
-        } else if constexpr (std::is_same_v<T, QuoteData>) {
-            return QuoteData{m_oldText};
-        } else if constexpr (std::is_same_v<T, CodeData>) {
-            return CodeData{arg.language, m_oldText};
-        } else {
-            return arg;
-        }
+        if constexpr (std::is_same_v<T, ParagraphData>) return ParagraphData{m_oldText};
+        else if constexpr (std::is_same_v<T, HeadingData>) return HeadingData{arg.level, m_oldText};
+        else if constexpr (std::is_same_v<T, TodoData>) return TodoData{m_oldText, arg.checked};
+        else if constexpr (std::is_same_v<T, QuoteData>) return QuoteData{m_oldText};
+        else if constexpr (std::is_same_v<T, CodeData>) return CodeData{arg.language, m_oldText};
+        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{m_oldText};
+        else if constexpr (std::is_same_v<T, CalloutData>) return CalloutData{m_oldText, arg.emoji};
+        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{m_oldText};
+        else if constexpr (std::is_same_v<T, ToggleData>) return ToggleData{m_oldText, arg.collapsed};
+        else if constexpr (std::is_same_v<T, EquationData>) return EquationData{m_oldText, arg.displayMode};
+        else return arg;
     }, block->data());
 
     block->setData(newData);
@@ -118,19 +146,17 @@ void EditTextCommand::redo()
 
     BlockData newData = std::visit([&](auto&& arg) -> BlockData {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, ParagraphData>) {
-            return ParagraphData{m_newText};
-        } else if constexpr (std::is_same_v<T, HeadingData>) {
-            return HeadingData{arg.level, m_newText};
-        } else if constexpr (std::is_same_v<T, TodoData>) {
-            return TodoData{m_newText, arg.checked};
-        } else if constexpr (std::is_same_v<T, QuoteData>) {
-            return QuoteData{m_newText};
-        } else if constexpr (std::is_same_v<T, CodeData>) {
-            return CodeData{arg.language, m_newText};
-        } else {
-            return arg;
-        }
+        if constexpr (std::is_same_v<T, ParagraphData>) return ParagraphData{m_newText};
+        else if constexpr (std::is_same_v<T, HeadingData>) return HeadingData{arg.level, m_newText};
+        else if constexpr (std::is_same_v<T, TodoData>) return TodoData{m_newText, arg.checked};
+        else if constexpr (std::is_same_v<T, QuoteData>) return QuoteData{m_newText};
+        else if constexpr (std::is_same_v<T, CodeData>) return CodeData{arg.language, m_newText};
+        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{m_newText};
+        else if constexpr (std::is_same_v<T, CalloutData>) return CalloutData{m_newText, arg.emoji};
+        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{m_newText};
+        else if constexpr (std::is_same_v<T, ToggleData>) return ToggleData{m_newText, arg.collapsed};
+        else if constexpr (std::is_same_v<T, EquationData>) return EquationData{m_newText, arg.displayMode};
+        else return arg;
     }, block->data());
 
     block->setData(newData);

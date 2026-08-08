@@ -30,6 +30,9 @@
         <file>EditorToolbar.qml</file>
         <file>BulletBlock.qml</file>
         <file>CalloutBlock.qml</file>
+        <file>NumberedBlock.qml</file>
+        <file>EquationBlock.qml</file>
+        <file>ToggleBlock.qml</file>
     </qresource>
     <qresource prefix="/"/>
 </RCC>

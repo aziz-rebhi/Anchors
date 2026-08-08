@@ -23,10 +23,14 @@ Rectangle {
     function openSlashMenu() {
         root.slashActive = true
         slashMenu.filterText = ""
-        // Position near the text area
         var pos = textArea.mapToItem(Overlay.overlay, 0, textArea.height)
+        var menuH = Math.min(360, slashMenu.height > 0 ? slashMenu.height : 360)
+        var overlayH = Overlay.overlay ? Overlay.overlay.height : 800
         slashMenu.cursorX = Math.max(8, pos.x)
-        slashMenu.cursorY = pos.y + 4
+        if (pos.y + menuH > overlayH - 16)
+            slashMenu.cursorY = Math.max(8, pos.y - textArea.height - menuH - 8)
+        else
+            slashMenu.cursorY = pos.y + 4
         slashMenu.open()
     }
 
@@ -68,7 +72,6 @@ Rectangle {
                 return
 
             if (!root.slashActive) {
-                // Open when the block is just "/" or ends with a lone "/"
                 if (text === "/" || (text.length > 0 && text.charAt(text.length - 1) === "/"
                                      && text.lastIndexOf("/") === text.length - 1
                                      && text.indexOf("\n") < 0)) {
@@ -94,7 +97,6 @@ Rectangle {
         onActiveFocusChanged: {
             if (activeFocus && noteEditor)
                 noteEditor.setFocusedBlock(root.blockId)
-            // Do not close slash menu on focus changes
         }
 
         Keys.onPressed: function (event) {
@@ -151,13 +153,22 @@ Rectangle {
                 var after = text.substring(cursorPos)
                 textArea.text = before
                 root.contentChanged(textArea.text)
-                noteEditor.insertBlockAfter(root.blockId, 0, after)
+
+                if (event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) {
+                    // Leave parent toggle / container
+                    noteEditor.exitContainer(root.blockId, 0, after)
+                } else {
+                    noteEditor.insertBlockAfter(root.blockId, 0, after)
+                }
                 event.accepted = true
                 return
             }
 
             if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
-                noteEditor.mergeWithPrevious(root.blockId)
+                if (textArea.text.length === 0)
+                    noteEditor.deleteBlock(root.blockId)
+                else
+                    noteEditor.mergeWithPrevious(root.blockId)
                 event.accepted = true
                 return
             }

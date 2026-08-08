@@ -39,9 +39,12 @@ Popup {
         { section: "Basic blocks", type: 9,  name: "Quote",         shortcut: "\"",   icon: "“",   keywords: "quote cite" },
         { section: "Basic blocks", type: 12, name: "Callout",       shortcut: "",     icon: "💡",  keywords: "callout note tip" },
         { section: "Basic blocks", type: 8,  name: "Divider",       shortcut: "---",  icon: "—",   keywords: "divider line hr" },
+        { section: "Basic blocks", type: 13, name: "Numbered list", shortcut: "1.", icon: "1.", keywords: "numbered ordered list" },
+        { section: "Basic blocks", type: 15, name: "Toggle list",   shortcut: ">",  icon: "▶",  keywords: "toggle collapse" },
         { section: "Media",        type: 6,  name: "Image",         shortcut: "",     icon: "🖼",  keywords: "image photo picture" },
         { section: "Media",        type: 5,  name: "Code",          shortcut: "```",  icon: "</>", keywords: "code snippet" },
-        { section: "Media",        type: 7,  name: "Table",         shortcut: "",     icon: "▦",   keywords: "table grid" }
+        { section: "Media",        type: 7,  name: "Table",         shortcut: "",     icon: "▦",   keywords: "table grid" },
+        { section: "Advanced",     type: 14, name: "Equation",      shortcut: "$$", icon: "∑",  keywords: "math latex equation formula" }
     ]
 
     property var filteredItems: {

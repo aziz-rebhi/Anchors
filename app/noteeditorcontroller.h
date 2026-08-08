@@ -58,6 +58,10 @@ public:
     Q_INVOKABLE void loadFromContent(const QString& title, const QStringList& paragraphs);
     Q_INVOKABLE QString documentToJson() const;
     Q_INVOKABLE void loadFromJson(const QString& title, const QString& jsonContent);
+    Q_INVOKABLE void toggleCollapsed(const QString& blockId);
+    Q_INVOKABLE void insertInside(const QString& parentBlockId, int type, const QString& content = "");
+    Q_INVOKABLE int numberedIndex(const QString& blockId) const;
+    Q_INVOKABLE void exitContainer(const QString& blockId, int type = 0, const QString& content = "");
 
 signals:
     void modelChanged();

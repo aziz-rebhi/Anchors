@@ -54,6 +54,17 @@ static QJsonObject blockDataToJson(const BlockData& data)
             obj["type"] = "callout";
             obj["text"] = arg.text;
             obj["emoji"] = arg.emoji;
+        } else if constexpr (std::is_same_v<T, NumberedData>) {
+            obj["type"] = "numbered";
+            obj["text"] = arg.text;
+        } else if constexpr (std::is_same_v<T, EquationData>) {
+            obj["type"] = "equation";
+            obj["latex"] = arg.latex;
+            obj["displayMode"] = arg.displayMode;
+        } else if constexpr (std::is_same_v<T, ToggleData>) {
+            obj["type"] = "toggle";
+            obj["text"] = arg.text;
+            obj["collapsed"] = arg.collapsed;
         }
 
     }, data);
@@ -98,6 +109,18 @@ static BlockData blockDataFromJson(const QJsonObject& obj)
         return CalloutData{
             obj["text"].toString(),
             obj.contains("emoji") ? obj["emoji"].toString() : QStringLiteral("💡")
+        };
+    } else if (type == "numbered") {
+        return NumberedData{obj["text"].toString()};
+    } else if (type == "equation") {
+        return EquationData{
+            obj["latex"].toString(),
+            obj["displayMode"].toBool(true)
+        };
+    } else if (type == "toggle") {
+        return ToggleData{
+            obj["text"].toString(),
+            obj["collapsed"].toBool(false)
         };
     }
     return ParagraphData{""};

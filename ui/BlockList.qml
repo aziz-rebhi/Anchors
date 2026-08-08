@@ -9,18 +9,35 @@ ListView {
     spacing: 2
     clip: true
 
-    onCountChanged: {
-        if (count > 0) {
-            positionViewAtEnd()
+    // Remember scroll while the model is reset (insert/delete/rebuild)
+    property real savedContentY: 0
+    property bool restoreScroll: false
+
+    Connections {
+        target: root.model
+        function onModelAboutToBeReset() {
+            root.savedContentY = root.contentY
+            root.restoreScroll = true
+        }
+        function onModelReset() {
+            if (!root.restoreScroll)
+                return
+            // Defer until delegates are laid out
+            Qt.callLater(function () {
+                if (!root.restoreScroll)
+                    return
+                root.restoreScroll = false
+                var maxY = Math.max(0, root.contentHeight - root.height)
+                root.contentY = Math.min(root.savedContentY, maxY)
+            })
         }
     }
 
-    // --- Auto-focus mechanism ---
-    // When the controller sets pendingFocusId, find that delegate and focus it
+    // Focus the block the controller asked for (and only then scroll to it)
     Connections {
         target: noteEditor
         function onPendingFocusIdChanged(id) {
-            if (id.length > 0) {
+            if (id && id.length > 0) {
                 focusTimer.targetId = id
                 focusTimer.start()
             }
@@ -29,14 +46,15 @@ ListView {
 
     Timer {
         id: focusTimer
-        interval: 30
+        interval: 40
         property string targetId: ""
         onTriggered: {
             for (var i = 0; i < root.count; i++) {
                 var delegate = root.itemAtIndex(i)
                 if (delegate && delegate.blockId === targetId) {
-                    delegate.focusInput()
+                    // Prefer Contain so we don't jump to the very top/bottom
                     root.positionViewAtIndex(i, ListView.Contain)
+                    delegate.focusInput()
                     break
                 }
             }

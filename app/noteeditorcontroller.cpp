@@ -203,6 +203,9 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 10: data = HeadingData{4, content}; break;
     case 11: data = BulletData{content}; break;
     case 12: data = CalloutData{content, QStringLiteral("💡")}; break;
+    case 13: data = NumberedData{content}; break;
+    case 14: data = EquationData{content.isEmpty() ? QStringLiteral("E = mc^2") : content, true}; break;
+    case 15: data = ToggleData{content, false}; break;
     default:
         emit errorOccurred(QStringLiteral("Unsupported block type"));
         return;
@@ -223,6 +226,27 @@ void NoteEditorController::insertBlockAfter(const QString& blockId, int type, co
 {
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    const QUuid parentId = block->parentId();
+
+    if (!parentId.isNull()) {
+        // Sibling under same parent: child index = current child order + 1
+        int childIndex = 0;
+        int seen = 0;
+        for (const Block& b : m_document->blocks()) {
+            if (b.parentId() != parentId) continue;
+            if (b.id() == id) {
+                childIndex = seen + 1;
+                break;
+            }
+            ++seen;
+        }
+        insertBlock(parentId.toString(QUuid::WithoutBraces), childIndex, type, content);
+        return;
+    }
+
     int idx = m_document->findBlockIndex(id);
     if (idx < 0) return;
     insertBlock(QString(), idx + 1, type, content);
@@ -328,6 +352,11 @@ void NoteEditorController::mergeWithPrevious(const QString& blockId)
                 else if constexpr (std::is_same_v<T, TodoData>) return arg.text.isEmpty();
                 else if constexpr (std::is_same_v<T, QuoteData>) return arg.text.isEmpty();
                 else if constexpr (std::is_same_v<T, CodeData>) return arg.code.isEmpty();
+                else if constexpr (std::is_same_v<T, BulletData>) return arg.text.isEmpty();
+                else if constexpr (std::is_same_v<T, CalloutData>) return arg.text.isEmpty();
+                else if constexpr (std::is_same_v<T, NumberedData>) return arg.text.isEmpty();
+                else if constexpr (std::is_same_v<T, ToggleData>) return arg.text.isEmpty();
+                else if constexpr (std::is_same_v<T, EquationData>) return arg.latex.isEmpty();
                 else return true;
             }, block->data());
             if (isEmpty) deleteBlock(blockId);
@@ -347,6 +376,11 @@ void NoteEditorController::mergeWithPrevious(const QString& blockId)
             else if constexpr (std::is_same_v<T, TodoData>) return arg.text;
             else if constexpr (std::is_same_v<T, QuoteData>) return arg.text;
             else if constexpr (std::is_same_v<T, CodeData>) return arg.code;
+            else if constexpr (std::is_same_v<T, BulletData>) return arg.text;
+            else if constexpr (std::is_same_v<T, CalloutData>) return arg.text;
+            else if constexpr (std::is_same_v<T, NumberedData>) return arg.text;
+            else if constexpr (std::is_same_v<T, ToggleData>) return arg.text;
+            else if constexpr (std::is_same_v<T, EquationData>) return arg.latex;
             else return QString();
         }, d);
     };
@@ -401,6 +435,9 @@ void NoteEditorController::changeBlockType(const QString& blockId, int newType)
     case 10: newData = HeadingData{4, currentText}; break;
     case 11: newData = BulletData{currentText}; break;
     case 12: newData = CalloutData{currentText, QStringLiteral("💡")}; break;
+    case 13: newData = NumberedData{currentText}; break;
+    case 14: newData = EquationData{currentText.isEmpty() ? QStringLiteral("E = mc^2") : currentText, true}; break;
+    case 15: newData = ToggleData{currentText, false}; break;
     default: return;
     }
 
@@ -582,4 +619,103 @@ void NoteEditorController::loadFromJson(const QString& title, const QString& jso
     }
 
     loadFromContent(title, jsonContent.split(QLatin1Char('\n')));
+}
+
+void NoteEditorController::insertInside(const QString& parentBlockId, int type, const QString& content)
+{
+    if (!m_document) return;
+
+    QUuid parentId = QUuid::fromString(parentBlockId);
+    if (parentId.isNull()) return;
+
+    Block* parent = m_document->findBlock(parentId);
+    if (!parent) return;
+
+    // Expand toggle if collapsed
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ToggleData>) {
+            if (arg.collapsed) {
+                ToggleData u = arg;
+                u.collapsed = false;
+                m_document->updateBlockData(parentId, u);
+            }
+        }
+    }, parent->data());
+
+    // Count existing children to append at end
+    int childCount = 0;
+    const auto blocks = m_document->blocks();
+    for (const Block& b : blocks) {
+        if (b.parentId() == parentId)
+            ++childCount;
+    }
+
+    insertBlock(parentBlockId, childCount, type, content);
+}
+
+void NoteEditorController::toggleCollapsed(const QString& blockId)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ToggleData>) {
+            ToggleData u = arg;
+            u.collapsed = !u.collapsed;
+            m_document->updateBlockData(id, u);
+            // Refresh visible rows (children show/hide)
+            if (m_document->model())
+                m_document->model()->rebuildMaps();
+        }
+    }, block->data());
+
+    emit documentModified();
+}
+
+int NoteEditorController::numberedIndex(const QString& blockId) const
+{
+    if (!m_document) return 1;
+    QUuid id = QUuid::fromString(blockId);
+    int idx = m_document->findBlockIndex(id);
+    if (idx < 0) return 1;
+
+    Block* self = m_document->blockAt(idx);
+    if (!self) return 1;
+    const QUuid parentId = self->parentId();
+
+    int n = 1;
+    for (int i = idx - 1; i >= 0; --i) {
+        Block* b = m_document->blockAt(i);
+        if (!b) break;
+        if (b->parentId() != parentId) break;
+
+        const bool isNum = std::visit([](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            return std::is_same_v<T, NumberedData>;
+        }, b->data());
+        if (!isNum) break;
+        ++n;
+    }
+    return n;
+}
+
+void NoteEditorController::exitContainer(const QString& blockId, int type, const QString& content)
+{
+    if (!m_document) return;
+
+    QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document -> findBlock(id);
+    if (!block) return;
+
+    const QUuid parentId = block -> parentId();
+    if (parentId.isNull()){
+        insertBlockAfter(blockId, type, content);
+        return;
+    }
+
+    insertBlockAfter(parentId.toString(QUuid::WithoutBraces), type, content);
 }

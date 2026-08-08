@@ -57,8 +57,27 @@ Block* Document::blockAt(int index)
 
 void Document::insertBlock(QUuid parentId, int row, const BlockData& data)
 {
-    Block newBlock(QUuid::createUuid(), parentId, row, data);
-    insertBlockInternal(parentId, row, newBlock);
+    // For children, physical insert position = after parent + existing children
+    int insertAt = row;
+    if (!parentId.isNull()) {
+        int parentIdx = findBlockIndex(parentId);
+        if (parentIdx < 0) return;
+        insertAt = parentIdx + 1;
+        int childCount = 0;
+        for (const Block& b : m_blocks) {
+            if (b.parentId() == parentId)
+                ++childCount;
+        }
+        insertAt = parentIdx + 1 + childCount; // append child
+        // If row is given as child index:
+        if (row >= 0 && row < childCount)
+            insertAt = parentIdx + 1 + row;
+        else
+            insertAt = parentIdx + 1 + childCount;
+    }
+
+    Block newBlock(QUuid::createUuid(), parentId, insertAt, data);
+    insertBlockInternal(parentId, insertAt, newBlock);
 }
 
 void Document::deleteBlock(QUuid blockId)
@@ -116,30 +135,32 @@ Document* Document::fromJson(const QJsonObject& obj, NotesDatabase* db)
 
 void Document::insertBlockInternal(QUuid parentId, int row, const Block& block)
 {
+    if (row < 0 || row > m_blocks.size())
+        row = m_blocks.size();
     m_blocks.insert(row, block);
-
-    if (m_blockModel){
+    if (m_blockModel)
         m_blockModel->notifyInserted(row, block.id());
-    }
-
     emit blockInserted(block.id(), parentId, row);
     emit documentModified();
 }
 
 void Document::removeBlockInternal(QUuid blockId)
 {
-    int index = -1;
-    for (int i = 0; i < m_blocks.size(); ++i) {
-        if (m_blocks[i].id() == blockId) {
-            index = i;
-            break;
-        }
+    // Remove children first (toggle contents)
+    QList<QUuid> childIds;
+    for (const Block& b : m_blocks) {
+        if (b.parentId() == blockId)
+            childIds.append(b.id());
     }
+    for (const QUuid& cid : childIds)
+        removeBlockInternal(cid);
+
+    int index = findBlockIndex(blockId);
     if (index < 0) return;
-    // Proper model notification: beginRemove BEFORE modifying the list
-    if (m_blockModel) {
+
+    if (m_blockModel)
         m_blockModel->notifyRemove(index);
-    }
+
     m_blocks.removeAt(index);
     emit blockDeleted(blockId);
     emit documentModified();

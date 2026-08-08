@@ -194,15 +194,17 @@ Rectangle {
                     event.accepted = true
                     return
                 }
-                // Tab inserts 4 spaces
+
+                // Tab → 4 spaces
                 if (event.key === Qt.Key_Tab) {
                     codeArea.insert(codeArea.cursorPosition, "    ")
                     event.accepted = true
                     return
                 }
-                // Shift+Enter: always exit code block, insert paragraph after
+
+                // Shift+Enter or Ctrl+Enter → exit code block, insert paragraph after
                 if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) &&
-                    (event.modifiers & Qt.ShiftModifier)) {
+                    (event.modifiers & (Qt.ShiftModifier | Qt.ControlModifier))) {
                     var pos = codeArea.cursorPosition
                     var after = codeArea.text.substring(pos)
                     codeArea.text = codeArea.text.substring(0, pos)
@@ -211,18 +213,9 @@ Rectangle {
                     event.accepted = true
                     return
                 }
-                // Enter: if at end of last line, exit code block
+
+                // Plain Enter → stay inside (newline). Do not accept; let TextArea handle it.
                 if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                    if (root.isAtEnd()) {
-                        var p = codeArea.cursorPosition
-                        var afterText = codeArea.text.substring(p)
-                        codeArea.text = codeArea.text.substring(0, p)
-                        root.contentChanged(codeArea.text)
-                        noteEditor.insertBlockAfter(root.blockId, 0, afterText)
-                        event.accepted = true
-                        return
-                    }
-                    // Otherwise let the default newline happen
                     event.accepted = false
                     return
                 }
