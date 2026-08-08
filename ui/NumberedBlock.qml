@@ -16,6 +16,13 @@ Item {
         input.forceActiveFocus()
         input.cursorPosition = input.text.length
     }
+    function isOnFirstLine() {
+        return input.text.lastIndexOf("\n", input.cursorPosition - 1) < 0
+    }
+    function isOnLastLine() {
+        return input.text.indexOf("\n", input.cursorPosition) < 0
+    }
+
 
     RowLayout {
         anchors.fill: parent
@@ -70,6 +77,16 @@ Item {
                         noteEditor.mergeWithPrevious(root.blockId)
                     e.accepted = true
                 }
+                if (e.key === Qt.Key_Up && isOnFirstLine()) {
+                        noteEditor.focusAdjacent(root.blockId, false)
+                        e.accepted = true
+                        return
+                    }
+                    if (e.key === Qt.Key_Down && isOnLastLine()) {
+                        noteEditor.focusAdjacent(root.blockId, true)
+                        e.accepted = true
+                        return
+                    }
             }
         }
     }

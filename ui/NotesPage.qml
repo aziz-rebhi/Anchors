@@ -155,11 +155,10 @@ Page {
             for (var i = 0; i < treeModel.count; i++) {
                 if (treeModel.get(i).noteId === selectedId) { found = true; break }
             }
-            if (!found) selectedId = ""
-        }
-        if (selectedId.length === 0 && allNotes.length > 0) {
-            if (filteredNotes.length > 0) selectNote(filteredNotes[0])
-            else selectNote(allNotes[0])
+            if (!found) {
+                selectedId = ""
+                if (noteEditor) noteEditor.loadFromJson("", "")
+            }
         }
         isCreatingFolder = false
         newFolderName = ""
@@ -178,7 +177,12 @@ Page {
             saveCurrentNote()
         selectedId = note.id
         titleField.loadingEditor = true
-        noteEditor.loadFromJson(note.title || "", note.content || "")
+        var content = note.content || ""
+        if (content.length === 0 || content === "{}") {
+            noteEditor.loadFromContent(note.title || "Untitled note", [""])
+        } else {
+            noteEditor.loadFromJson(note.title || "", content)
+        }
         titleField.loadingEditor = false
     }
 
@@ -192,6 +196,13 @@ Page {
                 }
             }
         })
+    }
+
+    function clearSelection() {
+        if (selectedId.length > 0 && noteEditor && noteEditor.model)
+            saveCurrentNote()
+        selectedId = ""
+        if (noteEditor) noteEditor.loadFromJson("", "")
     }
 
     background: Rectangle { color: theme.background }
@@ -253,7 +264,10 @@ Page {
                                     var n = root.allNotes.find(function (x) {
                                         return x.folder === folder && x.title === "Untitled note"
                                     })
-                                    if (n) { root.selectNote(n); root.scrollToNote(n.id) }
+                                    if (n) {
+                                        root.selectNote(n)
+                                        root.scrollToNote(n.id)
+                                    }
                                 })
                             }
                         }
@@ -314,7 +328,7 @@ Page {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: noteEditor && noteEditor.model !== null
+            visible: root.selectedId.length > 0 && noteEditor && noteEditor.model !== null
 
             TextField {
                 id: titleField
@@ -372,7 +386,7 @@ Page {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: !noteEditor || noteEditor.model === null
+            visible: root.selectedId.length === 0
             Label {
                 Layout.alignment: Qt.AlignCenter
                 text: "Select or create a note to get started."

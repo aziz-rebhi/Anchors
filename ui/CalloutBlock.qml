@@ -20,6 +20,13 @@ Rectangle {
         input.forceActiveFocus()
         input.cursorPosition = input.text.length
     }
+    function isOnFirstLine() {
+        return input.text.lastIndexOf("\n", input.cursorPosition - 1) < 0
+    }
+    function isOnLastLine() {
+        return input.text.indexOf("\n", input.cursorPosition) < 0
+    }
+
 
     RowLayout {
         id: row
@@ -76,6 +83,16 @@ Rectangle {
                     else
                         noteEditor.mergeWithPrevious(root.blockId)
                     event.accepted = true
+                }
+                if (event.key === Qt.Key_Up && isOnFirstLine()) {
+                    noteEditor.focusAdjacent(root.blockId, false)
+                    event.accepted = true
+                    return
+                }
+                if (event.key === Qt.Key_Down && isOnLastLine()) {
+                    noteEditor.focusAdjacent(root.blockId, true)
+                    event.accepted = true
+                    return
                 }
             }
         }

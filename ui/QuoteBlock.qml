@@ -16,6 +16,12 @@ Rectangle {
         textArea.forceActiveFocus()
         textArea.cursorPosition = textArea.text.length
     }
+    function isOnFirstLine() {
+        return textArea.text.lastIndexOf("\n", textArea.cursorPosition - 1) < 0
+    }
+    function isOnLastLine() {
+        return textArea.text.indexOf("\n", textArea.cursorPosition) < 0
+    }
 
     Rectangle {
         id: accentBar
@@ -80,6 +86,16 @@ Rectangle {
                 else
                     noteEditor.mergeWithPrevious(root.blockId)
                 event.accepted = true
+            }
+            if (event.key === Qt.Key_Up && isOnFirstLine()) {
+                noteEditor.focusAdjacent(root.blockId, false)
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Down && isOnLastLine()) {
+                noteEditor.focusAdjacent(root.blockId, true)
+                event.accepted = true
+                return
             }
         }
     }

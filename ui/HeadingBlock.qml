@@ -6,17 +6,15 @@ Rectangle {
     property string blockId: ""
     property int level: 1
     property string text: ""
-    property alias textField: textField
-
     signal contentChanged(string newText)
 
     width: parent ? parent.width : 0
     height: Math.max(30, textField.implicitHeight + 8)
     color: "transparent"
 
-    function focusInput() {
+    function focusInput(atStart) {
         textField.forceActiveFocus()
-        textField.cursorPosition = textField.text.length
+        textField.cursorPosition = atStart ? 0 : textField.text.length
     }
 
     TextField {
@@ -30,15 +28,8 @@ Rectangle {
         color: "#e8e8e8"
         background: Rectangle { color: "transparent" }
 
-        onTextChanged: {
-            if (text !== root.text)
-                root.contentChanged(text)
-        }
-
-        onActiveFocusChanged: {
-            if (activeFocus && noteEditor)
-                noteEditor.setFocusedBlock(root.blockId)
-        }
+        onTextChanged: if (text !== root.text) root.contentChanged(text)
+        onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
 
         Keys.onPressed: function (event) {
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
@@ -47,8 +38,13 @@ Rectangle {
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Tab) {
-                textField.insert(textField.cursorPosition, "    ")
+            if (event.key === Qt.Key_Up) {
+                noteEditor.focusAdjacent(root.blockId, false)
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Down) {
+                noteEditor.focusAdjacent(root.blockId, true)
                 event.accepted = true
                 return
             }

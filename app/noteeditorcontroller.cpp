@@ -599,6 +599,13 @@ void NoteEditorController::loadFromJson(const QString& title, const QString& jso
         m_document = nullptr;
     }
 
+    if (jsonContent.trimmed().isEmpty() || jsonContent.trimmed() == QStringLiteral("{}")){
+        emit documentChanged();
+        emit noteTitleChanged(QString());
+        emit modelChanged();
+        return;
+    }
+
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8(), &err);
     if (err.error == QJsonParseError::NoError && doc.isObject()) {
@@ -718,4 +725,27 @@ void NoteEditorController::exitContainer(const QString& blockId, int type, const
     }
 
     insertBlockAfter(parentId.toString(QUuid::WithoutBraces), type, content);
+}
+
+void NoteEditorController::focusAdjacent(const QString& blockId, bool next)
+{
+    if (!m_document || !m_document->model())
+        return;
+
+    BlockModel* model = m_document->model();
+    const QUuid id = QUuid::fromString(blockId);
+    const QModelIndex idx = model->indexForId(id);
+    if (!idx.isValid())
+        return;
+
+    const int row = idx.row() + (next ? 1 : -1);
+    if (row < 0 || row >= model->rowCount())
+        return;
+
+    Block* b = model->blockAt(row);
+    if (!b)
+        return;
+
+    m_pendingFocusId = b->id().toString(QUuid::WithoutBraces);
+    emit pendingFocusIdChanged(m_pendingFocusId);
 }
