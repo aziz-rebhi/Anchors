@@ -179,11 +179,13 @@ QVariant BlockModel::data(const QModelIndex& index, int role) const
                 map["text"] = arg.text;
             } else if constexpr (std::is_same_v<T, BulletData>) {
                 map["text"] = arg.text;
+                map["indent"] = arg.indent;
             } else if constexpr (std::is_same_v<T, CalloutData>) {
                 map["text"] = arg.text;
                 map["emoji"] = arg.emoji;
             } else if constexpr (std::is_same_v<T, NumberedData>) {
                 map["text"] = arg.text;
+                map["indent"] = arg.indent;
             } else if constexpr (std::is_same_v<T, EquationData>) {
                 map["latex"] = arg.latex;
                 map["displayMode"] = arg.displayMode;

@@ -694,18 +694,28 @@ int NoteEditorController::numberedIndex(const QString& blockId) const
     if (!self) return 1;
     const QUuid parentId = self->parentId();
 
+    int myIndent = 0;
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, NumberedData>) myIndent = arg.indent;
+    }, self->data());
+
     int n = 1;
     for (int i = idx - 1; i >= 0; --i) {
         Block* b = m_document->blockAt(i);
         if (!b) break;
         if (b->parentId() != parentId) break;
 
-        const bool isNum = std::visit([](auto&& arg) {
+        bool stop = true;
+        std::visit([&](auto&& arg) {
             using T = std::decay_t<decltype(arg)>;
-            return std::is_same_v<T, NumberedData>;
+            if constexpr (std::is_same_v<T, NumberedData>) {
+                if (arg.indent == myIndent) { ++n; stop = false; }
+                else if (arg.indent > myIndent) { stop = false; } // nested deeper: skip
+                else stop = true; // shallower: end of run
+            }
         }, b->data());
-        if (!isNum) break;
-        ++n;
+        if (stop) break;
     }
     return n;
 }
@@ -748,4 +758,50 @@ void NoteEditorController::focusAdjacent(const QString& blockId, bool next)
 
     m_pendingFocusId = b->id().toString(QUuid::WithoutBraces);
     emit pendingFocusIdChanged(m_pendingFocusId);
+}
+
+void NoteEditorController::indentBlock(const QString& blockId)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, BulletData>) {
+            BulletData u = arg;
+            if (u.indent < 8) ++u.indent;
+            m_document->updateBlockData(id, u);
+        } else if constexpr (std::is_same_v<T, NumberedData>) {
+            NumberedData u = arg;
+            if (u.indent < 8) ++u.indent;
+            m_document->updateBlockData(id, u);
+        }
+    }, block->data());
+
+    emit documentModified();
+}
+
+void NoteEditorController::outdentBlock(const QString& blockId)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, BulletData>) {
+            BulletData u = arg;
+            if (u.indent > 0) --u.indent;
+            m_document->updateBlockData(id, u);
+        } else if constexpr (std::is_same_v<T, NumberedData>) {
+            NumberedData u = arg;
+            if (u.indent > 0) --u.indent;
+            m_document->updateBlockData(id, u);
+        }
+    }, block->data());
+
+    emit documentModified();
 }

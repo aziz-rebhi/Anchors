@@ -47,6 +47,7 @@ struct QuoteData {
 
 struct BulletData {
     QString text;
+    int indent = 0;
 };
 
 struct CalloutData {
@@ -56,6 +57,7 @@ struct CalloutData {
 
 struct NumberedData {
     QString text;
+    int indent = 0;
 };
 
 struct EquationData {
@@ -67,6 +69,8 @@ struct ToggleData {
     QString text;
     bool collapsed = false;
 };
+
+
 
 #include <variant>
 using BlockData = std::variant<ParagraphData, HeadingData, CodeData, ImageData, TableData, TodoData, DividerData, QuoteData, BulletData, CalloutData, NumberedData, EquationData, ToggleData>;

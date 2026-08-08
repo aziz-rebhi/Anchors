@@ -127,9 +127,9 @@ void EditTextCommand::undo()
         else if constexpr (std::is_same_v<T, TodoData>) return TodoData{m_oldText, arg.checked};
         else if constexpr (std::is_same_v<T, QuoteData>) return QuoteData{m_oldText};
         else if constexpr (std::is_same_v<T, CodeData>) return CodeData{arg.language, m_oldText};
-        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{m_oldText};
+        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{m_oldText, arg.indent};
         else if constexpr (std::is_same_v<T, CalloutData>) return CalloutData{m_oldText, arg.emoji};
-        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{m_oldText};
+        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{m_oldText, arg.indent};
         else if constexpr (std::is_same_v<T, ToggleData>) return ToggleData{m_oldText, arg.collapsed};
         else if constexpr (std::is_same_v<T, EquationData>) return EquationData{m_oldText, arg.displayMode};
         else return arg;
@@ -151,9 +151,9 @@ void EditTextCommand::redo()
         else if constexpr (std::is_same_v<T, TodoData>) return TodoData{m_newText, arg.checked};
         else if constexpr (std::is_same_v<T, QuoteData>) return QuoteData{m_newText};
         else if constexpr (std::is_same_v<T, CodeData>) return CodeData{arg.language, m_newText};
-        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{m_newText};
+        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{m_newText, arg.indent};
         else if constexpr (std::is_same_v<T, CalloutData>) return CalloutData{m_newText, arg.emoji};
-        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{m_newText};
+        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{m_newText, arg.indent};
         else if constexpr (std::is_same_v<T, ToggleData>) return ToggleData{m_newText, arg.collapsed};
         else if constexpr (std::is_same_v<T, EquationData>) return EquationData{m_newText, arg.displayMode};
         else return arg;

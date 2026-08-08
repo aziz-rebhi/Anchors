@@ -50,6 +50,7 @@ static QJsonObject blockDataToJson(const BlockData& data)
         } else if constexpr (std::is_same_v<T, BulletData>) {
             obj["type"] = "bullet";
             obj["text"] = arg.text;
+            obj["indent"] = arg.indent;
         } else if constexpr (std::is_same_v<T, CalloutData>) {
             obj["type"] = "callout";
             obj["text"] = arg.text;
@@ -57,6 +58,7 @@ static QJsonObject blockDataToJson(const BlockData& data)
         } else if constexpr (std::is_same_v<T, NumberedData>) {
             obj["type"] = "numbered";
             obj["text"] = arg.text;
+            obj["indent"] = arg.indent;
         } else if constexpr (std::is_same_v<T, EquationData>) {
             obj["type"] = "equation";
             obj["latex"] = arg.latex;
@@ -104,14 +106,14 @@ static BlockData blockDataFromJson(const QJsonObject& obj)
     } else if (type == "quote") {
         return QuoteData{obj["text"].toString()};
     } else if (type == "bullet") {
-        return BulletData{obj["text"].toString()};
+        return BulletData{obj["text"].toString(), obj["indent"].toInt(0)};
     } else if (type == "callout") {
         return CalloutData{
             obj["text"].toString(),
             obj.contains("emoji") ? obj["emoji"].toString() : QStringLiteral("💡")
         };
     } else if (type == "numbered") {
-        return NumberedData{obj["text"].toString()};
+        return NumberedData{obj["text"].toString(), obj["indent"].toInt(0)};
     } else if (type == "equation") {
         return EquationData{
             obj["latex"].toString(),

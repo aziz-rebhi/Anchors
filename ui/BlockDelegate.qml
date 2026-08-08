@@ -153,18 +153,18 @@ Item {
         BulletBlock {
             blockId: root.blockId
             text: root.blockData ? root.blockData.text || "" : ""
-            onContentChanged: function (newText) {
-                if (noteEditor) noteEditor.updateBlockContent(blockId, newText)
+            indent: root.blockData ? (root.blockData.indent || 0) : 0
+            onContentChanged: function (t) {
+                if (noteEditor) noteEditor.updateBlockContent(blockId, t)
             }
         }
     }
-
     Component {
         id: numberedComponent
         NumberedBlock {
             blockId: root.blockId
             text: root.blockData ? root.blockData.text || "" : ""
-            // Simple sequential number from list index (improve later with helper)
+            indent: root.blockData ? (root.blockData.indent || 0) : 0
             number: noteEditor ? noteEditor.numberedIndex(root.blockId) : 1
             onContentChanged: function (t) {
                 if (noteEditor) noteEditor.updateBlockContent(blockId, t)

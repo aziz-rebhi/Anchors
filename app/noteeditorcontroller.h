@@ -63,6 +63,8 @@ public:
     Q_INVOKABLE int numberedIndex(const QString& blockId) const;
     Q_INVOKABLE void exitContainer(const QString& blockId, int type = 0, const QString& content = "");
     Q_INVOKABLE void focusAdjacent(const QString& blockId, bool next);
+    Q_INVOKABLE void indentBlock(const QString& blockId);
+    Q_INVOKABLE void outdentBlock(const QString& blockId);
 
 signals:
     void modelChanged();

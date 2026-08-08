@@ -6,6 +6,7 @@ Item {
     id: root
     property string blockId: ""
     property string text: ""
+    property int indent: 0
     signal contentChanged(string newText)
 
     width: parent ? parent.width : 0
@@ -24,7 +25,7 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 4
+        anchors.leftMargin: 4 + root.indent * 24
         spacing: 8
 
         Text {
@@ -48,6 +49,16 @@ Item {
             onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
 
             Keys.onPressed: function (e) {
+                if (e.key === Qt.Key_Tab) {
+                            noteEditor.indentBlock(root.blockId)
+                            e.accepted = true
+                            return
+                        }
+                        if (e.key === Qt.Key_Backtab || (e.key === Qt.Key_Tab && (e.modifiers & Qt.ShiftModifier))) {
+                            noteEditor.outdentBlock(root.blockId)
+                            e.accepted = true
+                            return
+                        }
                 if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Z) {
                     if (e.modifiers & Qt.ShiftModifier) noteEditor.redo()
                     else noteEditor.undo()
