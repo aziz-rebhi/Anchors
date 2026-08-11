@@ -51,6 +51,9 @@ Rectangle {
             ToolbarButton { label: "▦";   tooltip: "Table";           onClicked: root.insertType(7) }
 
             ToolSep {}
+            ToolbarButton { label: "║║";  tooltip: "cols";   onClicked: root.insertType(16)}
+
+            ToolSep {}
 
             ToolbarButton {
                 label: "↶"; tooltip: "Undo (Ctrl+Z)"

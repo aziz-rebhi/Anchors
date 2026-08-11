@@ -55,8 +55,10 @@ Rectangle {
         onBlockSelected: function (menuBlockId, typeCode) {
             var slashPos = textArea.text.lastIndexOf("/")
             var cleanText = slashPos >= 0 ? textArea.text.substring(0, slashPos) : textArea.text
+
             root.closeSlashMenu()
             noteEditor.updateBlockContent(root.blockId, cleanText)
+
             if (typeCode !== 0)
                 noteEditor.changeBlockType(root.blockId, typeCode)
         }
@@ -74,11 +76,11 @@ Rectangle {
         background: Rectangle { color: "transparent"; border.width: 0 }
 
         onTextChanged: {
-            if (text === root.text) return
+            if (text === root.text)
+                return
+
             if (!root.slashActive) {
-                if (text === "/" || (text.length > 0 && text.charAt(text.length - 1) === "/"
-                                     && text.lastIndexOf("/") === text.length - 1
-                                     && text.indexOf("\n") < 0))
+                if (text.length > 0 && text.charAt(text.length - 1) === "/")
                     openSlashMenu()
             } else {
                 var slashIdx = text.lastIndexOf("/")

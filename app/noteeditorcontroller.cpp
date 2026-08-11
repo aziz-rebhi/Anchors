@@ -206,6 +206,7 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 13: data = NumberedData{content}; break;
     case 14: data = EquationData{content.isEmpty() ? QStringLiteral("E = mc^2") : content, true}; break;
     case 15: data = ToggleData{content, false}; break;
+    case 16: data = ColumnData{2}; break;
     default:
         emit errorOccurred(QStringLiteral("Unsupported block type"));
         return;
@@ -214,6 +215,12 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     QUuid newId = QUuid::createUuid();
     auto* cmd = new InsertBlockCommand(m_document, parentUuid, row, data, newId);
     m_document->undoStack()->push(cmd);
+
+    if (type == 16) {
+        const QString colsId = newId.toString(QUuid::WithoutBraces);
+        insertInColumn(colsId, 0, 0, "");
+        insertInColumn(colsId, 1, 0, "");
+    }
 
     m_pendingFocusId = newId.toString(QUuid::WithoutBraces);
     emit pendingFocusIdChanged(m_pendingFocusId);
@@ -414,7 +421,25 @@ void NoteEditorController::changeBlockType(const QString& blockId, int newType)
         else if constexpr (std::is_same_v<T, TodoData>) { currentText = arg.text; isChecked = arg.checked; }
         else if constexpr (std::is_same_v<T, QuoteData>) currentText = arg.text;
         else if constexpr (std::is_same_v<T, CodeData>) currentText = arg.code;
+        else if constexpr (std::is_same_v<T, BulletData>) currentText = arg.text;
+        else if constexpr (std::is_same_v<T, CalloutData>) currentText = arg.text;
+        else if constexpr (std::is_same_v<T, NumberedData>) currentText = arg.text;
+        else if constexpr (std::is_same_v<T, ToggleData>) currentText = arg.text;
+        else if constexpr (std::is_same_v<T, EquationData>) currentText = arg.latex;
     }, block->data());
+
+    // Slash / toolbar → Columns
+    if (newType == 16) {
+        m_document->updateBlockData(id, ColumnData{2});
+        insertInColumn(blockId, 0, 0, currentText);
+        insertInColumn(blockId, 1, 0, QString());
+        if (m_document->model())
+            m_document->model()->rebuildMaps();
+        m_pendingFocusId = blockId;
+        emit pendingFocusIdChanged(m_pendingFocusId);
+        emit documentModified();
+        return;
+    }
 
     BlockData newData;
     switch (newType) {
@@ -804,4 +829,210 @@ void NoteEditorController::outdentBlock(const QString& blockId)
     }, block->data());
 
     emit documentModified();
+}
+
+static int typeCodeOf(const BlockData& data)
+{
+    return std::visit([](auto&& arg) -> int {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ParagraphData>) return 0;
+        else if constexpr (std::is_same_v<T, HeadingData>) return arg.level >= 4 ? 10 : arg.level;
+        else if constexpr (std::is_same_v<T, TodoData>) return 4;
+        else if constexpr (std::is_same_v<T, CodeData>) return 5;
+        else if constexpr (std::is_same_v<T, ImageData>) return 6;
+        else if constexpr (std::is_same_v<T, TableData>) return 7;
+        else if constexpr (std::is_same_v<T, DividerData>) return 8;
+        else if constexpr (std::is_same_v<T, QuoteData>) return 9;
+        else if constexpr (std::is_same_v<T, BulletData>) return 11;
+        else if constexpr (std::is_same_v<T, CalloutData>) return 12;
+        else if constexpr (std::is_same_v<T, NumberedData>) return 13;
+        else if constexpr (std::is_same_v<T, EquationData>) return 14;
+        else if constexpr (std::is_same_v<T, ToggleData>) return 15;
+        else if constexpr (std::is_same_v<T, ColumnData>) return 16;
+        return 0;
+    }, data);
+}
+
+QVariantList NoteEditorController::columnChildren(const QString& columnsId) const
+{
+    QVariantList out;
+    if (!m_document) return out;
+
+    const QUuid pid = QUuid::fromString(columnsId);
+    if (pid.isNull()) return out;
+
+    for (const Block& b : m_document->blocks()) {
+        if (b.parentId() != pid) continue;
+
+        QString text;
+        bool checked = false;
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, ParagraphData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, HeadingData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, TodoData>) {
+                text = arg.text;
+                checked = arg.checked;
+            }
+            else if constexpr (std::is_same_v<T, QuoteData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, CodeData>) text = arg.code;
+            else if constexpr (std::is_same_v<T, BulletData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, CalloutData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, NumberedData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, ToggleData>) text = arg.text;
+            else if constexpr (std::is_same_v<T, EquationData>) text = arg.latex;
+        }, b.data());
+
+        QVariantMap m;
+        m[QStringLiteral("id")] = b.id().toString(QUuid::WithoutBraces);
+        m[QStringLiteral("columnIndex")] = b.columnIndex();
+        m[QStringLiteral("type")] = typeCodeOf(b.data());
+        m[QStringLiteral("text")] = text;
+        m[QStringLiteral("checked")] = checked;
+        out.append(m);
+    }
+    return out;
+}
+
+void NoteEditorController::insertInColumn(const QString& columnsId, int columnIndex,
+                                          int type, const QString& content)
+{
+    if (!m_document) return;
+
+    const QUuid pid = QUuid::fromString(columnsId);
+    if (pid.isNull() || !m_document->findBlock(pid)) return;
+
+    int childOrdinal = 0;
+    int insertRow = 0;
+    bool foundInCol = false;
+    for (const Block& b : m_document->blocks()) {
+        if (b.parentId() != pid) continue;
+        if (b.columnIndex() == columnIndex) {
+            foundInCol = true;
+            insertRow = childOrdinal + 1;
+        } else if (!foundInCol) {
+            insertRow = childOrdinal + 1;
+        }
+        ++childOrdinal;
+    }
+    if (!foundInCol)
+        insertRow = childOrdinal;
+
+    BlockData data;
+    switch (type) {
+    case 0:  data = ParagraphData{content}; break;
+    case 1:  data = HeadingData{1, content}; break;
+    case 2:  data = HeadingData{2, content}; break;
+    case 3:  data = HeadingData{3, content}; break;
+    case 4:  data = TodoData{content, false}; break;
+    case 5:  data = CodeData{"", content}; break;
+    case 9:  data = QuoteData{content}; break;
+    case 10: data = HeadingData{4, content}; break;
+    case 11: data = BulletData{content, 0}; break;
+    case 12: data = CalloutData{content, QStringLiteral("💡")}; break;
+    case 13: data = NumberedData{content, 0}; break;
+    case 14: data = EquationData{content.isEmpty() ? QStringLiteral("E = mc^2") : content, true}; break;
+    case 15: data = ToggleData{content, false}; break;
+    default: data = ParagraphData{content}; break;
+    }
+
+    const QUuid newId = QUuid::createUuid();
+    auto* cmd = new InsertBlockCommand(m_document, pid, insertRow, data, newId);
+    m_document->undoStack()->push(cmd);
+
+    if (Block* b = m_document->findBlock(newId))
+        b->setColumnIndex(columnIndex);
+
+    m_pendingFocusId = newId.toString(QUuid::WithoutBraces);
+    emit pendingFocusIdChanged(m_pendingFocusId);
+    emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
+}
+
+void NoteEditorController::addColumn(const QString& columnsId)
+{
+    if (!m_document) return;
+    const QUuid id = QUuid::fromString(columnsId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ColumnData>) {
+            ColumnData u = arg;
+            if (u.count < 4) {
+                const int newIndex = u.count;
+                u.count += 1;
+                m_document->updateBlockData(id, u);
+                insertInColumn(columnsId, newIndex, 0, "");
+            }
+        }
+    }, block->data());
+
+    emit documentModified();
+}
+
+void NoteEditorController::removeColumn(const QString& columnsId, int columnIndex)
+{
+    if (!m_document) return;
+
+    const QUuid pid = QUuid::fromString(columnsId);
+    if (pid.isNull() || !m_document->findBlock(pid))
+        return;
+
+    int count = 2;
+    if (Block* p0 = m_document->findBlock(pid)) {
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, ColumnData>)
+                count = arg.count;
+        }, p0->data());
+    }
+
+    if (count <= 1 || columnIndex < 0 || columnIndex >= count)
+        return;
+
+    QList<QUuid> toDelete;
+    for (const Block& b : m_document->blocks()) {
+        if (b.parentId() == pid && b.columnIndex() == columnIndex)
+            toDelete.append(b.id());
+    }
+
+    m_document->undoStack()->beginMacro(QStringLiteral("Remove column"));
+
+    for (const QUuid& bid : toDelete)
+        m_document->undoStack()->push(new DeleteBlockCommand(m_document, bid));
+
+    // Shift higher indices (use ids collected first — list may have moved)
+    QList<QUuid> toShift;
+    for (const Block& b : m_document->blocks()) {
+        if (b.parentId() == pid && b.columnIndex() > columnIndex)
+            toShift.append(b.id());
+    }
+    for (const QUuid& bid : toShift) {
+        if (Block* pb = m_document->findBlock(bid))
+            pb->setColumnIndex(pb->columnIndex() - 1);
+    }
+
+    // CRITICAL: parent pointer from before deletes is invalid
+    if (Block* parent = m_document->findBlock(pid)) {
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, ColumnData>) {
+                ColumnData u = arg;
+                u.count = std::max(1, u.count - 1);
+                m_document->updateBlockData(pid, u);
+            }
+        }, parent->data());
+    }
+
+    m_document->undoStack()->endMacro();
+
+    if (m_document->model())
+        m_document->model()->rebuildMaps();
+
+    emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }

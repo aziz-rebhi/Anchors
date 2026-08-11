@@ -27,6 +27,9 @@ public:
     QJsonObject toJson() const;
     static Block fromJson(const QJsonObject& obj);
 
+    int columnIndex() const;
+    void setColumnIndex(int index) ;
+
 private:
     QUuid m_id;
     QUuid m_parentId;
@@ -34,6 +37,7 @@ private:
     BlockData m_data;
     QDateTime m_created;
     QDateTime m_updated;
+    int m_columnIndex = 0;
 };
 
 #endif // BLOCK_H

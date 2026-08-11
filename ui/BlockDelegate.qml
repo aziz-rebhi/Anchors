@@ -44,6 +44,7 @@ Item {
             case 13: return numberedComponent
             case 14: return equationComponent
             case 15: return toggleComponent
+            case 16: return columnsComponent
             default: return paragraphComponent
             }
         }
@@ -193,6 +194,14 @@ Item {
             onContentChanged: function (t) {
                 if (noteEditor) noteEditor.updateBlockContent(blockId, t)
             }
+        }
+    }
+
+    Component {
+        id: columnsComponent
+        ColumnsBlock {
+            blockId: root.blockId
+            columnCount: root.blockData ? (root.blockData.count || 2) : 2
         }
     }
 }

@@ -34,6 +34,13 @@ void BlockModel::rebuildMaps()
 
     const QList<Block>& all = m_document->blocks();
 
+    auto isColumns = [](const Block& b) {
+        return std::visit([](auto&& arg){
+            using T = std::decay_t<decltype(arg)>;
+            return std::is_same_v<T, ColumnData>;
+        },b.data());
+    };
+
     auto isExpandedToggle = [](const Block& b) -> bool {
         return std::visit([](auto&& arg) -> bool {
             using T = std::decay_t<decltype(arg)>;
@@ -49,6 +56,8 @@ void BlockModel::rebuildMaps()
             continue;
 
         m_visibleIds.append(b.id());
+
+        if (isColumns(b)) continue ;
 
         if (isExpandedToggle(b)) {
             for (int j = 0; j < all.size(); ++j) {
@@ -122,6 +131,7 @@ static int blockTypeCode(const BlockData& data)
         else if constexpr (std::is_same_v<T, NumberedData>) return 13;
         else if constexpr (std::is_same_v<T, EquationData>) return 14;
         else if constexpr (std::is_same_v<T, ToggleData>) return 15;
+        else if constexpr (std::is_same_v<T, ColumnData>) return 16;
         return 0;
     }, data);
 }
@@ -192,6 +202,8 @@ QVariant BlockModel::data(const QModelIndex& index, int role) const
             } else if constexpr (std::is_same_v<T, ToggleData>) {
                 map["text"] = arg.text;
                 map["collapsed"] = arg.collapsed;
+            } else if constexpr (std::is_same_v<T, ColumnData>) {
+                map["count"] = arg.count;
             }
         }, block->data());
         return map;

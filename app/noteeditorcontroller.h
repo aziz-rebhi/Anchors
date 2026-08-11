@@ -66,6 +66,11 @@ public:
     Q_INVOKABLE void indentBlock(const QString& blockId);
     Q_INVOKABLE void outdentBlock(const QString& blockId);
 
+    Q_INVOKABLE QVariantList columnChildren(const QString& columnsId) const;
+    Q_INVOKABLE void insertInColumn(const QString& columnsId, int columnIndex, int type = 0, const QString& content = "");
+    Q_INVOKABLE void addColumn(const QString& columnsId);
+    Q_INVOKABLE void removeColumn(const QString& columnsId, int columnIndex);
+
 signals:
     void modelChanged();
     void noteTitleChanged(const QString& title);

@@ -70,10 +70,14 @@ struct ToggleData {
     bool collapsed = false;
 };
 
+struct ColumnData {
+    int count = 2;
+};
+
 
 
 #include <variant>
-using BlockData = std::variant<ParagraphData, HeadingData, CodeData, ImageData, TableData, TodoData, DividerData, QuoteData, BulletData, CalloutData, NumberedData, EquationData, ToggleData>;
+using BlockData = std::variant<ParagraphData, HeadingData, CodeData, ImageData, TableData, TodoData, DividerData, QuoteData, BulletData, CalloutData, NumberedData, EquationData, ToggleData, ColumnData>;
 
 // Type indices (matches variant order):
 //  0 = Paragraph

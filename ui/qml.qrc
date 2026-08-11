@@ -33,6 +33,7 @@
         <file>NumberedBlock.qml</file>
         <file>EquationBlock.qml</file>
         <file>ToggleBlock.qml</file>
+        <file>ColumnsBlock.qml</file>
     </qresource>
     <qresource prefix="/"/>
 </RCC>

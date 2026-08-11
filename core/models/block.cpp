@@ -67,6 +67,9 @@ static QJsonObject blockDataToJson(const BlockData& data)
             obj["type"] = "toggle";
             obj["text"] = arg.text;
             obj["collapsed"] = arg.collapsed;
+        } else if constexpr (std::is_same_v<T, ColumnData>) {
+            obj["type"] = "columns";
+            obj["count"] = arg.count;
         }
 
     }, data);
@@ -124,6 +127,8 @@ static BlockData blockDataFromJson(const QJsonObject& obj)
             obj["text"].toString(),
             obj["collapsed"].toBool(false)
         };
+    } else if (type == "columns") {
+        return ColumnData {obj["count"].toInt(2)};
     }
     return ParagraphData{""};
 }
@@ -154,11 +159,14 @@ const BlockData& Block::data() const { return m_data; }
 BlockData& Block::data() { return m_data; }
 QDateTime Block::created() const { return m_created; }
 QDateTime Block::updated() const { return m_updated; }
+int Block::columnIndex() const {return m_columnIndex;}
 
 void Block::setParentId(QUuid parentId) { m_parentId = parentId; }
 void Block::setOrderIndex(int order) { m_orderIndex = order; }
 void Block::setData(const BlockData& data) { m_data = data; updateTimestamp(); }
 void Block::updateTimestamp() { m_updated = QDateTime::currentDateTime(); }
+void Block::setColumnIndex(int index){m_columnIndex = index;}
+
 
 QJsonObject Block::toJson() const
 {
@@ -170,6 +178,7 @@ QJsonObject Block::toJson() const
     obj["updated"] = m_updated.toMSecsSinceEpoch();
     obj["blockType"] = blockDataToJson(m_data)["type"].toString();
     obj["data"] = blockDataToJson(m_data);
+    obj["columnIndex"] = m_columnIndex;
     return obj;
 }
 
@@ -181,5 +190,6 @@ Block Block::fromJson(const QJsonObject& obj)
     BlockData data = blockDataFromJson(obj["data"].toObject());
 
     Block block(id, parentId, orderIndex, data);
+    block.setColumnIndex(obj["columnIndex"].toInt(0));
     return block;
 }
