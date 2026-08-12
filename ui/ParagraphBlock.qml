@@ -9,6 +9,8 @@ Rectangle {
     property alias textArea: textArea
     property bool slashActive: false
 
+    Theme { id: theme }
+
     signal contentChanged(string newText)
 
     width: parent ? parent.width : 0
@@ -19,7 +21,6 @@ Rectangle {
         textArea.forceActiveFocus()
         textArea.cursorPosition = atStart ? 0 : textArea.text.length
     }
-
     function isOnFirstLine() {
         return textArea.text.lastIndexOf("\n", textArea.cursorPosition - 1) < 0
     }
@@ -55,10 +56,8 @@ Rectangle {
         onBlockSelected: function (menuBlockId, typeCode) {
             var slashPos = textArea.text.lastIndexOf("/")
             var cleanText = slashPos >= 0 ? textArea.text.substring(0, slashPos) : textArea.text
-
             root.closeSlashMenu()
             noteEditor.updateBlockContent(root.blockId, cleanText)
-
             if (typeCode !== 0)
                 noteEditor.changeBlockType(root.blockId, typeCode)
         }
@@ -72,13 +71,14 @@ Rectangle {
         placeholderText: "Type '/' for commands..."
         wrapMode: Text.Wrap
         font.pixelSize: 14
-        color: "#dddddd"
+        font.family: theme.bodyFont
+        color: theme.textPrimary
+        placeholderTextColor: theme.textMuted
         background: Rectangle { color: "transparent"; border.width: 0 }
 
         onTextChanged: {
             if (text === root.text)
                 return
-
             if (!root.slashActive) {
                 if (text.length > 0 && text.charAt(text.length - 1) === "/")
                     openSlashMenu()

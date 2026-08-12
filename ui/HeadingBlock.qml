@@ -8,6 +8,8 @@ Rectangle {
     property string text: ""
     signal contentChanged(string newText)
 
+    Theme { id: theme }
+
     width: parent ? parent.width : 0
     height: Math.max(30, textField.implicitHeight + 8)
     color: "transparent"
@@ -25,7 +27,9 @@ Rectangle {
         placeholderText: "Heading..."
         font.pixelSize: level === 1 ? 28 : (level === 2 ? 22 : (level === 3 ? 18 : 16))
         font.bold: true
-        color: "#e8e8e8"
+        font.family: theme.headlineFont
+        color: theme.textPrimary
+        placeholderTextColor: theme.textMuted
         background: Rectangle { color: "transparent" }
 
         onTextChanged: if (text !== root.text) root.contentChanged(text)

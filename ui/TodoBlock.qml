@@ -6,16 +6,17 @@ Rectangle {
     property string blockId: ""
     property string text: ""
     property bool checked: false
-
     signal contentChanged(string newText)
+
+    Theme { id: theme }
 
     width: parent ? parent.width : 0
     height: Math.max(30, textArea.implicitHeight + 8)
     color: "transparent"
 
-    function focusInput() {
+    function focusInput(atStart) {
         textArea.forceActiveFocus()
-        textArea.cursorPosition = textArea.text.length
+        textArea.cursorPosition = atStart ? 0 : textArea.text.length
     }
     function isOnFirstLine() {
         return textArea.text.lastIndexOf("\n", textArea.cursorPosition - 1) < 0
@@ -36,7 +37,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             radius: 4
             color: "transparent"
-            border.color: root.checked ? "#88c0d0" : "#888888"
+            border.color: root.checked ? theme.secondary : theme.textMuted
             border.width: 2
 
             Text {
@@ -44,16 +45,14 @@ Rectangle {
                 text: "\u2713"
                 font.pixelSize: 14
                 font.bold: true
-                color: root.checked ? "#88c0d0" : "transparent"
+                color: theme.secondary
                 visible: root.checked
             }
 
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (noteEditor) noteEditor.toggleBlockChecked(root.blockId)
-                }
+                onClicked: if (noteEditor) noteEditor.toggleBlockChecked(root.blockId)
             }
         }
 
@@ -65,52 +64,38 @@ Rectangle {
             placeholderText: "To-do..."
             wrapMode: Text.Wrap
             font.pixelSize: 14
-            color: root.checked ? "#888888" : "#dddddd"
+            font.family: theme.bodyFont
+            color: root.checked ? theme.textMuted : theme.textPrimary
+            placeholderTextColor: theme.textMuted
             background: Rectangle { color: "transparent" }
 
-            onTextChanged: {
-                if (text !== root.text)
-                    root.contentChanged(text)
-            }
-
-            onActiveFocusChanged: {
-                if (activeFocus && noteEditor)
-                    noteEditor.setFocusedBlock(root.blockId)
-            }
+            onTextChanged: if (text !== root.text) root.contentChanged(text)
+            onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
 
             Keys.onPressed: function (event) {
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
-                    if (event.modifiers & Qt.ShiftModifier)
-                        noteEditor.redo()
-                    else
-                        noteEditor.undo()
+                    if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
+                    else noteEditor.undo()
                     event.accepted = true
                     return
                 }
-
                 if (event.key === Qt.Key_Tab) {
                     textArea.insert(textArea.cursorPosition, "    ")
                     event.accepted = true
                     return
                 }
-
                 if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                     var pos = textArea.cursorPosition
                     var after = text.substring(pos)
                     textArea.text = text.substring(0, pos)
                     root.contentChanged(textArea.text)
-
-                    if (event.modifiers & Qt.ControlModifier) {
-                        // Ctrl+Enter → leave the list (paragraph)
+                    if (event.modifiers & Qt.ControlModifier)
                         noteEditor.insertBlockAfter(root.blockId, 0, after)
-                    } else {
-                        // Enter → next to-do
+                    else
                         noteEditor.insertBlockAfter(root.blockId, 4, after)
-                    }
                     event.accepted = true
                     return
                 }
-
                 if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
                     if (textArea.text.length === 0)
                         noteEditor.deleteBlock(root.blockId)

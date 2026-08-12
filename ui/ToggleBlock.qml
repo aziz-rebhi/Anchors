@@ -4,19 +4,19 @@ import QtQuick.Layouts 1.15
 
 Item {
     id: root
-
     property string blockId: ""
     property string text: ""
     property bool collapsed: false
-
     signal contentChanged(string newText)
+
+    Theme { id: theme }
 
     width: parent ? parent.width : 0
     height: headerRow.implicitHeight + 8
 
-    function focusInput() {
+    function focusInput(atStart) {
         input.forceActiveFocus()
-        input.cursorPosition = input.text.length
+        input.cursorPosition = atStart ? 0 : input.text.length
     }
     function isOnFirstLine() {
         return input.text.lastIndexOf("\n", input.cursorPosition - 1) < 0
@@ -34,10 +34,9 @@ Item {
 
         Text {
             text: root.collapsed ? "▶" : "▼"
-            color: "#aaaaaa"
+            color: theme.textSecondary
             font.pixelSize: 12
             Layout.preferredWidth: 18
-
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
@@ -53,23 +52,20 @@ Item {
             wrapMode: Text.Wrap
             font.pixelSize: 14
             font.bold: true
-            color: "#eeeeee"
+            font.family: theme.bodyFont
+            color: theme.textPrimary
+            placeholderTextColor: theme.textMuted
             background: Item {}
 
             onTextChanged: if (text !== root.text) root.contentChanged(text)
-
-            onActiveFocusChanged: {
-                if (activeFocus && noteEditor)
-                    noteEditor.setFocusedBlock(root.blockId)
-            }
+            onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
 
             Keys.onPressed: function (e) {
                 if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
-                    if (e.modifiers & Qt.ControlModifier) {
+                    if (e.modifiers & Qt.ControlModifier)
                         noteEditor.insertBlockAfter(root.blockId, 0, "")
-                    } else {
+                    else
                         noteEditor.insertInside(root.blockId, 0, "")
-                    }
                     e.accepted = true
                     return
                 }

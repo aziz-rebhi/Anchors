@@ -10,12 +10,14 @@ Item {
     property int indent: 0
     signal contentChanged(string newText)
 
+    Theme { id: theme }
+
     width: parent ? parent.width : 0
     height: Math.max(28, input.implicitHeight + 8)
 
-    function focusInput() {
+    function focusInput(atStart) {
         input.forceActiveFocus()
-        input.cursorPosition = input.text.length
+        input.cursorPosition = atStart ? 0 : input.text.length
     }
     function isOnFirstLine() {
         return input.text.lastIndexOf("\n", input.cursorPosition - 1) < 0
@@ -24,7 +26,6 @@ Item {
         return input.text.indexOf("\n", input.cursorPosition) < 0
     }
 
-
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 4 + root.indent * 24
@@ -32,8 +33,9 @@ Item {
 
         Text {
             text: root.number + "."
-            color: "#a6adc8"
+            color: theme.textSecondary
             font.pixelSize: 14
+            font.family: theme.bodyFont
             Layout.alignment: Qt.AlignTop
             Layout.topMargin: 6
             Layout.preferredWidth: 28
@@ -46,7 +48,8 @@ Item {
             text: root.text
             wrapMode: Text.Wrap
             font.pixelSize: 14
-            color: "#dddddd"
+            font.family: theme.bodyFont
+            color: theme.textPrimary
             background: Item {}
 
             onTextChanged: if (text !== root.text) root.contentChanged(text)
@@ -54,10 +57,10 @@ Item {
 
             Keys.onPressed: function (e) {
                 if (e.key === Qt.Key_Tab) {
-                            noteEditor.indentBlock(root.blockId)
-                            e.accepted = true
-                            return
-                        }
+                    noteEditor.indentBlock(root.blockId)
+                    e.accepted = true
+                    return
+                }
                 if (e.key === Qt.Key_Backtab || (e.key === Qt.Key_Tab && (e.modifiers & Qt.ShiftModifier))) {
                     noteEditor.outdentBlock(root.blockId)
                     e.accepted = true
@@ -89,9 +92,9 @@ Item {
                     e.accepted = true
                 }
                 if (e.key === Qt.Key_Up && isOnFirstLine()) {
-                        noteEditor.focusAdjacent(root.blockId, false)
-                        e.accepted = true
-                        return
+                    noteEditor.focusAdjacent(root.blockId, false)
+                    e.accepted = true
+                    return
                 }
                 if (e.key === Qt.Key_Down && isOnLastLine()) {
                     noteEditor.focusAdjacent(root.blockId, true)

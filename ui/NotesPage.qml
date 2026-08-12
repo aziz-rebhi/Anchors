@@ -353,16 +353,25 @@ Page {
 
             EditorToolbar {
                 Layout.fillWidth: true
-                Layout.leftMargin: 20
-                Layout.rightMargin: 20
-                onInsertType: function (typeCode) {
+                Layout.preferredHeight: 40
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+                Layout.topMargin: 4
+                Layout.bottomMargin: 4
+
+                currentBlockId: noteEditor ? (noteEditor.focusedBlockId || "") : ""
+
+                onChangeType: function (t) {
+                    if (noteEditor && noteEditor.focusedBlockId)
+                        noteEditor.changeBlockType(noteEditor.focusedBlockId, t)
+                }
+                onInsertType: function (t) {
                     if (!noteEditor) return
-                    if (noteEditor.focusedBlockId && noteEditor.focusedBlockId.length > 0)
-                        noteEditor.insertBlockAfter(noteEditor.focusedBlockId, typeCode, "")
-                    else {
-                        var count = noteEditor.model ? noteEditor.model.rowCount() : 0
-                        noteEditor.insertBlock("", count, typeCode, "")
-                    }
+                    var id = noteEditor.focusedBlockId
+                    if (id && id.length)
+                        noteEditor.insertBlockAfter(id, t, "")
+                    else
+                        noteEditor.insertBlock("", 0, t, "")
                 }
             }
 

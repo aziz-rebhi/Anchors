@@ -5,16 +5,17 @@ Rectangle {
     id: root
     property string blockId: ""
     property string text: ""
-
     signal contentChanged(string newText)
+
+    Theme { id: theme }
 
     width: parent ? parent.width : 0
     height: Math.max(30, textArea.implicitHeight + 8)
     color: "transparent"
 
-    function focusInput() {
+    function focusInput(atStart) {
         textArea.forceActiveFocus()
-        textArea.cursorPosition = textArea.text.length
+        textArea.cursorPosition = atStart ? 0 : textArea.text.length
     }
     function isOnFirstLine() {
         return textArea.text.lastIndexOf("\n", textArea.cursorPosition - 1) < 0
@@ -29,7 +30,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 3
-        color: "#6c7086"
+        color: theme.secondary
         radius: 1
     }
 
@@ -47,19 +48,14 @@ Rectangle {
         placeholderText: "Quote..."
         wrapMode: Text.Wrap
         font.pixelSize: 14
+        font.family: theme.bodyFont
         font.italic: true
-        color: "#cdd6f4"
+        color: theme.textPrimary
+        placeholderTextColor: theme.textMuted
         background: Rectangle { color: "transparent" }
 
-        onTextChanged: {
-            if (text !== root.text)
-                root.contentChanged(text)
-        }
-
-        onActiveFocusChanged: {
-            if (activeFocus && noteEditor)
-                noteEditor.setFocusedBlock(root.blockId)
-        }
+        onTextChanged: if (text !== root.text) root.contentChanged(text)
+        onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
 
         Keys.onPressed: function (event) {
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
