@@ -176,3 +176,25 @@ bool EditTextCommand::mergeWith(const QUndoCommand* other)
     m_newText = otherEdit->m_newText;
     return true;
 }
+
+// --- MoveBlockCommand ---
+
+MoveBlockCommand::MoveBlockCommand(Document* doc, QUuid blockId, int fromRow, int toRow,
+                                   QUndoCommand* parentCmd)
+    : QUndoCommand("Move block", parentCmd)
+    , m_doc(doc)
+    , m_blockId(blockId)
+    , m_fromRow(fromRow)
+    , m_toRow(toRow)
+{
+}
+
+void MoveBlockCommand::undo()
+{
+    m_doc->moveBlockInternal(m_blockId, m_toRow, m_fromRow);
+}
+
+void MoveBlockCommand::redo()
+{
+    m_doc->moveBlockInternal(m_blockId, m_fromRow, m_toRow);
+}

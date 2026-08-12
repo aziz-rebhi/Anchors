@@ -55,4 +55,18 @@ private:
     QString m_newText;
 };
 
+class MoveBlockCommand : public QUndoCommand {
+public :
+    MoveBlockCommand(Document* doc, QUuid blockId, int fromRow, int toRow, QUndoCommand* parentCmd = nullptr);
+
+    void undo() override;
+    void redo() override;
+
+private :
+    Document* m_doc;
+    QUuid m_blockId;
+    int m_fromRow;
+    int m_toRow;
+};
+
 #endif // BLOCKCOMMANDS_H

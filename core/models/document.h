@@ -56,6 +56,13 @@ private:
     BlockModel* m_blockModel = nullptr;
     QUndoStack* m_undoStack = nullptr;
 
+
+    // used by MoveBlockCommand
+    void moveBlockInternal(QUuid blockId, int fromRow, int toRow);
+
+    // friends:
+    friend class MoveBlockCommand;
+
     // Friends for undo/redo commands
     friend class InsertBlockCommand;
     friend class DeleteBlockCommand;

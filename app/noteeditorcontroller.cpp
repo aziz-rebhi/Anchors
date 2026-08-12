@@ -564,8 +564,11 @@ void NoteEditorController::moveBlock(const QString& blockId, int newRow)
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull() || newRow < 0) return;
+
     m_document->moveBlock(id, QUuid(), newRow);
     emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
 }
 
 QVariantList NoteEditorController::getDocuments() const
@@ -1036,3 +1039,5 @@ void NoteEditorController::removeColumn(const QString& columnsId, int columnInde
     emit canUndoChanged();
     emit canRedoChanged();
 }
+
+

@@ -8,11 +8,63 @@ Item {
     property string blockId: (model && model.id) ? model.id : ""
     property int blockType: (model && model.type !== undefined) ? parseInt(model.type) : 0
     property int depth: (model && model.depth !== undefined) ? parseInt(model.depth) : 0
+    property bool dragging: false
 
     width: ListView.view ? ListView.view.width : 0
     height: blockLoader.item ? blockLoader.item.height : 30
 
     property alias innerLoader: blockLoader
+
+    // Left grip
+        Rectangle {
+            id: grip
+            width: 18
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            color: gripMa.containsMouse || root.dragging ? "#2a2e2a" : "transparent"
+            radius: 4
+            visible: root.depth === 0   // top-level only (v1)
+
+            Text {
+                anchors.centerIn: parent
+                text: "⋮⋮"
+                font.pixelSize: 10
+                color: "#8C948C"
+                opacity: gripMa.containsMouse || root.dragging ? 1 : 0.4
+            }
+
+            MouseArea {
+                id: gripMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.SizeAllCursor
+                preventStealing: true
+
+                property real startY: 0
+                onPressed: function (mouse) {
+                    root.dragging = true
+                    startY = mapToItem(root.ListView.view, 0, mouse.y).y
+                    root.ListView.view.dragBlockId = root.blockId
+                    root.ListView.view.dragFromIndex = index
+                }
+                onPositionChanged: function (mouse) {
+                    if (!pressed || !root.ListView.view) return
+                    var y = mapToItem(root.ListView.view, 0, mouse.y).y
+                    root.ListView.view.dragHoverY = y
+                }
+                onReleased: {
+                    root.dragging = false
+                    if (root.ListView.view)
+                        root.ListView.view.finishDrag()
+                }
+                onCanceled: {
+                    root.dragging = false
+                    if (root.ListView.view)
+                        root.ListView.view.cancelDrag()
+                }
+            }
+        }
 
     function focusInput() {
         if (blockLoader && blockLoader.item && blockLoader.item.focusInput)
@@ -23,8 +75,7 @@ Item {
         id: blockLoader
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: root.depth > 0 ? 28 : 0
-
+        anchors.leftMargin: (root.depth > 0 ? 28 : 0) + 18
         sourceComponent: {
             if (!model) return null
             switch (root.blockType) {

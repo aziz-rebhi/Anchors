@@ -87,9 +87,21 @@ void Document::deleteBlock(QUuid blockId)
 
 void Document::moveBlock(QUuid blockId, QUuid newParentId, int newRow)
 {
-    Q_UNUSED(blockId);
-    Q_UNUSED(newParentId);
-    Q_UNUSED(newRow);
+    Q_UNUSED(newParentId); // v1: root-level reorder only
+    int from = findBlockIndex(blockId);
+    if (from < 0 || newRow < 0)
+        return;
+
+    // Only reorder top-level blocks (parent null) for v1
+    Block* b = blockAt(from);
+    if (!b || !b->parentId().isNull())
+        return;
+
+    if (m_undoStack) {
+        m_undoStack->push(new MoveBlockCommand(this, blockId, from, newRow));
+    } else {
+        moveBlockInternal(blockId, from, newRow);
+    }
 }
 
 void Document::updateBlockData(QUuid blockId, const BlockData& newData)
@@ -163,5 +175,60 @@ void Document::removeBlockInternal(QUuid blockId)
 
     m_blocks.removeAt(index);
     emit blockDeleted(blockId);
+    emit documentModified();
+}
+
+void Document::moveBlockInternal(QUuid blockId, int fromRow, int toRow)
+{
+    int from = findBlockIndex(blockId);
+    if (from < 0)
+        return;
+
+    // Unit = this block + contiguous descendants (toggle/columns children)
+    auto isUnder = [&](const Block& cand, QUuid rootId) -> bool {
+        QUuid p = cand.parentId();
+        while (!p.isNull()) {
+            if (p == rootId) return true;
+            int pi = findBlockIndex(p);
+            if (pi < 0) break;
+            p = m_blocks[pi].parentId();
+        }
+        return false;
+    };
+
+    int end = from + 1;
+    while (end < m_blocks.size() && isUnder(m_blocks[end], blockId))
+        ++end;
+
+    const int count = end - from;
+    if (count <= 0) return;
+
+    // Clamp destination into visible root slots (model rows ≈ top-level count)
+    // Here toRow is index in the flat list among top-level targets:
+    // We interpret toRow as destination index in m_blocks for the start of the unit.
+    if (toRow > m_blocks.size()) toRow = m_blocks.size();
+    if (toRow < 0) toRow = 0;
+
+    // Extract unit
+    QList<Block> unit;
+    for (int i = 0; i < count; ++i)
+        unit.append(m_blocks[from + i]);
+
+    for (int i = 0; i < count; ++i)
+        m_blocks.removeAt(from);
+
+    // Adjust target after removal
+    int dest = toRow;
+    if (dest > from)
+        dest -= count;
+    if (dest < 0) dest = 0;
+    if (dest > m_blocks.size()) dest = m_blocks.size();
+
+    for (int i = 0; i < unit.size(); ++i)
+        m_blocks.insert(dest + i, unit[i]);
+
+    if (m_blockModel)
+        m_blockModel->rebuildMaps();
+
     emit documentModified();
 }
