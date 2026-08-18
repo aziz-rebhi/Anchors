@@ -211,6 +211,7 @@ Page {
         anchors.fill: parent
         spacing: 0
 
+        // ── Sidebar ─────────────────────────────────────────────
         Rectangle {
             Layout.preferredWidth: 280
             Layout.fillHeight: true
@@ -325,6 +326,7 @@ Page {
             }
         }
 
+        // ── Editor ──────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true

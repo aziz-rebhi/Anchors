@@ -71,6 +71,11 @@ public:
     Q_INVOKABLE void addColumn(const QString& columnsId);
     Q_INVOKABLE void removeColumn(const QString& columnsId, int columnIndex);
 
+    Q_INVOKABLE void duplicateBlock(const QString& blockId);
+    Q_INVOKABLE bool pasteImageFromClipboard();
+
+
+
 signals:
     void modelChanged();
     void noteTitleChanged(const QString& title);

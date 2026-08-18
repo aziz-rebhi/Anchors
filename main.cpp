@@ -13,6 +13,8 @@
 #include "core/storage/notesdatabase.h"
 #include "core/storage/FilePaths.h"
 #include "app/noteeditorcontroller.h"
+#include "core/editor/codehighlightbridge.h"
+
 
 int main(int argc, char *argv[])
 {
@@ -50,6 +52,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("calendarController", &calendarController);
     engine.rootContext()->setContextProperty("taskController", &taskController);
     engine.rootContext()->setContextProperty("noteEditor", &noteEditorController);
+    qmlRegisterType<CodeHighlightBridge>("Anchors", 1, 0, "CodeHighlightBridge");
 
     // Removed the objectCreationFailed connection – it does not exist in Qt6.
     // The check for engine.rootObjects().isEmpty() below handles failure.

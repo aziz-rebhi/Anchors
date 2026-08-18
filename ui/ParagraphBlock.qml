@@ -103,6 +103,17 @@ Rectangle {
         }
 
         Keys.onPressed: function (event) {
+            // Paste image from clipboard (Ctrl+V)
+            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                if (noteEditor && noteEditor.pasteImageFromClipboard()) {
+                    event.accepted = true
+                    return
+                }
+                // Not an image — let TextArea paste text
+                event.accepted = false
+                return
+            }
+
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
                 if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
                 else noteEditor.undo()

@@ -8,6 +8,13 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QUndoStack>
+#include <QGuiApplication>
+#include <QClipboard>
+#include <QImage>
+#include <QMimeData>
+#include <QStandardPaths>
+#include <QDir>
+#include <QDateTime>
 
 NoteEditorController::NoteEditorController(QObject* parent)
     : QObject(parent)
@@ -192,7 +199,7 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 3: data = HeadingData{3, content}; break;
     case 4: data = TodoData{content, false}; break;
     case 5: data = CodeData{"", content}; break;
-    case 6: data = ImageData{content, "", 0, 0}; break;
+    case 6: data = ImageData{QString(), QString(), 0, 0}; break;
     case 7: {
         QVector<QVector<QString>> initCells(1, QVector<QString>(1, ""));
         data = TableData{1, 1, initCells};
@@ -1040,4 +1047,95 @@ void NoteEditorController::removeColumn(const QString& columnsId, int columnInde
     emit canRedoChanged();
 }
 
+void NoteEditorController::duplicateBlock(const QString& blockId)
+{
+    if (!m_document) return;
+    QUuid id = QUuid::fromString(blockId);
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
 
+    const int type = 0;
+    QString text;
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ParagraphData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, HeadingData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, TodoData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, QuoteData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, CodeData>) text = arg.code;
+        else if constexpr (std::is_same_v<T, BulletData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, CalloutData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, NumberedData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, ToggleData>) text = arg.text;
+        else if constexpr (std::is_same_v<T, EquationData>) text = arg.latex;
+    }, block->data());
+
+    // typeCodeOf already exists in your .cpp — reuse it
+    insertBlockAfter(blockId, typeCodeOf(block->data()), text);
+}
+
+
+bool NoteEditorController::pasteImageFromClipboard()
+{
+    if (!m_document)
+        return false;
+
+    const QClipboard* clip = QGuiApplication::clipboard();
+    if (!clip)
+        return false;
+
+    QImage image = clip->image();
+    if (image.isNull()) {
+        // Some apps put image data only in the MIME payload
+        const QMimeData* mime = clip->mimeData();
+        if (mime && mime->hasImage())
+            image = qvariant_cast<QImage>(mime->imageData());
+    }
+    if (image.isNull())
+        return false;
+
+    const QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                            + QStringLiteral("/Anchors/images");
+    QDir().mkpath(dirPath);
+
+    const QString fileName = QStringLiteral("img_%1.png")
+                                 .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_hhmmss_zzz")));
+    const QString fullPath = dirPath + QLatin1Char('/') + fileName;
+
+    if (!image.save(fullPath, "PNG")) {
+        emit errorOccurred(QStringLiteral("Failed to save clipboard image"));
+        return false;
+    }
+
+    // Prefer file:// so QML Image loads it reliably
+    const QString source = QUrl::fromLocalFile(fullPath).toString();
+
+    // If focus is an empty image block → fill it; else insert after focused / at end
+    QString focusId = m_focusedBlockId;
+    if (!focusId.isEmpty()) {
+        QUuid id = QUuid::fromString(focusId);
+        if (Block* b = m_document->findBlock(id)) {
+            bool isEmptyImage = false;
+            std::visit([&](auto&& arg) {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, ImageData>)
+                    isEmptyImage = arg.source.isEmpty();
+            }, b->data());
+
+            if (isEmptyImage) {
+                updateBlockImageSource(focusId, source);
+                return true;
+            }
+        }
+        insertBlockAfter(focusId, 6, source); // type 6 = image; content ignored for ImageData in insert
+        // insertBlockAfter with type 6 may not put source in content — set it on the new block:
+        if (!m_pendingFocusId.isEmpty())
+            updateBlockImageSource(m_pendingFocusId, source);
+        return true;
+    }
+
+    insertBlock(QString(), m_document->blocks().size(), 6, QString());
+    if (!m_pendingFocusId.isEmpty())
+        updateBlockImageSource(m_pendingFocusId, source);
+    return true;
+}

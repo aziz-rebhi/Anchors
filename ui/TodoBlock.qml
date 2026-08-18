@@ -31,7 +31,6 @@ Rectangle {
         spacing: 8
 
         Rectangle {
-            id: checkbox
             width: 20
             height: 20
             anchors.verticalCenter: parent.verticalCenter
@@ -39,7 +38,6 @@ Rectangle {
             color: "transparent"
             border.color: root.checked ? theme.secondary : theme.textMuted
             border.width: 2
-
             Text {
                 anchors.centerIn: parent
                 text: "\u2713"
@@ -48,7 +46,6 @@ Rectangle {
                 color: theme.secondary
                 visible: root.checked
             }
-
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
@@ -73,6 +70,14 @@ Rectangle {
             onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
 
             Keys.onPressed: function (event) {
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                    if (noteEditor && noteEditor.pasteImageFromClipboard()) {
+                        event.accepted = true
+                        return
+                    }
+                    event.accepted = false
+                    return
+                }
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
                     if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
                     else noteEditor.undo()
