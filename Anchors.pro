@@ -13,6 +13,7 @@ SOURCES += \
     core/models/blockmodel.cpp \
     core/models/calendarentry.cpp \
     core/models/document.cpp \
+    core/models/projectentry.cpp \
     core/storage/notesdatabase.cpp \
     main.cpp \
     app/session.cpp \
@@ -56,6 +57,7 @@ HEADERS += \
     core/models/document.h \
     core/models/noteentry.h \
     core/models/profile.h \
+    core/models/projectentry.h \
     core/models/vaultentry.h \
     core/models/taskentry.h \
     core/security/autolockmanager.h \
