@@ -1,6 +1,6 @@
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 
 Popup {
     id: root
@@ -11,7 +11,10 @@ Popup {
     readonly property bool isEditing: editingId.length > 0
     property date targetDate: new Date()
 
-    readonly property var colorSwatches: ["#2E8B57", "#4F9F4F", "#E0A15C", "#E0574C", "#5C8FE0"]
+    readonly property var colorSwatches: [
+        "#2E8B57", "#4F9F4F", "#E0A15C", "#E0574C", "#5C8FE0",
+        "#cba6f7", "#f38ba8", "#94e2d5"
+    ]
     property string selectedColor: colorSwatches[0]
 
     modal: true
@@ -47,22 +50,29 @@ Popup {
         var start = new Date(entry.start)
         targetDate = start
         titleField.text = entry.title
-        descriptionField.text = entry.description
+        descriptionField.text = entry.description || ""
         startTimeField.text = Qt.formatTime(start, "hh:mm")
         endTimeField.text = Qt.formatTime(new Date(entry.end), "hh:mm")
         allDaySwitch.checked = entry.allDay
-        selectedColor = entry.color
+        selectedColor = entry.color || colorSwatches[0]
         errorLabel.text = ""
         open()
     }
 
     function combine(dateObj, hhmm) {
-        var parts = hhmm.split(":")
-        var h = parseInt(parts[0], 10) || 0
-        var m = parseInt(parts[1], 10) || 0
+        var parts = (hhmm || "00:00").split(":")
+        var h = parseInt(parts[0], 10)
+        var m = parseInt(parts[1], 10)
+        if (isNaN(h)) h = 0
+        if (isNaN(m)) m = 0
         var d = new Date(dateObj)
         d.setHours(h, m, 0, 0)
         return d
+    }
+
+    function isValidTime(hhmm) {
+        var re = /^([01]?\d|2[0-3]):([0-5]\d)$/
+        return re.test((hhmm || "").trim())
     }
 
     ColumnLayout {
@@ -80,7 +90,6 @@ Popup {
         Label {
             text: Qt.formatDate(root.targetDate, "dddd, MMMM d, yyyy")
             color: theme.textSecondary
-            font.family: theme.bodyFont
             font.pixelSize: 12
         }
 
@@ -97,9 +106,7 @@ Popup {
 
         RowLayout {
             spacing: 8
-            Switch {
-                id: allDaySwitch
-            }
+            Switch { id: allDaySwitch }
             Label { text: "All day"; color: theme.textSecondary; font.pixelSize: 13 }
         }
 
@@ -132,6 +139,7 @@ Popup {
                     border.color: theme.textPrimary
                     MouseArea {
                         anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
                         onClicked: root.selectedColor = modelData
                     }
                 }
@@ -152,41 +160,92 @@ Popup {
             Layout.topMargin: 4
             spacing: 8
 
-            PrimaryButton {
-                text: "Cancel"
-                outlined: true
-                Layout.fillWidth: true
-                onClicked: root.close()
+            Item { Layout.fillWidth: true }
+
+            // Cancel
+            Rectangle {
+                width: 36; height: 36; radius: 8
+                color: cancelMa.containsMouse ? Qt.rgba(1,1,1,0.08) : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "✕"
+                    color: theme.textSecondary
+                    font.pixelSize: 14
+                }
+                MouseArea {
+                    id: cancelMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.close()
+                }
+                ToolTip.visible: cancelMa.containsMouse
+                ToolTip.text: "Cancel"
+                ToolTip.delay: 400
             }
-            PrimaryButton {
-                text: root.isEditing ? "Save" : "Create"
-                Layout.fillWidth: true
-                onClicked: {
-                    if (titleField.text.trim().length === 0) {
-                        errorLabel.text = "Title is required."
-                        return
-                    }
 
-                    var startD = allDaySwitch.checked ? root.targetDate : root.combine(root.targetDate, startTimeField.text)
-                    var endD = allDaySwitch.checked ? root.targetDate : root.combine(root.targetDate, endTimeField.text)
-                    var startIso = Qt.formatDateTime(startD, "yyyy-MM-ddThh:mm:ss")
-                    var endIso = Qt.formatDateTime(endD, "yyyy-MM-ddThh:mm:ss")
+            // Save / Create
+            Rectangle {
+                width: 36; height: 36; radius: 8
+                color: saveMa.containsMouse ? theme.tertiary
+                                            : Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.85)
+                Text {
+                    anchors.centerIn: parent
+                    text: "✓"
+                    color: "#0A140A"
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+                MouseArea {
+                    id: saveMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (titleField.text.trim().length === 0) {
+                            errorLabel.text = "Title is required."
+                            return
+                        }
+                        if (!allDaySwitch.checked) {
+                            if (!root.isValidTime(startTimeField.text) || !root.isValidTime(endTimeField.text)) {
+                                errorLabel.text = "Use time format HH:mm (e.g. 09:30)."
+                                return
+                            }
+                            var startD = root.combine(root.targetDate, startTimeField.text)
+                            var endD = root.combine(root.targetDate, endTimeField.text)
+                            if (endD.getTime() <= startD.getTime()) {
+                                errorLabel.text = "End time must be after start time."
+                                return
+                            }
+                        }
 
-                    var ok
-                    if (root.isEditing) {
-                        ok = calendarController.updateEntry(root.editingId, titleField.text, descriptionField.text,
-                                                              startIso, endIso, allDaySwitch.checked, root.selectedColor)
-                    } else {
-                        ok = calendarController.addEntry(titleField.text, descriptionField.text,
-                                                           startIso, endIso, allDaySwitch.checked, root.selectedColor)
-                    }
+                        var startDate = allDaySwitch.checked
+                                      ? root.targetDate
+                                      : root.combine(root.targetDate, startTimeField.text)
+                        var endDate = allDaySwitch.checked
+                                    ? root.targetDate
+                                    : root.combine(root.targetDate, endTimeField.text)
+                        var startIso = Qt.formatDateTime(startDate, "yyyy-MM-ddThh:mm:ss")
+                        var endIso = Qt.formatDateTime(endDate, "yyyy-MM-ddThh:mm:ss")
 
-                    if (ok) {
-                        root.close()
-                    } else {
-                        errorLabel.text = "Could not save. Is the calendar unlocked?"
+                        var ok
+                        if (root.isEditing) {
+                            ok = calendarController.updateEntry(
+                                root.editingId, titleField.text, descriptionField.text,
+                                startIso, endIso, allDaySwitch.checked, root.selectedColor)
+                        } else {
+                            ok = calendarController.addEntry(
+                                titleField.text, descriptionField.text,
+                                startIso, endIso, allDaySwitch.checked, root.selectedColor)
+                        }
+
+                        if (ok) root.close()
+                        else errorLabel.text = "Could not save. Is the calendar unlocked?"
                     }
                 }
+                ToolTip.visible: saveMa.containsMouse
+                ToolTip.text: root.isEditing ? "Save" : "Create"
+                ToolTip.delay: 400
             }
         }
     }
