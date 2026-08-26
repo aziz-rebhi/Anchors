@@ -1,10 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 
-// Reusable button matching the "Primary" / "Outlined" button styles from
-// the design system. Usage:
-//   PrimaryButton { text: "UNLOCK"; onClicked: ... }
-//   PrimaryButton { text: "Review Actions"; outlined: true; onClicked: ... }
 Button {
     id: control
 
@@ -20,7 +16,7 @@ Button {
     contentItem: Text {
         text: uppercase ? control.text.toUpperCase() : control.text
         font: control.font
-        color: control.outlined ? theme.tertiary : "#0A140A"
+        color: control.outlined ? theme.tertiary : theme.onAccent
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }

@@ -4,12 +4,12 @@ import QtQuick.Layouts 1.15
 
 Popup {
     id: menu
+    Theme { id: theme }
 
     property string blockId: ""
     property string filterText: ""
     property real cursorX: 0
     property real cursorY: 0
-
     signal blockSelected(string blockId, int typeCode)
 
     x: cursorX
@@ -22,8 +22,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     background: Rectangle {
-        color: "#1e1e28"
-        border.color: "#3a3a4a"
+        color: theme.surface
+        border.color: theme.border
         border.width: 1
         radius: 10
     }
@@ -43,15 +43,14 @@ Popup {
         { section: "Basic blocks", type: 15, name: "Toggle list",   shortcut: ">",    icon: "▶",   keywords: "toggle collapse" },
         { section: "Media",        type: 6,  name: "Image",         shortcut: "",     icon: "🖼",  keywords: "image photo picture" },
         { section: "Media",        type: 5,  name: "Code",          shortcut: "```",  icon: "</>", keywords: "code snippet" },
-        { section: "Media",        type: 7,  name: "Table",         shortcut: "",     icon: "▦",  keywords: "table grid" },
+        { section: "Media",        type: 7,  name: "Table",         shortcut: "",     icon: "▦",   keywords: "table grid" },
         { section: "Advanced",     type: 14, name: "Equation",      shortcut: "$$",   icon: "∑",   keywords: "math latex equation formula" },
         { section: "Layout",       type: 16, name: "Columns",       shortcut: "",     icon: "║║",  keywords: "split columns" }
     ]
 
     property var filteredItems: {
         var q = (filterText || "").trim().toLowerCase()
-        if (!q.length)
-            return allItems
+        if (!q.length) return allItems
         return allItems.filter(function (it) {
             return it.name.toLowerCase().indexOf(q) >= 0
                 || it.keywords.indexOf(q) >= 0
@@ -70,12 +69,8 @@ Popup {
                 lastSection = it.section
             }
             rows.push({
-                kind: "item",
-                type: it.type,
-                name: it.name,
-                shortcut: it.shortcut,
-                icon: it.icon,
-                itemIndex: i
+                kind: "item", type: it.type, name: it.name,
+                shortcut: it.shortcut, icon: it.icon, itemIndex: i
             })
         }
         return rows
@@ -88,26 +83,20 @@ Popup {
         selectedItemIndex = (selectedItemIndex - 1 + filteredItems.length) % filteredItems.length
         listView.positionViewAtIndex(indexOfSelectedRow(), ListView.Contain)
     }
-
     function moveDown() {
         if (filteredItems.length === 0) return
         selectedItemIndex = (selectedItemIndex + 1) % filteredItems.length
         listView.positionViewAtIndex(indexOfSelectedRow(), ListView.Contain)
     }
-
     function indexOfSelectedRow() {
-        for (var i = 0; i < displayModel.length; i++) {
+        for (var i = 0; i < displayModel.length; i++)
             if (displayModel[i].kind === "item" && displayModel[i].itemIndex === selectedItemIndex)
                 return i
-        }
         return 0
     }
-
     function selectCurrent() {
-        if (selectedItemIndex < 0 || selectedItemIndex >= filteredItems.length)
-            return
-        var it = filteredItems[selectedItemIndex]
-        menu.blockSelected(menu.blockId, it.type)
+        if (selectedItemIndex < 0 || selectedItemIndex >= filteredItems.length) return
+        menu.blockSelected(menu.blockId, filteredItems[selectedItemIndex].type)
         menu.close()
     }
 
@@ -123,15 +112,10 @@ Popup {
             Layout.fillWidth: true
             Layout.leftMargin: 6
             text: filterText.length ? ("/" + filterText) : "Type to filter..."
-            color: "#777777"
+            color: theme.textMuted
             font.pixelSize: 11
         }
-
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: "#333333"
-        }
+        Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
 
         ListView {
             id: listView
@@ -152,7 +136,7 @@ Popup {
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
                     text: modelData.title || ""
-                    color: "#666666"
+                    color: theme.textMuted
                     font.pixelSize: 10
                     font.bold: true
                 }
@@ -161,7 +145,9 @@ Popup {
                     visible: modelData.kind === "item"
                     anchors.fill: parent
                     radius: 6
-                    color: (modelData.itemIndex === menu.selectedItemIndex) ? "#2f2f3d" : "transparent"
+                    color: (modelData.itemIndex === menu.selectedItemIndex)
+                           ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.15)
+                           : "transparent"
 
                     RowLayout {
                         anchors.fill: parent
@@ -173,26 +159,24 @@ Popup {
                             Layout.preferredWidth: 28
                             Layout.preferredHeight: 28
                             radius: 6
-                            color: "#2a2a36"
+                            color: theme.surfaceAlt
                             Text {
                                 anchors.centerIn: parent
                                 text: modelData.icon || ""
-                                color: "#cccccc"
+                                color: theme.textPrimary
                                 font.pixelSize: 12
                             }
                         }
-
                         Text {
                             Layout.fillWidth: true
                             text: modelData.name || ""
-                            color: "#eeeeee"
+                            color: theme.textPrimary
                             font.pixelSize: 13
                             elide: Text.ElideRight
                         }
-
                         Text {
                             text: modelData.shortcut || ""
-                            color: "#666666"
+                            color: theme.textMuted
                             font.pixelSize: 11
                             visible: (modelData.shortcut || "").length > 0
                         }
@@ -211,17 +195,12 @@ Popup {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: "#333333"
-        }
-
+        Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
         Text {
             Layout.fillWidth: true
             Layout.leftMargin: 6
             text: "Close menu  ·  esc"
-            color: "#555555"
+            color: theme.textMuted
             font.pixelSize: 10
         }
     }

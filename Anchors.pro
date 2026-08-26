@@ -7,6 +7,7 @@ LIBS += -lsodium
 SOURCES += \
     app/calendarcontroller.cpp \
     app/noteeditorcontroller.cpp \
+    app/settingscontroller.cpp \
     core/editor/codesyntaxhighlighter.cpp \
     core/models/block.cpp \
     core/models/blockcommands.cpp \
@@ -42,6 +43,7 @@ HEADERS += \
     app/calendarcontroller.h \
     app/noteeditorcontroller.h \
     app/session.h \
+    app/settingscontroller.h \
     app/vaultcontroller.h \
     app/notecontroller.h \
     app/taskcontroller.h \

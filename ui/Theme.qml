@@ -1,56 +1,50 @@
-import QtQuick
+import QtQuick 2.15
 
-// Design tokens pulled from the Anchor color palette + Stitch mockups.
-// Usage: instantiate locally in any page in this folder, e.g.
-//   Theme { id: theme }
-//   Rectangle { color: theme.background }
-//
-// This is a plain QtObject rather than a `pragma Singleton` - simpler to
-// wire up in a qmake (non-CMake-module) project, and since every property
-// here is `readonly`, instantiating it per-page costs nothing and carries
-// no shared-state risk.
 QtObject {
-    // --- Brand palette ---
-    readonly property color primary: "#0B3D0B"     // deep green
-    readonly property color secondary: "#2E8B57"   // medium green (buttons, accents)
-    readonly property color tertiary: "#4F9F4F"    // soft green (highlights)
-    readonly property color neutral: "#757872"     // gray
+    id: root
 
-    // --- Surfaces ---
-    readonly property color background: "#000000"
-    readonly property color surface: "#111311"
-    readonly property color surfaceAlt: "#1B1D1B"
-    readonly property color border: "#2A2E2A"
+    readonly property bool isDark:
+        !settingsController || settingsController.themeId !== "light"
 
-    // --- Text ---
-    readonly property color textPrimary: "#D1E7D1"
-    readonly property color textSecondary: "#8C948C"
-    readonly property color textMuted: "#5C625C"
+    readonly property color accent:
+        (settingsController && settingsController.accentColor
+         && settingsController.accentColor.length)
+            ? settingsController.accentColor
+            : (isDark ? "#89b4fa" : "#1d4ed8")
 
-    // --- Status ---
-    readonly property color danger: "#E0574C"
-    readonly property color warning: "#E0A15C"
-    readonly property color success: tertiary
+    readonly property color tertiary: accent
+    readonly property color secondary: accent
 
-    // --- Typography ---
-    // Falls back to the platform default automatically if these aren't
-    // installed. Send the .ttf/.otf files and I'll wire up FontLoader for
-    // a pixel-exact match instead of relying on font-name lookup.
-    readonly property string headlineFont: "Hanken Grotesk"
-    readonly property string bodyFont: "Hanken Grotesk"
-    readonly property string labelFont: "Geist"
+    readonly property color background: isDark ? "#0f0f12" : "#f5f5f7"
+    readonly property color surface:    isDark ? "#18181c" : "#ffffff"
+    readonly property color surfaceAlt: isDark ? "#222228" : "#ececef"
+    readonly property color border:     isDark ? "#2e2e36" : "#d5d5da"
 
-    // --- Shape ---
-    readonly property int radiusSmall: 8
-    readonly property int radiusMedium: 12
-    readonly property int radiusLarge: 20
-    readonly property int radiusPill: 999
+    readonly property color textPrimary:   isDark ? "#f2f2f5" : "#1c1c1e"
+    readonly property color textSecondary: isDark ? "#a8a8b3" : "#6c6c70"
+    readonly property color textMuted:     isDark ? "#6c6c76" : "#8e8e93"
 
-    // --- Spacing ---
-    readonly property int spacingSmall: 8
-    readonly property int spacingMedium: 16
-    readonly property int spacingLarge: 24
+    readonly property color danger:  isDark ? "#f38ba8" : "#dc2626"
+    readonly property color success: isDark ? "#a6e3a1" : "#16a34a"
+    readonly property color warning: isDark ? "#fab387" : "#d97706"
+    readonly property color neutral: isDark ? "#6c7086" : "#94a3b8"
 
-    readonly property string iconFont: "Material Symbols Outlined"
+    // Code-block palette (readable in both themes)
+    readonly property color codeBg:       isDark ? "#1e1e2e" : "#f0f0f3"
+    readonly property color codeHeader:   isDark ? "#313244" : "#e4e4ea"
+    readonly property color codeText:     isDark ? "#cdd6f4" : "#1c1c1e"
+    readonly property color codeMuted:    isDark ? "#6c7086" : "#8e8e93"
 
+    readonly property color onAccent: isDark ? "#0A140A" : "#ffffff"
+
+    readonly property string headlineFont: "Inter, Segoe UI, sans-serif"
+    readonly property string bodyFont:     "Inter, Segoe UI, sans-serif"
+    readonly property string labelFont:    "Inter, Segoe UI, sans-serif"
+
+    readonly property int radiusSmall:  6
+    readonly property int radiusMedium: 10
+    readonly property int radiusPill:   999
+    readonly property int spacingLarge: 20
+
+    readonly property color hoverFill: isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,0,0,0.06)
 }

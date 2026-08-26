@@ -14,6 +14,7 @@
 #include "core/storage/FilePaths.h"
 #include "app/noteeditorcontroller.h"
 #include "core/editor/codehighlightbridge.h"
+#include "app/settingscontroller.h"
 
 
 int main(int argc, char *argv[])
@@ -44,6 +45,9 @@ int main(int argc, char *argv[])
         qCritical() << "Failed to initialize notes database!";
         return 1;
     }
+    // with other context properties:
+    auto *settingsController = new SettingsController(&app);
+    engine.rootContext()->setContextProperty(QStringLiteral("settingsController"), settingsController);
 
     engine.rootContext()->setContextProperty("authController", &authController);
     engine.rootContext()->setContextProperty("session", Session::instance());

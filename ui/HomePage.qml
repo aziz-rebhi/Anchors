@@ -13,12 +13,14 @@ Page {
     readonly property int sidebarExpandedWidth: 220
     readonly property int sidebarCollapsedWidth: 72
 
+    readonly property string iconSuffix: theme.isDark ? "white" : "black"
+
     readonly property var navItems: [
-        { label: "Dashboard", iconSource: "qrc:/icons/icons/dashboard-white.svg",   key: "dashboard" },
-        { label: "Vault",     iconSource: "qrc:/icons/icons/shield-lock-white.svg", key: "vault"     },
-        { label: "Notes",     iconSource: "qrc:/icons/icons/note-white.svg",        key: "notes"     },
-        { label: "Calendar",  iconSource: "qrc:/icons/icons/calendar-white.svg",    key: "calendar"  },
-        { label: "To-Do",     iconSource: "qrc:/icons/icons/todo-white.svg",        key: "todo"      }
+        { label: "Dashboard", iconSource: "qrc:/icons/icons/dashboard-" + iconSuffix + ".svg",   key: "dashboard" },
+        { label: "Vault",     iconSource: "qrc:/icons/icons/shield-lock-" + iconSuffix + ".svg", key: "vault" },
+        { label: "Notes",     iconSource: "qrc:/icons/icons/note-" + iconSuffix + ".svg",        key: "notes" },
+        { label: "Calendar",  iconSource: "qrc:/icons/icons/calendar-" + iconSuffix + ".svg",    key: "calendar" },
+        { label: "To-Do",     iconSource: "qrc:/icons/icons/todo-" + iconSuffix + ".svg",        key: "todo" }
     ]
 
     background: Rectangle { color: theme.background }
@@ -36,7 +38,6 @@ Page {
             color: theme.surface
             clip: true
 
-            // Click empty space → toggle collapse
             MouseArea {
                 anchors.fill: parent
                 z: -1
@@ -64,16 +65,14 @@ Page {
                 anchors.rightMargin: 10
                 spacing: 2
 
-                // ── Brand + collapse (header only) ───────────────
                 Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44
                     Layout.bottomMargin: 14
 
-                    // Block empty-space click from stealing logo/nav clicks
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: {}   // swallow
+                        onClicked: {}
                     }
 
                     Image {
@@ -110,7 +109,6 @@ Page {
                         }
                     }
 
-                    // Collapse only when expanded
                     Item {
                         id: collapseTop
                         width: 28
@@ -123,11 +121,13 @@ Page {
                         Rectangle {
                             anchors.fill: parent
                             radius: 8
-                            color: collapseTop.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                            color: collapseTop.hovered
+                                   ? (theme.isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,0,0,0.06))
+                                   : "transparent"
                         }
 
                         Image {
-                            source: "qrc:/icons/icons/double-arrow-left-white.svg"
+                            source: "qrc:/icons/icons/double-arrow-left-" + root.iconSuffix + ".svg"
                             width: 16
                             height: 16
                             anchors.centerIn: parent
@@ -146,7 +146,6 @@ Page {
                     }
                 }
 
-                // ── Nav ──────────────────────────────────────────
                 Repeater {
                     model: root.navItems
 
@@ -163,7 +162,7 @@ Page {
                             color: navItem.active
                                    ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.16)
                                    : navItem.hovered
-                                     ? Qt.rgba(1, 1, 1, 0.05)
+                                     ? (theme.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.04))
                                      : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -225,7 +224,7 @@ Page {
                     }
                 }
 
-                Item { Layout.fillHeight: true }  // empty zone → parent MouseArea toggles
+                Item { Layout.fillHeight: true }
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -236,17 +235,15 @@ Page {
                     visible: !root.sidebarCollapsed
                 }
 
-                // No collapse/expand button here when collapsed
-
                 SidebarBtn {
-                    iconSource: "qrc:/icons/icons/settings-white.svg"
+                    iconSource: "qrc:/icons/icons/settings-" + root.iconSuffix + ".svg"
                     label: "Settings"
                     collapsed: root.sidebarCollapsed
-                    onClicked: { /* settings later */ }
+                    onClicked: root.activeKey = "settings"
                 }
 
                 SidebarBtn {
-                    iconSource: "qrc:/icons/icons/lock-white.svg"
+                    iconSource: "qrc:/icons/icons/lock-" + root.iconSuffix + ".svg"
                     label: "Lock now"
                     collapsed: root.sidebarCollapsed
                     onClicked: session.lock()
@@ -264,6 +261,7 @@ Page {
                 case "notes":     return notesComponent
                 case "calendar":  return calendarComponent
                 case "todo":      return todoComponent
+                case "settings":  return settingsComponent
                 default:          return dashboardComponent
                 }
             }
@@ -284,7 +282,9 @@ Page {
         Rectangle {
             anchors.fill: parent
             radius: 10
-            color: btn.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+            color: btn.hovered
+                   ? (theme.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.04))
+                   : "transparent"
         }
 
         Image {
@@ -341,4 +341,10 @@ Page {
     Component { id: notesComponent;    NotesPage {} }
     Component { id: calendarComponent; CalendarPage {} }
     Component { id: todoComponent;     TodoPage {} }
+    Component {
+        id: settingsComponent
+        SettingsPage {
+            onLockRequested: session.lock()
+        }
+    }
 }

@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 
 Item {
     id: root
+    Theme { id: theme }
 
     property var blockData: (model && model.blockData) ? model.blockData : null
     property string blockId: (model && model.id) ? model.id : ""
@@ -13,7 +14,6 @@ Item {
 
     width: ListView.view ? ListView.view.width : 0
     height: blockLoader.item ? blockLoader.item.height : 30
-
     property alias innerLoader: blockLoader
 
     function focusInput() {
@@ -33,14 +33,13 @@ Item {
         onHoveredChanged: root.rowHovered = hovered
     }
 
-    // ── Grip (drag) ─────────────────────────────────────────────
     Rectangle {
         id: grip
         width: 18
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        color: gripMa.containsMouse || root.dragging ? "#2a2e2a" : "transparent"
+        color: gripMa.containsMouse || root.dragging ? theme.surfaceAlt : "transparent"
         radius: 4
         visible: root.depth === 0
         z: 10
@@ -50,7 +49,7 @@ Item {
             anchors.centerIn: parent
             text: "⋮⋮"
             font.pixelSize: 10
-            color: "#8C948C"
+            color: theme.textMuted
         }
 
         MouseArea {
@@ -82,7 +81,6 @@ Item {
         }
     }
 
-    // ── ⋯ menu button ───────────────────────────────────────────
     Rectangle {
         id: menuBtn
         width: 22
@@ -92,17 +90,16 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         radius: 4
         visible: root.depth === 0
-        color: menuBtnMa.containsMouse ? "#2a2e2a" : "transparent"
+        color: menuBtnMa.containsMouse ? theme.surfaceAlt : "transparent"
         opacity: root.rowHovered || menuBtnMa.containsMouse || blockMenu.visible ? 1 : 0
         z: 10
-
         property bool containsMouse: menuBtnMa.containsMouse
 
         Text {
             anchors.centerIn: parent
             text: "⋯"
             font.pixelSize: 14
-            color: "#8C948C"
+            color: theme.textMuted
         }
 
         MouseArea {
@@ -133,12 +130,9 @@ Item {
             text: "Delete"
             onTriggered: if (noteEditor) noteEditor.deleteBlock(root.blockId)
         }
-
         MenuSeparator {}
-
         Menu {
             title: "Turn into"
-
             MenuItem { text: "Text";          onTriggered: noteEditor.changeBlockType(root.blockId, 0) }
             MenuItem { text: "Heading 1";     onTriggered: noteEditor.changeBlockType(root.blockId, 1) }
             MenuItem { text: "Heading 2";     onTriggered: noteEditor.changeBlockType(root.blockId, 2) }
@@ -156,10 +150,7 @@ Item {
             MenuItem { text: "Equation";      onTriggered: noteEditor.changeBlockType(root.blockId, 14) }
             MenuSeparator {}
             MenuItem { text: "Divider";       onTriggered: noteEditor.changeBlockType(root.blockId, 8) }
-            MenuItem {
-                text: "Columns"
-                onTriggered: noteEditor.changeBlockType(root.blockId, 16)
-            }
+            MenuItem { text: "Columns";       onTriggered: noteEditor.changeBlockType(root.blockId, 16) }
         }
     }
 
@@ -167,7 +158,7 @@ Item {
         id: blockLoader
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: (root.depth > 0 ? 28 : 0) + 42  // grip 18 + menu 22 + gap
+        anchors.leftMargin: (root.depth > 0 ? 28 : 0) + 42
 
         sourceComponent: {
             if (!model) return null
@@ -191,7 +182,6 @@ Item {
         }
     }
 
-    // ── Components (unchanged from your file) ───────────────────
     Component {
         id: paragraphComponent
         ParagraphBlock {

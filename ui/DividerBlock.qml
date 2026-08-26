@@ -4,18 +4,18 @@ import QtQuick.Layouts 1.15
 
 Item {
     id: root
+    Theme { id: theme }
+
     property string blockId: ""
-    property int orientation: 0  // 0 = horizontal, 1 = vertical
+    property int orientation: 0
 
     width: parent ? parent.width : 0
     height: root.orientation === 0 ? 28 : 200
 
     function focusInput() {
-        // Non-text block — insert a paragraph after it
         noteEditor.insertBlockAfter(root.blockId, 0, "")
     }
 
-    // === Horizontal divider ===
     Rectangle {
         visible: root.orientation === 0
         anchors.verticalCenter: parent.verticalCenter
@@ -23,70 +23,61 @@ Item {
         anchors.right: parent.right
         anchors.margins: 8
         height: 2
-        color: "#555555"
+        color: theme.border
         radius: 1
     }
 
-    // === Vertical divider (Notion-style column split) ===
     Row {
         visible: root.orientation === 1
         anchors.fill: parent
         anchors.margins: 4
         spacing: 0
 
-        // Left column placeholder
         Rectangle {
             width: (parent.width - 6) / 2
             height: parent.height
-            color: "#3a3a4a"
+            color: theme.surfaceAlt
             radius: 6
-            border.color: "#555555"
+            border.color: theme.border
             border.width: 1
-
             Text {
                 anchors.centerIn: parent
                 text: "Column 1"
                 font.pixelSize: 13
-                color: "#888888"
+                color: theme.textMuted
             }
         }
 
-        // Vertical line
         Rectangle {
             width: 6
             height: parent.height
-            color: "#555555"
+            color: theme.border
             radius: 3
-
-            // Drag handle indicator
             Rectangle {
                 anchors.centerIn: parent
                 width: 2
                 height: 30
-                color: "#777777"
+                color: theme.textMuted
                 radius: 1
             }
         }
 
-        // Right column placeholder
         Rectangle {
             width: (parent.width - 6) / 2
             height: parent.height
-            color: "#3a3a4a"
+            color: theme.surfaceAlt
             radius: 6
-            border.color: "#555555"
+            border.color: theme.border
             border.width: 1
-
             Text {
                 anchors.centerIn: parent
                 text: "Column 2"
                 font.pixelSize: 13
-                color: "#888888"
+                color: theme.textMuted
             }
         }
     }
 
-    // Toggle button on hover
     Rectangle {
         id: toggleBtn
         anchors.right: parent.right
@@ -96,7 +87,7 @@ Item {
         width: 26
         height: 26
         radius: 6
-        color: toggleArea.containsMouse ? "#4a4a5a" : "transparent"
+        color: toggleArea.containsMouse ? theme.hoverFill : "transparent"
         opacity: toggleArea.containsMouse ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: 150 } }
 
@@ -104,7 +95,7 @@ Item {
             anchors.centerIn: parent
             text: root.orientation === 0 ? "\u21C4" : "\u21C5"
             font.pixelSize: 14
-            color: "#aaaaaa"
+            color: theme.textSecondary
         }
 
         MouseArea {
@@ -115,9 +106,8 @@ Item {
             onClicked: {
                 var newOrientation = root.orientation === 0 ? 1 : 0
                 root.orientation = newOrientation
-                if (noteEditor) {
+                if (noteEditor)
                     noteEditor.updateBlockDividerOrientation(root.blockId, newOrientation)
-                }
             }
         }
 
@@ -126,7 +116,6 @@ Item {
         ToolTip.delay: 500
     }
 
-    // Key handling at the Item level
     Keys.onPressed: function(event) {
         if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
             if (event.modifiers & Qt.ShiftModifier)

@@ -4,6 +4,8 @@ import QtQuick.Layouts 1.15
 
 Item {
     id: root
+    Theme { id: theme }
+
     property string blockId: ""
     property int rows: 1
     property int cols: 1
@@ -77,7 +79,7 @@ Item {
                 width: tableGrid.width / Math.max(root.cols, 1)
                 height: 36
                 color: "transparent"
-                border.color: "#555555"
+                border.color: theme.border
                 border.width: 1
 
                 property alias cellTextInput: cellInput
@@ -90,7 +92,7 @@ Item {
                     anchors.margins: 6
                     verticalAlignment: Text.AlignVCenter
                     font.pixelSize: 13
-                    color: "#ffffff"
+                    color: theme.textPrimary
                     clip: true
                     selectByMouse: true
                     text: root.getCellText(Math.floor(index / root.cols), index % root.cols)
@@ -113,9 +115,9 @@ Item {
                         }
                         if (event.key === Qt.Key_Tab) {
                             var nextIdx = index + 1
-                            if (nextIdx < root.rows * root.cols) {
+                            if (nextIdx < root.rows * root.cols)
                                 root.focusCellAt(nextIdx)
-                            } else {
+                            else {
                                 root.syncCellsToModel()
                                 noteEditor.insertBlockAfter(root.blockId, 0, "")
                             }
@@ -141,7 +143,6 @@ Item {
         }
     }
 
-    // Action buttons — only visible while the table has focus
     Row {
         visible: root.tableFocused
         anchors.top: tableGrid.bottom
@@ -156,7 +157,7 @@ Item {
             flat: true
             contentItem: Text {
                 text: parent.text
-                color: "#cccccc"
+                color: theme.textSecondary
                 font.pixelSize: 11
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
@@ -179,7 +180,7 @@ Item {
             flat: true
             contentItem: Text {
                 text: parent.text
-                color: "#cccccc"
+                color: theme.textSecondary
                 font.pixelSize: 11
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
@@ -201,7 +202,7 @@ Item {
             flat: true
             contentItem: Text {
                 text: parent.text
-                color: "#f38ba8"
+                color: theme.danger
                 font.pixelSize: 11
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
@@ -210,7 +211,6 @@ Item {
         }
     }
 
-    // Clear the focused flag when focus leaves the whole table
     Connections {
         target: noteEditor
         function onFocusedBlockIdChanged(id) {
