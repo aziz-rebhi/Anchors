@@ -15,14 +15,16 @@
 #include "app/noteeditorcontroller.h"
 #include "core/editor/codehighlightbridge.h"
 #include "app/settingscontroller.h"
-
+#include "core/security/autolockmanager.h"
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
-    // Libsodium must be initialized before anything touches CryptoManager,
-    // SaltStore, or AuthController.
+    // Consistent QSettings + QStandardPaths on every OS
+    QCoreApplication::setOrganizationName(QStringLiteral("Anchors"));
+    QCoreApplication::setApplicationName(QStringLiteral("Anchors"));
+
     if (!CryptoManager::init()) {
         qCritical() << "ERROR: Failed to init libsodium!";
         return 1;
@@ -30,25 +32,47 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
-    // These are plain local objects (not singletons) - none of them hold
-    // state of their own. Each re-reads Session::instance()->sessionKey()
-    // fresh on every call, so a single instance stays correct across
-    // lock/unlock cycles for the lifetime of the app.
     AuthController authController;
     VaultController vaultController;
     NoteController noteController;
     CalendarController calendarController;
     TaskController taskController;
     NoteEditorController noteEditorController;
+
     QString dbPath = FilePaths::dataDir() + "/notes.db";
     if (!NotesDatabase::instance()->initialize(dbPath)) {
         qCritical() << "Failed to initialize notes database!";
         return 1;
     }
-    // with other context properties:
-    auto *settingsController = new SettingsController(&app);
-    engine.rootContext()->setContextProperty(QStringLiteral("settingsController"), settingsController);
 
+    auto *settingsController = new SettingsController(&app);
+    auto *autoLock = new Autolockmanager(&app);
+
+    auto applySecuritySettings = [autoLock, settingsController]() {
+        autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
+        autoLock->setLockOnMinimize(settingsController->lockOnMinimize());
+        if (Session::instance()->isUnlocked())
+            autoLock->start();
+        else
+            autoLock->stop();
+    };
+
+    applySecuritySettings();
+
+    QObject::connect(settingsController, &SettingsController::autoLockMinutesChanged,
+                     applySecuritySettings);
+    QObject::connect(settingsController, &SettingsController::lockOnMinimizeChanged,
+                     applySecuritySettings);
+
+    QObject::connect(Session::instance(), &Session::unlocked, autoLock, [autoLock, settingsController]() {
+        autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
+        autoLock->setLockOnMinimize(settingsController->lockOnMinimize());
+        autoLock->start();
+    });
+    QObject::connect(Session::instance(), &Session::locked,
+                     autoLock, &Autolockmanager::stop);
+
+    engine.rootContext()->setContextProperty(QStringLiteral("settingsController"), settingsController);
     engine.rootContext()->setContextProperty("authController", &authController);
     engine.rootContext()->setContextProperty("session", Session::instance());
     engine.rootContext()->setContextProperty("vaultController", &vaultController);
@@ -56,16 +80,12 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("calendarController", &calendarController);
     engine.rootContext()->setContextProperty("taskController", &taskController);
     engine.rootContext()->setContextProperty("noteEditor", &noteEditorController);
+
     qmlRegisterType<CodeHighlightBridge>("Anchors", 1, 0, "CodeHighlightBridge");
 
-    // Removed the objectCreationFailed connection – it does not exist in Qt6.
-    // The check for engine.rootObjects().isEmpty() below handles failure.
-
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
-
-    if (engine.rootObjects().isEmpty()) {
+    if (engine.rootObjects().isEmpty())
         return -1;
-    }
 
     return app.exec();
 }

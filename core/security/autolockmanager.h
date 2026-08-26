@@ -6,26 +6,32 @@
 
 class QTimer;
 
-class Autolockmanager : public QObject{
+class Autolockmanager : public QObject
+{
     Q_OBJECT
 
-public :
+public:
     explicit Autolockmanager(QObject *parent = nullptr);
 
-    void setTimeOutSeconds(int seconds);
+    /** 0 = never auto-lock on idle */
+    void setTimeoutMinutes(int minutes);
+    void setLockOnMinimize(bool enabled);
+
     void start();
     void stop();
 
-protected :
-    bool eventFilter(QObject *matched, QEvent *event) override;
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
-private slots :
+private slots:
     void onTimeOut();
 
-private :
-    QTimer *m_timer;
-    int m_timeOutSeconds = 180;
+private:
+    QTimer *m_timer = nullptr;
+    int m_timeOutSeconds = 300;   // 5 min default
+    bool m_lockOnMinimize = false;
     bool m_filterInstalled = false;
+    bool m_running = false;
 };
 
-#endif // AUTOLOCKMANAGER_H
+#endif

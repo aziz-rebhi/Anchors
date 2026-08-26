@@ -7,7 +7,12 @@ Page {
 
     Theme { id: theme }
 
-    property string activeKey: "dashboard"
+    property string activeKey: {
+        if (typeof settingsController !== "undefined" && settingsController.startPage)
+            return settingController.startPage
+        return "dashboard"
+    }
+
     property bool sidebarCollapsed: true
 
     readonly property int sidebarExpandedWidth: 220
@@ -346,5 +351,9 @@ Page {
         SettingsPage {
             onLockRequested: session.lock()
         }
+    }
+    Component.onCompleted: {
+        if (typeof settingsController !== "undefined" && settingsController.startPage)
+            activeKey = settingsController.startPage
     }
 }
