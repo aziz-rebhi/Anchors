@@ -126,7 +126,7 @@ Page {
                     GroupRow {
                         title: "Clear clipboard after copy"
                         subtitle: "Wipe vault secrets from the clipboard"
-                        trailing: Switch {
+                        trailing: RoundedSwitch {
                             checked: settingsController.clearClipboard
                             onToggled: settingsController.clearClipboard = checked
                         }
@@ -135,7 +135,7 @@ Page {
                     GroupRow {
                         title: "Lock when minimized"
                         subtitle: "Lock when the window is minimized"
-                        trailing: Switch {
+                        trailing: RoundedSwitch {
                             checked: settingsController.lockOnMinimize
                             onToggled: settingsController.lockOnMinimize = checked
                         }
@@ -168,13 +168,11 @@ Page {
                         title: "Theme"
                         subtitle: settingsController.themeId === "light"
                                   ? "Light theme is active" : "Dark theme is active"
-                        trailing: TahoeCombo {
-                            model: [
-                                { t: "Dark", v: "dark" },
-                                { t: "Light", v: "light" }
-                            ]
-                            value: settingsController.themeId
-                            onValuePicked: settingsController.themeId = v
+                        trailing: ThemeSlider {
+                            valueIsLight: settingsController.themeId === "light"
+                            onToggled: function (light) {
+                                settingsController.themeId = light ? "light" : "dark"
+                            }
                         }
                     }
                     GroupSeparator {}
@@ -212,7 +210,7 @@ Page {
                         subtitle: settingsController.dataPath
                         trailing: TahoeIconButton {
                             symbol: "📂"
-                            onClicked: Qt.openUrlExternally("file://" + settingsController.dataPath)
+                            onClicked: settingsController.openDataLocation()
                         }
                     }
                     GroupSeparator {}
@@ -230,7 +228,7 @@ Page {
                         subtitle: "Restore from a previous export"
                         trailing: TahoeIconButton {
                             symbol: "📥"
-                            onClicked: settingsController.importBackup("")
+                            onClicked: importDialog.open()
                         }
                     }
                     GroupSeparator {}
@@ -294,8 +292,20 @@ Page {
 
     FolderDialog {
         id: exportDialog
+        title: "Choose folder for backup"
+        onAccepted: {
+            var path = selectedFolder.toString()
+            settingsController.exportBackup(path)
+        }
+    }
+
+    FolderDialog {
+        id: importDialog
         title: "Choose backup folder"
-        onAccepted: settingsController.exportBackup(selectedFolder.toString().replace("file://", ""))
+        onAccepted: {
+            var path = selectedFolder.toString()
+            settingsController.importBackup(path)
+        }
     }
 
     Dialog {
@@ -501,8 +511,8 @@ Page {
         implicitHeight: 28
 
         background: Rectangle {
-            radius: 8
-            color: theme.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05)
+            radius: height / 2
+            color: theme.isDark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
             border.color: theme.border
         }
         contentItem: Text {
@@ -524,6 +534,100 @@ Page {
         onActivated: valuePicked(model[currentIndex].v)
     }
 
+    component ThemeSlider: Rectangle {
+        id: slider
+        property bool valueIsLight: false
+        signal toggled(bool light)
+
+        implicitWidth: 112
+        implicitHeight: 28
+        radius: height / 2
+        color: theme.isDark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.06)
+        border.color: theme.border
+        border.width: 1
+
+        Rectangle {
+            id: thumb
+            width: parent.width / 2 - 3
+            height: parent.height - 6
+            radius: height / 2
+            anchors.verticalCenter: parent.verticalCenter
+            x: slider.valueIsLight ? parent.width / 2 + 1 : 3
+            color: theme.surface
+            border.color: theme.border
+            border.width: 1
+
+            Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        }
+
+        Row {
+            anchors.fill: parent
+            Text {
+                width: parent.width / 2
+                height: parent.height
+                text: "Dark"
+                font.pixelSize: 11
+                font.weight: !slider.valueIsLight ? Font.DemiBold : Font.Normal
+                color: !slider.valueIsLight ? theme.textPrimary : theme.textMuted
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                width: parent.width / 2
+                height: parent.height
+                text: "Light"
+                font.pixelSize: 11
+                font.weight: slider.valueIsLight ? Font.DemiBold : Font.Normal
+                color: slider.valueIsLight ? theme.textPrimary : theme.textMuted
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                var light = mouseX > width / 2
+                if (light !== slider.valueIsLight)
+                    slider.toggled(light)
+            }
+        }
+    }
+
+    component RoundedSwitch: Switch {
+        id: sw
+        implicitWidth: 42
+        implicitHeight: 24
+
+        indicator: Rectangle {
+            implicitWidth: 42
+            implicitHeight: 24
+            radius: 12
+            color: sw.checked
+                   ? theme.tertiary
+                   : (theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.12))
+            border.color: sw.checked ? theme.tertiary : theme.border
+            border.width: 1
+
+            Behavior on color { ColorAnimation { duration: 120 } }
+
+            Rectangle {
+                width: 18
+                height: 18
+                radius: 9
+                anchors.verticalCenter: parent.verticalCenter
+                x: sw.checked ? parent.width - width - 3 : 3
+                color: theme.isDark ? "#f5f5f7" : "#ffffff"
+                border.color: theme.isDark ? Qt.rgba(0, 0, 0, 0.1) : Qt.rgba(0, 0, 0, 0.08)
+
+                Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            }
+        }
+
+        contentItem: Item {}
+    }
+
     component TahoeIconButton: Rectangle {
         property string symbol: ""
         property bool danger: false
@@ -534,8 +638,8 @@ Page {
         radius: 8
         color: ma.containsMouse
                ? (danger ? Qt.rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.2)
-                         : (theme.isDark ? Qt.rgba(1,1,1,0.1) : Qt.rgba(0,0,0,0.08)))
-               : (theme.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.04))
+                         : (theme.isDark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(0, 0, 0, 0.08)))
+               : (theme.isDark ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.04))
 
         Text {
             anchors.centerIn: parent

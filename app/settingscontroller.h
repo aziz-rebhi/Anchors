@@ -46,10 +46,10 @@ public:
     QString dataPath() const;
 
     Q_INVOKABLE void lockNow();
+    Q_INVOKABLE void openDataLocation();
     Q_INVOKABLE bool exportBackup(const QString &destPath);
     Q_INVOKABLE bool importBackup(const QString &srcPath);
     Q_INVOKABLE bool wipeAllData();
-    // Returns empty string on success, error message on failure
     Q_INVOKABLE QString changeMasterPassword(const QString &currentPassword,
                                              const QString &newPassword);
 
@@ -68,6 +68,7 @@ signals:
 private:
     void load();
     void save();
+    static QString normalizeLocalPath(QString path);
 
     int m_autoLockMinutes = 5;
     bool m_clearClipboard = true;
