@@ -89,7 +89,7 @@ jobs:
           where qmake
 
           rem Required: qmake on GHA does not auto-detect MSC version
-          set QMAKE_MSC_VER=1951
+          set QMAKE_MSC_VER=1949
 
           qmake -spec win32-msvc Anchors.pro CONFIG+=release
           if errorlevel 1 exit /b 1
