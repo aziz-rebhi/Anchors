@@ -9,6 +9,9 @@ permissions:
   contents: write
 
 jobs:
+  # ─────────────────────────────────────────
+  # Linux
+  # ─────────────────────────────────────────
   linux:
     runs-on: ubuntu-22.04
     steps:
@@ -56,10 +59,14 @@ jobs:
           name: linux-binary
           path: Anchors-linux-x86_64
 
+  # ─────────────────────────────────────────
+  # Windows (MinGW)
+  # ─────────────────────────────────────────
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install Qt (MinGW)
         uses: jurplel/install-qt-action@v4
@@ -69,6 +76,7 @@ jobs:
           target: desktop
           arch: win64_mingw
           tools: 'tools_mingw1310'
+          modules: 'qtshadertools'
           cache: true
 
       - name: Install libsodium (vcpkg mingw)
@@ -95,26 +103,74 @@ jobs:
       - name: Deploy + zip
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Recurse -Filter Anchors.exe | Select-Object -First 1
+          $exe = Get-ChildItem -Recurse -Filter Anchors.exe |
+            Where-Object { $_.FullName -notmatch '\\dist-windows\\' } |
+            Select-Object -First 1
           if (-not $exe) { throw "Anchors.exe not found" }
+          Write-Host "EXE: $($exe.FullName)"
+
+          $windeploy = $null
+          if ($env:Qt6_DIR -and (Test-Path "$env:Qt6_DIR\bin\windeployqt.exe")) {
+            $windeploy = "$env:Qt6_DIR\bin\windeployqt.exe"
+          }
+          if (-not $windeploy) {
+            $qmakeCmd = Get-Command qmake -ErrorAction SilentlyContinue
+            if ($qmakeCmd) {
+              $candidate = Join-Path (Split-Path $qmakeCmd.Source) "windeployqt.exe"
+              if (Test-Path $candidate) { $windeploy = $candidate }
+            }
+          }
+          if (-not $windeploy) {
+            $windeploy = (
+              Get-ChildItem -Path "D:\a", "C:\a" -Recurse -Filter "windeployqt.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            ).FullName
+          }
+          if (-not $windeploy -or -not (Test-Path $windeploy)) {
+            throw "windeployqt.exe not found. Qt6_DIR='$($env:Qt6_DIR)'"
+          }
+          Write-Host "windeployqt: $windeploy"
+
           $out = "dist-windows"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item $exe.FullName "$out\Anchors.exe"
-          & "$env:Qt6_DIR\bin\windeployqt.exe" --release --qmldir ui "$out\Anchors.exe"
-          $sodium = Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($sodium) { Copy-Item $sodium.FullName $out }
-          # MinGW runtime DLLs often needed:
-          $mingwBin = Get-ChildItem -Path "$env:IQTA_TOOLS" -Recurse -Filter "libstdc++-6.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($mingwBin) {
-            Copy-Item (Join-Path $mingwBin.DirectoryName "*.dll") $out -ErrorAction SilentlyContinue
-          }
-          Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
 
-      - uses: actions/upload-artifact@v4
+          & $windeploy --release --qmldir ui "$out\Anchors.exe"
+          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with $LASTEXITCODE" }
+
+          $vcpkg = $env:VCPKG_INSTALLATION_ROOT
+          if ($vcpkg) {
+            Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
+              ForEach-Object {
+                Copy-Item $_.FullName $out
+                Write-Host "Copied $($_.Name)"
+              }
+          }
+
+          $gpp = Get-Command g++ -ErrorAction SilentlyContinue
+          if ($gpp) {
+            $mingwBin = Split-Path $gpp.Source
+            foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
+              $src = Join-Path $mingwBin $dll
+              if (Test-Path $src) {
+                Copy-Item $src $out
+                Write-Host "Copied $dll"
+              }
+            }
+          }
+
+          Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
+          Write-Host "Created Anchors-windows-x64.zip"
+
+      - name: Upload Windows zip
+        uses: actions/upload-artifact@v4
         with:
           name: windows-zip
           path: Anchors-windows-x64.zip
 
+  # ─────────────────────────────────────────
+  # Publish GitHub Release
+  # ─────────────────────────────────────────
   release:
     needs: [linux, windows]
     runs-on: ubuntu-latest
@@ -134,8 +190,13 @@ jobs:
           body: |
             Automated build of **Anchors** `${{ github.ref_name }}`.
 
+            ### Downloads
             - **Windows:** `Anchors-windows-x64.zip` — extract and run `Anchors.exe`
-            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
+            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium (or use a local AppImage for portability)
+
+            ### Notes
+            Windows build uses MinGW + windeployqt.
+            Linux CI binary is dynamically linked; AppImage can be added later.
           files: |
             artifacts/linux-binary/Anchors-linux-x86_64
             artifacts/windows-zip/Anchors-windows-x64.zip
