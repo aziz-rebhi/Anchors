@@ -2,7 +2,17 @@ QT += widgets core quick qml sql
 
 CONFIG += c++17
 
-LIBS += -lsodium
+win32 {
+    isEmpty(VCPKG_ROOT) {
+        # local Windows build: set path yourself
+    } else {
+        INCLUDEPATH += $$(VCPKG_ROOT)/installed/x64-windows/include
+        LIBS += -L$$(VCPKG_ROOT)/installed/x64-windows/lib -llibsodium
+    }
+}
+unix {
+    LIBS += -lsodium
+}
 
 SOURCES += \
     app/calendarcontroller.cpp \
