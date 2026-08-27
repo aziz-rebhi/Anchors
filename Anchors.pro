@@ -3,11 +3,13 @@ QT += widgets core quick qml sql
 CONFIG += c++17
 
 win32 {
+    VCPKG_ROOT = $$(VCPKG_ROOT)
     isEmpty(VCPKG_ROOT) {
-        # local Windows build: set path yourself
-    } else {
-        INCLUDEPATH += $$(VCPKG_ROOT)/installed/x64-windows/include
-        LIBS += -L$$(VCPKG_ROOT)/installed/x64-windows/lib -llibsodium
+        VCPKG_ROOT = $$(VCPKG_INSTALLATION_ROOT)
+    }
+    !isEmpty(VCPKG_ROOT) {
+        INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
+        LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib -llibsodium
     }
 }
 unix {

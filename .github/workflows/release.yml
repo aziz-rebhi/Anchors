@@ -1,13 +1,12 @@
-
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'   # v1.0.0, v0.2.1, ...
+      - 'v*'
 
 permissions:
-  contents: write   # create release + upload assets
+  contents: write
 
 jobs:
   # ─────────────────────────────────────────
@@ -32,19 +31,25 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev libgl1-mesa-dev libxkbcommon-dev libegl1
+          sudo apt-get install -y \
+            libsodium-dev \
+            libgl1-mesa-dev \
+            libxkbcommon-dev \
+            libegl1 \
+            libfontconfig1-dev \
+            libdbus-1-dev
 
       - name: Build
         run: |
           export PATH="${Qt6_DIR}/bin:${PATH}"
           qmake Anchors.pro CONFIG+=release
-          make -j$(nproc)
+          make -j"$(nproc)"
 
       - name: Locate binary
-        id: bin
         run: |
-          BIN=$(find . -type f -name Anchors -executable | head -1)
-          echo "path=$BIN" >> "$GITHUB_OUTPUT"
+          BIN="$(find . -type f -name Anchors -executable | head -1)"
+          echo "Binary: $BIN"
+          test -n "$BIN"
           cp "$BIN" Anchors-linux-x86_64
           chmod +x Anchors-linux-x86_64
 
@@ -74,16 +79,19 @@ jobs:
           cache: true
 
       - name: Install libsodium (vcpkg)
-        run: |
-          vcpkg install libsodium:x64-windows
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
-        shell: pwsh
+        run: vcpkg install libsodium:x64-windows
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          set VCPKG_ROOT=%VCPKG_INSTALLATION_ROOT%
           set PATH=%Qt6_DIR%\bin;%PATH%
+          where cl
+          where nmake
+          where qmake
           qmake Anchors.pro CONFIG+=release
           nmake
 
@@ -91,14 +99,21 @@ jobs:
         shell: pwsh
         run: |
           $exe = Get-ChildItem -Recurse -Filter Anchors.exe | Select-Object -First 1
-          if (-not $exe) { throw "Anchors.exe not found" }
+          if (-not $exe) {
+            Get-ChildItem -Recurse -Filter *.exe | Select-Object -ExpandProperty FullName
+            throw "Anchors.exe not found"
+          }
+          Write-Host "Using $($exe.FullName)"
           $out = "dist-windows"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Copy-Item $exe.FullName $out\
+          Copy-Item $exe.FullName "$out\Anchors.exe"
           & "$env:Qt6_DIR\bin\windeployqt.exe" --release --qmldir ui "$out\Anchors.exe"
-          # sodium DLL from vcpkg
-          $sodium = Get-ChildItem -Path "$env:VCPKG_ROOT\installed\x64-windows\bin" -Filter "libsodium*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($sodium) { Copy-Item $sodium.FullName $out\ }
+          $sodium = Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libsodium*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($sodium) {
+            Copy-Item $sodium.FullName $out
+          } else {
+            Write-Warning "libsodium DLL not found — exe may fail on clean PCs"
+          }
           Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
 
       - name: Upload Windows zip
@@ -124,11 +139,18 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Anchors ${{ github.ref_name }}
+          draft: false
+          prerelease: false
           body: |
             Automated build of **Anchors** `${{ github.ref_name }}`.
 
-            - **Linux:** `Anchors-linux-x86_64` (needs Qt/libsodium on the system for this first CI version, or use a local AppImage)
+            ### Downloads
             - **Windows:** `Anchors-windows-x64.zip` — extract and run `Anchors.exe`
+            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium (or build an AppImage locally for portable use)
+
+            ### Notes
+            Linux CI produces a dynamically linked binary (best on similar glibc systems).
+            A portable **AppImage** can be added in a later workflow revision.
           files: |
             artifacts/linux-binary/Anchors-linux-x86_64
             artifacts/windows-zip/Anchors-windows-x64.zip
