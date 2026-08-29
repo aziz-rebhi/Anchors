@@ -15,6 +15,10 @@ win32-g++ {
     }
 }
 
+win32 {
+    RC_ICONS = ui/app.ico
+}
+
 unix {
     LIBS += -lsodium
 }

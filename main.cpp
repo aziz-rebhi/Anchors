@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QIcon>
 #include <QDebug>
 
 #include "app/session.h"
@@ -16,6 +17,7 @@
 #include "core/editor/codehighlightbridge.h"
 #include "app/settingscontroller.h"
 #include "core/security/autolockmanager.h"
+#include "qwindow.h"
 
 int main(int argc, char *argv[])
 {
@@ -24,6 +26,8 @@ int main(int argc, char *argv[])
     // Consistent QSettings + QStandardPaths on every OS
     QCoreApplication::setOrganizationName(QStringLiteral("Anchors"));
     QCoreApplication::setApplicationName(QStringLiteral("Anchors"));
+    QGuiApplication::setDesktopFileName(QStringLiteral("Anchors"));
+    app.setWindowIcon(QIcon(QStringLiteral(":/qml/logo.png")));
 
     if (!CryptoManager::init()) {
         qCritical() << "ERROR: Failed to init libsodium!";
@@ -86,6 +90,9 @@ int main(int argc, char *argv[])
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty())
         return -1;
+    if (QWindow *win = qobject_cast<QWindow *>(engine.rootObjects().constFirst())){
+        win -> setIcon(QIcon(QStringLiteral(":/qml/logo.png")));
+    }
 
     return app.exec();
 }
