@@ -28,11 +28,15 @@ modules:
     sources:
       - type: archive
         url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.20-stable.tar.gz
-        # Verify sha256 from the official download page and put it here:
-        sha256: 5574b1b0f0a1e99a6da7ac73d957a6ddff2b1b3b13e1fbf2e7e0a7c2b0b6e6e0
-        # If the hash above is wrong, CI will fail — replace with the real one from:
-        # https://download.libsodium.org/libsodium/releases/
-
+        sha256: b6b1d2a8802cd8bfa611638c0e9ce31d14ef324e16062c39a76854091cba6d7f  - name: libsodium
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+      - --enable-shared
+    sources:
+      - type: archive
+        url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.20-stable.tar.gz
+        sha256: b6b1d2a8802cd8bfa611638c0e9ce31d14ef324e16062c39a76854091cba6d7f
   # ── Anchors ────────────────────────────────────────────
   - name: anchors
     buildsystem: simple
