@@ -58,7 +58,31 @@ jobs:
         with:
           name: linux-binary
           path: Anchors-linux-x86_64
+  # ------------------------------------
+  # Flatpak
+  # ------------------------------------
+  flatpak:
+    name: Flatpak
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.7
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: Anchors.flatpak
+          manifest-path: flatpak/org.anchors.Anchors.yml
+          cache-key: flatpak-${{ runner.os }}-${{ hashFiles('flatpak/**', 'Anchors.pro', 'app/**', 'core/**', 'ui/**') }}
+
+      - name: Upload Flatpak
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: Anchors.flatpak
   # ─────────────────────────────────────────
   # Windows (MinGW)
   # ─────────────────────────────────────────
@@ -184,7 +208,7 @@ jobs:
   # Publish GitHub Release
   # ─────────────────────────────────────────
   release:
-    needs: [linux, windows]
+    needs: [linux, windows, flatpak]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -210,5 +234,6 @@ jobs:
             artifacts/linux-binary/Anchors-linux-x86_64
             artifacts/windows-zip/Anchors-windows-x64.zip
             artifacts/windows-setup/Anchors-Setup-*.exe
+            artifacts/flatpak-bundle/Anchors.flatpak
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
