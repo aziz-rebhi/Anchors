@@ -100,14 +100,19 @@ jobs:
           mingw32-make -j%NUMBER_OF_PROCESSORS%
           if errorlevel 1 exit /b 1
 
-      - name: Deploy + zip
+      - name: Stage deploy folder
         shell: pwsh
         run: |
           $exe = Get-ChildItem -Recurse -Filter Anchors.exe |
             Where-Object { $_.FullName -notmatch '\\dist-windows\\' } |
             Select-Object -First 1
-          if (-not $exe) { throw "Anchors.exe not found" }
+          if (-not $exe) { throw "Anchors.exe not found after build" }
           Write-Host "EXE: $($exe.FullName)"
+
+          $out = "dist-windows"
+          if (Test-Path $out) { Remove-Item -Recurse -Force $out }
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item $exe.FullName "$out\Anchors.exe"
 
           $windeploy = $null
           if ($env:Qt6_DIR -and (Test-Path "$env:Qt6_DIR\bin\windeployqt.exe")) {
@@ -130,21 +135,13 @@ jobs:
             throw "windeployqt.exe not found. Qt6_DIR='$($env:Qt6_DIR)'"
           }
           Write-Host "windeployqt: $windeploy"
-
-          $out = "dist-windows"
-          New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Copy-Item $exe.FullName "$out\Anchors.exe"
-
           & $windeploy --release --qmldir ui "$out\Anchors.exe"
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with $LASTEXITCODE" }
 
           $vcpkg = $env:VCPKG_INSTALLATION_ROOT
           if ($vcpkg) {
             Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
-              ForEach-Object {
-                Copy-Item $_.FullName $out
-                Write-Host "Copied $($_.Name)"
-              }
+              ForEach-Object { Copy-Item $_.FullName $out }
           }
 
           $gpp = Get-Command g++ -ErrorAction SilentlyContinue
@@ -152,21 +149,36 @@ jobs:
             $mingwBin = Split-Path $gpp.Source
             foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
               $src = Join-Path $mingwBin $dll
-              if (Test-Path $src) {
-                Copy-Item $src $out
-                Write-Host "Copied $dll"
-              }
+              if (Test-Path $src) { Copy-Item $src $out }
             }
           }
 
           Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
           Write-Host "Created Anchors-windows-x64.zip"
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          if (-not $ver) { $ver = "0.0.0" }
+          Write-Host "Building installer version $ver"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$ver" installer\Anchors.iss
+          Get-ChildItem installer\output\
+
       - name: Upload Windows zip
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
           path: Anchors-windows-x64.zip
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: installer/output/Anchors-Setup-*.exe
 
   # ─────────────────────────────────────────
   # Publish GitHub Release
@@ -191,14 +203,12 @@ jobs:
             Automated build of **Anchors** `${{ github.ref_name }}`.
 
             ### Downloads
-            - **Windows:** `Anchors-windows-x64.zip` — extract and run `Anchors.exe`
-            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium (or use a local AppImage for portability)
-
-            ### Notes
-            Windows build uses MinGW + windeployqt.
-            Linux CI binary is dynamically linked; AppImage can be added later.
+            - **Windows installer:** `Anchors-Setup-*.exe` — full install, optional desktop shortcut
+            - **Windows portable:** `Anchors-windows-x64.zip` — extract and run
+            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
           files: |
             artifacts/linux-binary/Anchors-linux-x86_64
             artifacts/windows-zip/Anchors-windows-x64.zip
+            artifacts/windows-setup/Anchors-Setup-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
