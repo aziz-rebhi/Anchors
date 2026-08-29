@@ -9,7 +9,6 @@ finish-args:
   - --socket=fallback-x11
   - --socket=wayland
   - --device=dri
-  # App data uses the Flatpak XDG dirs by default (no --filesystem=home needed)
 
 cleanup:
   - /include
@@ -19,7 +18,6 @@ cleanup:
   - '*.la'
 
 modules:
-  # ── libsodium ──────────────────────────────────────────
   - name: libsodium
     buildsystem: autotools
     config-opts:
@@ -28,22 +26,13 @@ modules:
     sources:
       - type: archive
         url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.20-stable.tar.gz
-        sha256: b6b1d2a8802cd8bfa611638c0e9ce31d14ef324e16062c39a76854091cba6d7f  - name: libsodium
-    buildsystem: autotools
-    config-opts:
-      - --disable-static
-      - --enable-shared
-    sources:
-      - type: archive
-        url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.20-stable.tar.gz
         sha256: b6b1d2a8802cd8bfa611638c0e9ce31d14ef324e16062c39a76854091cba6d7f
-  # ── Anchors ────────────────────────────────────────────
+
   - name: anchors
     buildsystem: simple
     build-commands:
       - qmake6 Anchors.pro CONFIG+=release PREFIX=/app || qmake Anchors.pro CONFIG+=release PREFIX=/app
       - make -j$FLATPAK_BUILDER_N_JOBS
-      # Binary name from your .pro TARGET (default = Anchors)
       - install -Dm755 Anchors /app/bin/Anchors
       - install -Dm644 flatpak/org.anchors.Anchors.desktop /app/share/applications/org.anchors.Anchors.desktop
       - install -Dm644 flatpak/org.anchors.Anchors.metainfo.xml /app/share/metainfo/org.anchors.Anchors.metainfo.xml
