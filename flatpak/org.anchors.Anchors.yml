@@ -52,7 +52,7 @@ modules:
       - install -Dm755 Anchors /app/bin/Anchors
       - install -Dm644 flatpak/org.anchors.Anchors.desktop /app/share/applications/org.anchors.Anchors.desktop
       - install -Dm644 flatpak/org.anchors.Anchors.metainfo.xml /app/share/metainfo/org.anchors.Anchors.metainfo.xml
-      - install -Dm644 ui/logo.png /app/share/icons/hicolor/256x256/apps/org.anchors.Anchors.png
+      - install -Dm644 ui/org.anchors.Anchors.png /app/share/icons/hicolor/256x256/apps/org.anchors.Anchors.png
     sources:
       - type: dir
         path: ..
