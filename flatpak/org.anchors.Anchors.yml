@@ -30,9 +30,25 @@ modules:
 
   - name: anchors
     buildsystem: simple
+    build-options:
+      env:
+        PKG_CONFIG_PATH: /app/lib/pkgconfig
+        LIBRARY_PATH: /app/lib
+        LD_LIBRARY_PATH: /app/lib
+        CPLUS_INCLUDE_PATH: /app/include
+        C_INCLUDE_PATH: /app/include
     build-commands:
-      - qmake6 Anchors.pro CONFIG+=release PREFIX=/app || qmake Anchors.pro CONFIG+=release PREFIX=/app
-      - make -j$FLATPAK_BUILDER_N_JOBS
+      - |
+        export LDFLAGS="-L/app/lib ${LDFLAGS:-}"
+        export CXXFLAGS="-I/app/include ${CXXFLAGS:-}"
+        export CFLAGS="-I/app/include ${CFLAGS:-}"
+        qmake6 Anchors.pro CONFIG+=release PREFIX=/app \
+          "INCLUDEPATH+=/app/include" \
+          "LIBS+=-L/app/lib -lsodium" \
+          || qmake Anchors.pro CONFIG+=release PREFIX=/app \
+          "INCLUDEPATH+=/app/include" \
+          "LIBS+=-L/app/lib -lsodium"
+      - make -j"$FLATPAK_BUILDER_N_JOBS"
       - install -Dm755 Anchors /app/bin/Anchors
       - install -Dm644 flatpak/org.anchors.Anchors.desktop /app/share/applications/org.anchors.Anchors.desktop
       - install -Dm644 flatpak/org.anchors.Anchors.metainfo.xml /app/share/metainfo/org.anchors.Anchors.metainfo.xml
