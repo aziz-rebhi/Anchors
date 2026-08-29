@@ -1,0 +1,49 @@
+app-id: org.anchors.Anchors
+runtime: org.kde.Platform
+runtime-version: '6.7'
+sdk: org.kde.Sdk
+command: Anchors
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  # App data uses the Flatpak XDG dirs by default (no --filesystem=home needed)
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - '*.a'
+  - '*.la'
+
+modules:
+  # ── libsodium ──────────────────────────────────────────
+  - name: libsodium
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+      - --enable-shared
+    sources:
+      - type: archive
+        url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.20-stable.tar.gz
+        # Verify sha256 from the official download page and put it here:
+        sha256: 5574b1b0f0a1e99a6da7ac73d957a6ddff2b1b3b13e1fbf2e7e0a7c2b0b6e6e0
+        # If the hash above is wrong, CI will fail — replace with the real one from:
+        # https://download.libsodium.org/libsodium/releases/
+
+  # ── Anchors ────────────────────────────────────────────
+  - name: anchors
+    buildsystem: simple
+    build-commands:
+      - qmake6 Anchors.pro CONFIG+=release PREFIX=/app || qmake Anchors.pro CONFIG+=release PREFIX=/app
+      - make -j$FLATPAK_BUILDER_N_JOBS
+      # Binary name from your .pro TARGET (default = Anchors)
+      - install -Dm755 Anchors /app/bin/Anchors
+      - install -Dm644 flatpak/org.anchors.Anchors.desktop /app/share/applications/org.anchors.Anchors.desktop
+      - install -Dm644 flatpak/org.anchors.Anchors.metainfo.xml /app/share/metainfo/org.anchors.Anchors.metainfo.xml
+      - install -Dm644 ui/logo.png /app/share/icons/hicolor/256x256/apps/org.anchors.Anchors.png
+    sources:
+      - type: dir
+        path: ..

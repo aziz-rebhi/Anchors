@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Anchors
+GenericName=Productivity
+Comment=Private notes, vault, tasks and calendar
+Exec=Anchors
+Icon=org.anchors.Anchors
+Terminal=false
+Type=Application
+Categories=Office;Utility;Security;
+Keywords=notes;password;todo;calendar;vault;
+StartupWMClass=Anchors

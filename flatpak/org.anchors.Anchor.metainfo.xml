@@ -1,0 +1,22 @@
+
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.anchors.Anchors</id>
+  <name>Anchors</name>
+  <summary>Private offline notes, vault, tasks and calendar</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer_name>Anchors</developer_name>
+  <description>
+    <p>
+      Anchors is a fully offline desktop app for encrypted notes, passwords,
+      tasks, and calendar events. Data stays on your machine under your master password.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.anchors.Anchors.desktop</launchable>
+  <url type="homepage">https://github.com/aziz-rebhi/Anchors</url>
+  <releases>
+    <release version="1.0.10" date="2026-08-29" />
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>
