@@ -7,23 +7,31 @@ Page {
 
     Theme { id: theme }
 
-    // ---- Vault state ----
     property bool vaultUnlocked: false
     property string filterCategory: ""
-
-    // ---- Data properties ----
     property var allEntries: []
     property string searchText: ""
     property string sortMode: "recent"
 
+    // Shared column widths (header + rows)
+    readonly property int colService: 200
+    readonly property int colUser: 220
+    readonly property int colPassword: 160
+    readonly property int colActions: 96
+
     readonly property var categoryDefs: [
-        { key: "Social", glyph: "\u25CB" },
-        { key: "Work", glyph: "\u25A0" },
-        { key: "Learning", glyph: "\u25B3" },
-        { key: "Finance", glyph: "\u25C6" }
+        { key: "Social",        glyph: "👥" },
+        { key: "Work",          glyph: "💼" },
+        { key: "Learning",      glyph: "📚" },
+        { key: "Finance",       glyph: "💳" },
+        { key: "Gaming",        glyph: "🎮" },
+        { key: "Shopping",      glyph: "🛒" },
+        { key: "Entertainment", glyph: "🎬" },
+        { key: "Email",         glyph: "✉️" },
+        { key: "Development",   glyph: "💻" },
+        { key: "Cloud",         glyph: "☁️" }
     ]
 
-    // ---- Data functions ----
     function refresh() {
         allEntries = vaultController.entries()
     }
@@ -34,16 +42,23 @@ Page {
 
     readonly property var visibleEntries: {
         var list = allEntries.filter(function (e) {
-            if (filterCategory.length > 0 && e.category !== filterCategory) return false
-            if (searchText.length === 0) return true
+            if (filterCategory.length > 0 && e.category !== filterCategory)
+                return false
+            if (searchText.length === 0)
+                return true
             var q = searchText.toLowerCase()
-            return e.title.toLowerCase().indexOf(q) >= 0 || e.username.toLowerCase().indexOf(q) >= 0
+            return (e.title || "").toLowerCase().indexOf(q) >= 0
+                || (e.username || "").toLowerCase().indexOf(q) >= 0
         })
         var sorted = list.slice()
         if (sortMode === "az") {
-            sorted.sort(function (a, b) { return a.title.localeCompare(b.title) })
+            sorted.sort(function (a, b) {
+                return (a.title || "").localeCompare(b.title || "")
+            })
         } else {
-            sorted.sort(function (a, b) { return b.updatedAt - a.updatedAt })
+            sorted.sort(function (a, b) {
+                return (b.updatedAt || 0) - (a.updatedAt || 0)
+            })
         }
         return sorted
     }
@@ -56,7 +71,7 @@ Page {
         sourceComponent: root.vaultUnlocked ? vaultContentComponent : pinGateComponent
     }
 
-    // ---- PIN Gate Component (unchanged) ----
+    // ── PIN gate ────────────────────────────────────────────────
     Component {
         id: pinGateComponent
         Item {
@@ -75,9 +90,10 @@ Page {
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Label {
-                    text: authController.hashVaultPin() ? "Your vault is locked. Enter your PIN to unlock." : "Create a PIN to protect your vault."
+                    text: authController.hashVaultPin()
+                          ? "Your vault is locked. Enter your PIN to unlock."
+                          : "Create a PIN to protect your vault."
                     color: theme.textSecondary
-                    font.family: theme.bodyFont
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
@@ -106,7 +122,6 @@ Page {
                 Label {
                     id: pinErrorLabel
                     color: theme.danger
-                    font.family: theme.bodyFont
                     font.pixelSize: 12
                     visible: text.length > 0
                     wrapMode: Text.WordWrap
@@ -155,282 +170,308 @@ Page {
         }
     }
 
-    // ---- Vault Content Component (with icons) ----
+    // ── Vault content ───────────────────────────────────────────
     Component {
         id: vaultContentComponent
         Item {
             anchors.fill: parent
 
-            ScrollView {
+            ColumnLayout {
                 anchors.fill: parent
-                contentWidth: availableWidth
-                clip: true
+                anchors.margins: 24
+                spacing: 16
 
-                ColumnLayout {
-                    width: parent.width
-                    spacing: theme.spacingLarge
-                    anchors.margins: 24
+                // Header (fixed)
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
 
-                    // Header
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.margins: 24
-
-                        ColumnLayout {
-                            spacing: 4
-                            Label {
-                                text: "Vault"
-                                color: theme.textPrimary
-                                font.family: theme.headlineFont
-                                font.pixelSize: 30
-                                font.bold: true
-                            }
-                            Label {
-                                text: "Securely manage your credentials across categories."
-                                color: theme.textSecondary
-                                font.family: theme.bodyFont
-                                font.pixelSize: 13
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        StyledTextField {
-                            Layout.preferredWidth: 260
-                            placeholderText: "Search entries..."
-                            text: root.searchText
-                            onTextChanged: root.searchText = text
-                        }
-                    }
-
-                    // Category tiles (clickable)
-                    GridLayout {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 24
-                        Layout.rightMargin: 24
-                        columns: 4
-                        columnSpacing: 16
-                        rowSpacing: 16
-
-                        Repeater {
-                            model: root.categoryDefs
-                            delegate: Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 96
-                                radius: theme.radiusMedium
-                                color: root.filterCategory === modelData.key ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.2) : theme.surfaceAlt
-                                border.width: 1
-                                border.color: root.filterCategory === modelData.key ? theme.tertiary : theme.border
-
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 14
-                                    spacing: 4
-
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        Label {
-                                            text: modelData.glyph
-                                            color: theme.tertiary
-                                            font.pixelSize: 16
-                                        }
-                                        Item { Layout.fillWidth: true }
-                                        Label {
-                                            text: root.categoryCount(modelData.key)
-                                            color: theme.textPrimary
-                                            font.family: theme.bodyFont
-                                            font.pixelSize: 16
-                                            font.bold: true
-                                        }
-                                    }
-                                    Item { Layout.fillHeight: true }
-                                    Label {
-                                        text: modelData.key
-                                        color: theme.textPrimary
-                                        font.family: theme.headlineFont
-                                        font.pixelSize: 15
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (root.filterCategory === modelData.key)
-                                            root.filterCategory = ""
-                                        else
-                                            root.filterCategory = modelData.key
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Entries table
                     ColumnLayout {
+                        spacing: 4
                         Layout.fillWidth: true
-                        Layout.leftMargin: 24
-                        Layout.rightMargin: 24
-                        spacing: 10
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Label {
-                                text: root.filterCategory.length > 0 ? root.filterCategory + " Entries" : "All Entries"
-                                color: theme.textPrimary
-                                font.family: theme.headlineFont
-                                font.pixelSize: 18
-                                font.bold: true
-                            }
-                            Item { Layout.fillWidth: true }
-
-                            Label {
-                                text: "Clear filter"
-                                color: theme.tertiary
-                                font.family: theme.labelFont
-                                font.pixelSize: 11
-                                visible: root.filterCategory.length > 0
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: root.filterCategory = ""
-                                }
-                            }
-
-                            Label {
-                                text: "A-Z"
-                                color: root.sortMode === "az" ? theme.tertiary : theme.textMuted
-                                font.family: theme.labelFont
-                                font.pixelSize: 12
-                                MouseArea { anchors.fill: parent; onClicked: root.sortMode = "az" }
-                            }
-                            Label {
-                                text: "Recent"
-                                color: root.sortMode === "recent" ? theme.tertiary : theme.textMuted
-                                font.family: theme.labelFont
-                                font.pixelSize: 12
-                                Layout.leftMargin: 12
-                                MouseArea { anchors.fill: parent; onClicked: root.sortMode = "recent" }
-                            }
+                        Label {
+                            text: "Vault"
+                            color: theme.textPrimary
+                            font.family: theme.headlineFont
+                            font.pixelSize: 28
+                            font.bold: true
                         }
-
-                        Rectangle {
+                        Label {
+                            text: "Securely manage your credentials across categories."
+                            color: theme.textSecondary
+                            font.pixelSize: 13
+                            wrapMode: Text.WordWrap
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 36
-                            color: "transparent"
-                            RowLayout {
+                        }
+                    }
+
+                    StyledTextField {
+                        Layout.preferredWidth: 240
+                        Layout.alignment: Qt.AlignVCenter
+                        placeholderText: "Search entries..."
+                        text: root.searchText
+                        onTextChanged: root.searchText = text
+                    }
+                }
+
+                // Category tiles (fixed)
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 5
+                    columnSpacing: 12
+                    rowSpacing: 12
+
+                    Repeater {
+                        model: root.categoryDefs
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 80
+                            radius: theme.radiusMedium
+                            color: root.filterCategory === modelData.key
+                                   ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.18)
+                                   : theme.surfaceAlt
+                            border.width: 1
+                            border.color: root.filterCategory === modelData.key
+                                          ? theme.tertiary : theme.border
+
+                            ColumnLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                Label { text: "SERVICE"; Layout.preferredWidth: 220; color: theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1 }
-                                Label { text: "USERNAME"; Layout.fillWidth: true; color: theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1 }
-                                Label { text: "PASSWORD"; Layout.preferredWidth: 160; color: theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1 }
-                                Label { text: "ACTIONS"; Layout.preferredWidth: 90; color: theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1; horizontalAlignment: Text.AlignRight }
-                            }
-                        }
-
-                        Repeater {
-                            model: root.visibleEntries
-                            delegate: Rectangle {
-                                id: entryRow
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                radius: theme.radiusSmall
-                                color: hoverArea.containsMouse ? theme.surfaceAlt : "transparent"
-
-                                property bool revealed: false
-
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    spacing: 8
-
+                                    Layout.fillWidth: true
                                     Label {
-                                        text: modelData.title
-                                        Layout.preferredWidth: 220
+                                        text: modelData.glyph
+                                        color: theme.tertiary
+                                        font.pixelSize: 22
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Label {
+                                        text: root.categoryCount(modelData.key)
                                         color: theme.textPrimary
-                                        font.family: theme.bodyFont
-                                        font.pixelSize: 14
-                                        elide: Text.ElideRight
-                                    }
-                                    Label {
-                                        text: modelData.username
-                                        Layout.fillWidth: true
-                                        color: theme.textSecondary
-                                        font.family: theme.bodyFont
-                                        font.pixelSize: 13
-                                        elide: Text.ElideRight
-                                    }
-
-                                    // Password field with reveal icon
-                                    RowLayout {
-                                        Layout.preferredWidth: 160
-                                        spacing: 6
-
-                                        Label {
-                                            text: entryRow.revealed ? modelData.password : "\u2022".repeat(Math.min(modelData.password.length, 12))
-                                            color: theme.textSecondary
-                                            font.family: theme.bodyFont
-                                            font.pixelSize: 13
-                                            Layout.fillWidth: true
-                                            elide: Text.ElideRight
-                                        }
-
-                                        // Eye icon toggle
-                                        IconButton {
-                                            iconName: entryRow.revealed ? "visibility_off" : "visibility"
-                                            iconColor: theme.textMuted
-                                            tooltip: entryRow.revealed ? "Hide password" : "Show password"
-                                            onClicked: entryRow.revealed = !entryRow.revealed
-                                        }
-                                    }
-
-                                    // Action buttons: Edit, Delete
-                                    RowLayout {
-                                        Layout.preferredWidth: 90
-                                        spacing: 4
-
-                                        IconButton {
-                                            iconName: "edit"
-                                            iconColor: theme.textSecondary
-                                            tooltip: "Edit entry"
-                                            onClicked: editDialog.openForEdit(modelData)
-                                        }
-
-                                        IconButton {
-                                            iconName: "delete"
-                                            iconColor: theme.danger
-                                            tooltip: "Delete entry"
-                                            onClicked: vaultController.deleteEntry(modelData.id)
-                                        }
+                                        font.bold: true
+                                        font.pixelSize: 16
                                     }
                                 }
-
-                                MouseArea {
-                                    id: hoverArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    z: -1
-                                    acceptedButtons: Qt.NoButton
+                                Item { Layout.fillHeight: true }
+                                Label {
+                                    text: modelData.key
+                                    color: theme.textPrimary
+                                    font.pixelSize: 14
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.filterCategory =
+                                        (root.filterCategory === modelData.key) ? "" : modelData.key
                                 }
                             }
                         }
+                    }
+                }
+
+                // Table title + sort (fixed)
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label {
+                        text: root.filterCategory.length > 0
+                              ? root.filterCategory + " Entries" : "All Entries"
+                        color: theme.textPrimary
+                        font.pixelSize: 18
+                        font.bold: true
+                    }
+                    Item { Layout.fillWidth: true }
+                    Label {
+                        text: "Clear filter"
+                        color: theme.tertiary
+                        font.pixelSize: 11
+                        visible: root.filterCategory.length > 0
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.filterCategory = ""
+                        }
+                    }
+                    Label {
+                        text: "A-Z"
+                        color: root.sortMode === "az" ? theme.tertiary : theme.textMuted
+                        font.pixelSize: 12
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.sortMode = "az"
+                        }
+                    }
+                    Label {
+                        text: "Recent"
+                        color: root.sortMode === "recent" ? theme.tertiary : theme.textMuted
+                        font.pixelSize: 12
+                        Layout.leftMargin: 12
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.sortMode = "recent"
+                        }
+                    }
+                }
+
+                // Column headers (fixed — same widths as rows)
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    color: "transparent"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 8
 
                         Label {
-                            text: root.filterCategory.length > 0 ? "No entries in this category." : "No entries yet."
-                            visible: root.visibleEntries.length === 0
+                            text: "SERVICE"
+                            Layout.preferredWidth: root.colService
+                            Layout.maximumWidth: root.colService
                             color: theme.textMuted
-                            font.family: theme.bodyFont
-                            font.pixelSize: 13
-                            Layout.topMargin: 8
+                            font.pixelSize: 10
+                            font.letterSpacing: 1
+                        }
+                        Label {
+                            text: "USERNAME"
+                            Layout.preferredWidth: root.colUser
+                            Layout.maximumWidth: root.colUser
+                            color: theme.textMuted
+                            font.pixelSize: 10
+                            font.letterSpacing: 1
+                        }
+                        Label {
+                            text: "PASSWORD"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: root.colPassword
+                            color: theme.textMuted
+                            font.pixelSize: 10
+                            font.letterSpacing: 1
+                        }
+                        Label {
+                            text: "ACTIONS"
+                            Layout.preferredWidth: root.colActions
+                            Layout.maximumWidth: root.colActions
+                            color: theme.textMuted
+                            font.pixelSize: 10
+                            font.letterSpacing: 1
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+                }
+
+                // ONLY the entry list scrolls
+                ListView {
+                    id: entryList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 2
+                    model: root.visibleEntries
+
+                    delegate: Rectangle {
+                        id: entryRow
+                        width: ListView.view ? ListView.view.width : 400
+                        height: 52
+                        radius: theme.radiusSmall
+                        color: hoverArea.containsMouse ? theme.surfaceAlt : "transparent"
+                        property bool revealed: false
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 8
+
+                            Label {
+                                text: modelData.title || ""
+                                Layout.preferredWidth: root.colService
+                                Layout.maximumWidth: root.colService
+                                color: theme.textPrimary
+                                font.pixelSize: 14
+                                elide: Text.ElideRight
+                            }
+                            Label {
+                                text: modelData.username || ""
+                                Layout.preferredWidth: root.colUser
+                                Layout.maximumWidth: root.colUser
+                                color: theme.textSecondary
+                                font.pixelSize: 13
+                                elide: Text.ElideRight
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: root.colPassword
+                                spacing: 6
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: entryRow.revealed
+                                          ? (modelData.password || "")
+                                          : "•".repeat(Math.min((modelData.password || "").length, 12))
+                                    color: theme.textSecondary
+                                    font.pixelSize: 13
+                                    elide: Text.ElideRight
+                                }
+                                IconButton {
+                                    iconName: entryRow.revealed ? "visibility_off" : "visibility"
+                                    iconColor: theme.textMuted
+                                    tooltip: entryRow.revealed ? "Hide password" : "Show password"
+                                    onClicked: entryRow.revealed = !entryRow.revealed
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.preferredWidth: root.colActions
+                                Layout.maximumWidth: root.colActions
+                                spacing: 4
+                                layoutDirection: Qt.RightToLeft
+
+                                IconButton {
+                                    iconName: "delete"
+                                    iconColor: theme.danger
+                                    tooltip: "Delete entry"
+                                    onClicked: vaultController.deleteEntry(modelData.id)
+                                }
+                                IconButton {
+                                    iconName: "edit"
+                                    iconColor: theme.textSecondary
+                                    tooltip: "Edit entry"
+                                    onClicked: editDialog.openForEdit(modelData)
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: hoverArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            z: -1
+                            acceptedButtons: Qt.NoButton
                         }
                     }
 
-                    Item { Layout.preferredHeight: 24 }
+                    Label {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.top
+                        anchors.topMargin: 32
+                        visible: entryList.count === 0
+                        text: root.filterCategory.length > 0
+                              ? "No entries in this category."
+                              : "No entries yet."
+                        color: theme.textMuted
+                        font.pixelSize: 13
+                    }
                 }
             }
 
-            // ---- Floating Add Button (key icon) ----
+            // FAB
             Rectangle {
                 id: addBtn
                 width: 56
@@ -440,31 +481,13 @@ Page {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 24
-                layer.enabled: true
-                layer.effect: null
-
-                // Drop shadow
-                Rectangle {
-                    anchors.fill: parent
-                    radius: parent.radius
-                    color: "transparent"
-                    border.width: 0
-                    z: -1
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: "black"
-                        opacity: 0.2
-                        anchors.margins: 2
-                    }
-                }
 
                 Label {
                     anchors.centerIn: parent
-                    text: "🔑"  // key icon
-                    color: "#0A140A"
+                    text: "+"
+                    color: theme.onAccent
                     font.pixelSize: 28
-                    font.weight: Font.Light
+                    font.bold: true
                 }
 
                 MouseArea {
@@ -472,28 +495,16 @@ Page {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
-                    onEntered: {
-                        addBtn.scale = 1.1
-                        addBtn.color = Qt.darker(theme.tertiary, 1.1)
-                    }
-                    onExited: {
-                        addBtn.scale = 1.0
-                        addBtn.color = theme.tertiary
-                    }
+                    onEntered: addBtn.scale = 1.08
+                    onExited: addBtn.scale = 1.0
                     onClicked: editDialog.openForCreate()
                 }
-
-                Behavior on scale {
-                    NumberAnimation { duration: 100 }
-                }
-                Behavior on color {
-                    ColorAnimation { duration: 100 }
-                }
+                Behavior on scale { NumberAnimation { duration: 100 } }
 
                 ToolTip {
                     visible: addBtnMouseArea.containsMouse
                     text: "Add password"
-                    delay: 500
+                    delay: 400
                 }
             }
 
@@ -503,7 +514,6 @@ Page {
         }
     }
 
-    // ---- Connections ----
     Connections {
         target: vaultController
         function onEntriesChanged() { root.refresh() }
@@ -519,9 +529,8 @@ Page {
     }
 
     onVisibleChanged: {
-        if (visible && vaultUnlocked) {
+        if (visible && vaultUnlocked)
             refresh()
-        }
     }
 
     Component.onCompleted: {
@@ -529,8 +538,7 @@ Page {
         root.filterCategory = ""
     }
 
-    // ---- Helper IconButton component (inline) ----
-    component IconButton : Item {
+    component IconButton: Item {
         id: iconBtn
         property string iconName: "visibility"
         property color iconColor: theme.textSecondary
@@ -539,23 +547,21 @@ Page {
 
         width: 28
         height: 28
-        opacity: 1.0
 
         Label {
             id: iconLabel
             anchors.centerIn: parent
             text: {
-                switch(iconBtn.iconName) {
-                    case "visibility": return "👁"
-                    case "visibility_off": return "👁‍🗨"
-                    case "edit": return "✏️"
-                    case "delete": return "🗑️"
-                    default: return "?"
+                switch (iconBtn.iconName) {
+                case "visibility": return "👁"
+                case "visibility_off": return "👁‍🗨"
+                case "edit": return "✏️"
+                case "delete": return "🗑️"
+                default: return "?"
                 }
             }
             color: iconBtn.iconColor
-            font.pixelSize: 18
-            font.family: theme.bodyFont
+            font.pixelSize: 16
         }
 
         MouseArea {
@@ -563,23 +569,16 @@ Page {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             hoverEnabled: true
-            onEntered: {
-                parent.scale = 1.2
-                iconLabel.color = Qt.darker(iconBtn.iconColor, 1.3)
-            }
-            onExited: {
-                parent.scale = 1.0
-                iconLabel.color = iconBtn.iconColor
-            }
+            onEntered: parent.scale = 1.15
+            onExited: parent.scale = 1.0
             onClicked: iconBtn.clicked()
         }
-
-        Behavior on scale { NumberAnimation { duration: 100 } }
+        Behavior on scale { NumberAnimation { duration: 80 } }
 
         ToolTip {
             visible: iconBtn.tooltip.length > 0 && iconMouseArea.containsMouse
             text: iconBtn.tooltip
-            delay: 500
+            delay: 400
         }
     }
 }

@@ -26,7 +26,18 @@ Popup {
     }
 
     // ---- Category list (static) ----
-    readonly property var categoryOptions: ["Social", "Work", "Learning", "Finance", "Other"]
+    readonly property var categoryOptions: [
+        "Social",
+        "Work",
+        "Learning",
+        "Finance",
+        "Gaming",
+        "Shopping",
+        "Entertainment",
+        "Email",
+        "Development",
+        "Cloud"
+    ]
 
     function openForCreate() {
         editingId = ""
@@ -45,9 +56,13 @@ Popup {
         usernameField.text = entry.username
         passwordField.text = entry.password
         urlField.text = entry.url
-        // Set the combo to the category if it matches, else "Other"
+
         var idx = categoryOptions.indexOf(entry.category)
-        categoryCombo.currentIndex = (idx >= 0) ? idx : 4
+        // Legacy "Other" or unknown → Social (or first item)
+        if (idx < 0)
+            idx = 0
+        categoryCombo.currentIndex = idx
+
         errorLabel.text = ""
         open()
     }
