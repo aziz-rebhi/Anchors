@@ -1,116 +1,72 @@
-# Anchor
+# Anchors
 
-A fully offline, local-first desktop application that brings together password
-management, note-taking, task tracking, calendar events, and resume building —
-all encrypted, all on your machine, with zero network dependency by design.
+**Your private workspace. Fully offline. Fully yours.**
 
-> ⚠️ **Status: early development.** Core crypto is implemented and tested, but
-> most features below are not built yet. Not ready for real use.
+Anchors is a desktop app for notes, passwords, tasks, and calendar — encrypted on your machine with a master password. No account. No cloud. No telemetry.
 
-## Why
+[![Release](https://img.shields.io/github/v/release/aziz-rebhi/Anchors?style=flat-square)](https://github.com/aziz-rebhi/Anchors/releases/latest)
+[![License](https://img.shields.io/badge/license-TBD-lightgrey?style=flat-square)](#license)
 
-Most productivity and password tools quietly depend on the cloud. Anchor takes
-the opposite approach: everything stays local, encrypted with your master
-password, with no account, no sync server, and no telemetry. If you value
-owning your data as much as protecting it, this is built for that.
+**[Download the latest release](https://github.com/aziz-rebhi/Anchors/releases/latest)** · [Report an issue](https://github.com/aziz-rebhi/Anchors/issues)
 
-## Stack
+---
 
-- **Language:** C++17
-- **UI:** Qt6 Widgets
-- **Encryption:** [libsodium](https://libsodium.gitbook.io/doc/) — Argon2id
-  for key derivation, XSalsa20-Poly1305 (`crypto_secretbox`) for authenticated
-  encryption
-- **Storage:** No database. Flat encrypted files, one per module (`vault.enc`,
-  `notes.enc`, `tasks.enc`, `calendar.enc`, `resume.enc`), each holding a
-  JSON blob encrypted as a whole
-- **Network:** None. Anchor never makes a network request.
+## Why Anchors?
 
-## Architecture
+Most productivity and password tools quietly depend on servers you don’t control. Anchors takes the opposite path:
 
-```
-UI  →  Repository  →  CryptoManager + EncryptedFileStore
-```
+| Principle | What it means |
+|-----------|----------------|
+| **Local-first** | Data lives on your disk, not in someone else’s cloud |
+| **Encrypted by default** | Protected with your master password (Argon2id + libsodium) |
+| **Offline by design** | Core features work with no network |
+| **No account** | Nothing to register, subscribe to, or leak |
+| **Yours to keep** | Export and back up your data folder anytime |
 
-- `core/` has zero UI dependencies — pure logic, testable in isolation.
-- `ui/` never touches encryption or storage directly, only repositories.
-- Each `.enc` file layout: `[salt (16 bytes)][nonce (24 bytes)][ciphertext + auth tag]`
-- Writes are atomic (`file.enc.tmp` → rename) to avoid corruption on crash.
+If you care about privacy without giving up a modern desktop experience, Anchors is built for you.
 
-## Current status
+---
 
-- [x] Crypto module (`CryptoManager`, `SecureBuffer`) — implemented and
-      tested (7/7 tests passing)
-- [x] Encrypted file storage (`EncryptedFileStore`)
-- [ ] Login screen / session handling / auto-lock
-- [ ] Vault (passwords) — categorized by Social, Work, Learning, Entertainment
-- [ ] Notes
-- [ ] Tasks (to-do)
-- [ ] Calendar
-- [ ] Resume builder + PDF export
-- [ ] Collapsible sidebar navigation + dashboard
+## Features
 
-## Design
+| Module | What you get |
+|--------|----------------|
+| **Vault** | Password entries, quick copy, organized storage |
+| **Notes** | Block-based editor — headings, lists, code, tables, callouts, columns, and more |
+| **To-Do** | Tasks grouped into projects with emoji and color |
+| **Calendar** | Events and day planning |
+| **Dashboard** | A simple overview of your workspace |
+| **Settings** | Theme, accent, start page, auto-lock, backup export/import |
 
-Color palette — "Green Abyss":
+**Security controls:** session lock, optional auto-lock on idle, lock when minimized, and configurable clipboard behavior.
 
-| Role | Color |
-|---|---|
-| Deep green (primary/accent) | `#0B3D0B` |
-| Medium green (secondary accent) | `#2E8B57` |
-| Soft green (highlights) | `#4F9F4F` |
-| Dark gray (background) | `#1F1F1F` |
-| Soft neutral (text/cards) | `#D1E7D1` |
+> **Status:** Actively developed (beta). Core workflows are usable; always keep backups of your data folder.
 
-## Building
+---
 
-Requires Qt6, a C++17 compiler, and libsodium installed (`libsodium-dev` /
-`libsodium` depending on your distro's package manager).
+## Download & install
 
-Open `Anchors.pro` in Qt Creator and build, or via command line:
+Official builds: **[GitHub Releases](https://github.com/aziz-rebhi/Anchors/releases/latest)**
+
+| Platform | File | Best for |
+|----------|------|----------|
+| **Windows** | `Anchors-Setup-*.exe` | Normal install, Start Menu, optional desktop shortcut |
+| **Windows** | `Anchors-windows-x64.zip` | Portable use (no installer) |
+| **Linux** | `Anchors.flatpak` | Install from the app menu on most distros |
+| **Linux** | `Anchors-linux-x86_64` | Dev/test binary (needs system Qt 6 + libsodium) |
+
+### Windows (recommended)
+
+1. Download **`Anchors-Setup-x.y.z.exe`**.
+2. Run the installer and choose an install folder.
+3. Optionally enable **Create a desktop shortcut**.
+4. Launch **Anchors** and create your **master password** on first run.
+
+**Upgrading:** download the newer Setup and run it. You do not need to uninstall first. Your data stays in the app data folder.
+
+### Linux (Flatpak — recommended)
 
 ```bash
-qmake Anchors.pro
-make
-```
-
-## Running tests
-
-The crypto test suite is a separate qmake project. Open `Tests/Tests.pro` in
-Qt Creator (File → Open File or Project), select it as the active project,
-build, and run.
-
-Expected output:
-
-```
-PASS: "deriveKey() produces a 32-byte key"
-PASS: "encrypt() produces non-empty output"
-PASS: "decrypt() round-trip matches the original plaintext exactly"
-PASS: "wrong master password fails decryption cleanly (no partial data)"
-PASS: "tampered ciphertext is rejected (authentication catches it)"
-PASS: "encrypting identical plaintext twice yields different ciphertext (nonce randomness)"
-PASS: "garbage/too-short input is rejected without crashing"
-
-Results: 7 passed, 0 failed
-```
-
-## Security notes
-
-- Every write to disk is encrypted; nothing sensitive is ever stored in
-  plaintext.
-- Session keys are held in `SecureBuffer` (libsodium guarded memory) and
-  wiped on auto-lock or app close.
-- Losing your master password means losing access to your data — there is
-  no recovery mechanism, by design.
-- This project has not been independently audited. Treat it accordingly
-  until it has.
-
-## License
-
-TBD — leaning toward an open-core model: core app under MIT or GPLv3, with
-optional paid features (e.g. sync) decided later.
-
-## Backup
-
-Your `.enc` files under the app's data directory *are* your backup — copying
-them elsewhere is sufficient. No separate export tool is needed.
+# Requires Flatpak on your system
+flatpak install --user ./Anchors.flatpak
+flatpak run org.anchors.Anchors
