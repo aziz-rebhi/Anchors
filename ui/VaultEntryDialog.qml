@@ -101,34 +101,42 @@ Popup {
             id: categoryCombo
             Layout.fillWidth: true
             model: root.categoryOptions
-            // Use a custom delegate to match the StyledTextField style
+
             delegate: ItemDelegate {
                 width: categoryCombo.width
-                text: modelData
-                font.family: theme.bodyFont
-                font.pixelSize: 14
                 highlighted: categoryCombo.highlightedIndex === index
+
+                contentItem: Text {
+                    text: modelData
+                    color: theme.textPrimary
+                    font.family: theme.bodyFont
+                    font.pixelSize: 14
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
                 background: Rectangle {
-                    color: highlighted ? theme.surfaceAlt : "transparent"
+                    color: highlighted ? theme.surfaceAlt : theme.surface
                 }
             }
-            // Style the content to match dark theme
+
             contentItem: Text {
+                leftPadding: 12
+                rightPadding: 28
                 text: categoryCombo.displayText
                 color: theme.textPrimary
                 font.family: theme.bodyFont
                 font.pixelSize: 14
-                horizontalAlignment: Text.AlignLeft
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
             }
+
             background: Rectangle {
                 color: theme.surfaceAlt
                 border.color: theme.border
                 border.width: 1
                 radius: theme.radiusMedium
                 implicitHeight: 44
-                // Arrow indicator
+
                 Label {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
@@ -138,12 +146,13 @@ Popup {
                     font.pixelSize: 12
                 }
             }
+
             popup: Popup {
                 y: categoryCombo.height + 2
                 width: categoryCombo.width
                 padding: 4
                 background: Rectangle {
-                    color: theme.surfaceAlt
+                    color: theme.surface
                     border.color: theme.border
                     border.width: 1
                     radius: theme.radiusMedium

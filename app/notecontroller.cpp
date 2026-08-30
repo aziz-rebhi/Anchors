@@ -198,29 +198,35 @@ bool NoteController::renameFolder(const QString &oldName, const QString &newName
 
 bool NoteController::deleteFolder(const QString &folderName)
 {
-    if (folderName.isEmpty()) return false;
-    if (!Session::instance()->isUnlocked()) return false;
+    if (folderName.isEmpty())
+        return false;
+    if (!Session::instance()->isUnlocked())
+        return false;
 
     NoteRepository repo(Session::instance()->sessionKey());
-    bool ok; auto all = repo.loadAll(&ok);
-    if (!ok) return false;
-
-    QString parent;
-    const int slash = folderName.lastIndexOf(QLatin1Char('/'));
-    if (slash >= 0)
-        parent = folderName.left(slash);
+    bool ok = false;
+    QVector<NoteEntry> all = repo.loadAll(&ok);
+    if (!ok)
+        return false;
 
     const QString prefix = folderName + QLatin1String("/");
-    bool changed = false;
-    for (auto &e : all) {
-        if (e.m_folder == folderName || e.m_folder.startsWith(prefix)) {
-            e.m_folder = parent;
-            changed = true;
-        }
+    QVector<NoteEntry> remaining;
+    remaining.reserve(all.size());
+
+    for (const NoteEntry &e : all) {
+        // Drop notes in this folder and any nested subfolder
+        if (e.m_folder == folderName || e.m_folder.startsWith(prefix))
+            continue;
+        remaining.append(e);
     }
-    if (!changed) return false;
-    const bool saved = repo.saveAll(all);
-    if (saved) emit entriesChanged();
+
+    // Nothing lived under this path
+    if (remaining.size() == all.size())
+        return false;
+
+    const bool saved = repo.saveAll(remaining);
+    if (saved)
+        emit entriesChanged();
     return saved;
 }
 

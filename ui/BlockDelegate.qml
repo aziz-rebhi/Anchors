@@ -231,8 +231,8 @@ Item {
         id: imageComponent
         ImageBlock {
             blockId: root.blockId
-            source: root.blockData ? root.blockData.source || "" : ""
-            caption: root.blockData ? root.blockData.caption || "" : ""
+            source: root.blockData ? (root.blockData.source || "") : ""
+            caption: root.blockData ? (root.blockData.caption || "") : ""
         }
     }
     Component {

@@ -518,8 +518,25 @@ Page {
         MenuItem {
             text: "Delete Folder"
             onTriggered: {
-                if (noteController.deleteFolder(folderContextMenu.targetFolder))
+                var folder = folderContextMenu.targetFolder
+                // If the open note is inside this folder, clear the editor
+                if (root.selectedId.length > 0) {
+                    var open = root.allNotes.find(function (n) { return n.id === root.selectedId })
+                    if (open) {
+                        var f = open.folder || ""
+                        if (f === folder || f.indexOf(folder + "/") === 0) {
+                            root.selectedId = ""
+                            if (noteEditor)
+                                noteEditor.loadFromJson("", "")
+                        }
+                    }
+                }
+                if (noteController.deleteFolder(folder)) {
+                    if (root.currentFolderPath === folder
+                        || root.currentFolderPath.indexOf(folder + "/") === 0)
+                        root.currentFolderPath = ""
                     root.refresh(false)
+                }
             }
         }
         MenuItem {

@@ -9,7 +9,7 @@ Page {
 
     property string activeKey: {
         if (typeof settingsController !== "undefined" && settingsController.startPage)
-            return settingController.startPage
+            return settingsController.startPage
         return "dashboard"
     }
 

@@ -1,17 +1,18 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Dialogs
 
 Rectangle {
     id: root
     Theme { id: theme }
 
     property string blockId: ""
-    property string latex: ""
     property string source: ""
     property string caption: ""
-    property bool displayMode: true
-    signal contentChanged(string newLatex)
+
+    signal sourceChangedByUser(string path)
+    signal captionChangedByUser(string text)
 
     width: parent ? parent.width : 0
     height: col.implicitHeight + 16
@@ -21,82 +22,126 @@ Rectangle {
     border.width: 1
 
     function focusInput() {
-        input.forceActiveFocus()
-        input.cursorPosition = input.text.length
+        captionField.forceActiveFocus()
     }
 
     ColumnLayout {
         id: col
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.margins: 10
         spacing: 8
 
         Text {
-            text: "∑ Equation"
+            text: "Image"
             color: theme.textMuted
             font.pixelSize: 11
         }
 
+        // Preview
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.max(40, previewText.implicitHeight + 16)
+            Layout.preferredHeight: root.source.length > 0 ? Math.min(280, img.implicitHeight + 16) : 120
             radius: 6
             color: theme.surface
             border.color: theme.border
             border.width: 1
+            clip: true
 
-            Text {
-                id: previewText
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.margins: 10
-                text: root.latex.length ? root.latex : "…"
-                color: theme.tertiary
-                font.pixelSize: 18
-                font.family: "serif"
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
+            Image {
+                id: img
+                anchors.fill: parent
+                anchors.margins: 8
+                source: root.source
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                visible: root.source.length > 0
+            }
+
+            Label {
+                anchors.centerIn: parent
+                visible: root.source.length === 0
+                text: "No image — paste (Ctrl+V) or choose a file"
+                color: theme.textMuted
+                font.pixelSize: 13
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: fileDialog.open()
             }
         }
 
-        TextArea {
-            id: input
+        RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.max(36, implicitHeight)
-            text: root.latex
-            placeholderText: "LaTeX, e.g. E = mc^2 or \\frac{a}{b}"
-            wrapMode: Text.Wrap
-            font.pixelSize: 13
-            font.family: "monospace"
-            color: theme.textPrimary
-            placeholderTextColor: theme.textMuted
-            background: Rectangle {
-                color: theme.surface
-                radius: 4
-                border.color: theme.border
-            }
-            onTextChanged: if (text !== root.latex) root.contentChanged(text)
-            onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
+            spacing: 8
 
-            Keys.onPressed: function (e) {
-                if ((e.modifiers & Qt.ControlModifier) &&
-                    (e.key === Qt.Key_Return || e.key === Qt.Key_Enter)) {
-                    noteEditor.insertBlockAfter(root.blockId, 0, "")
-                    e.accepted = true
-                    return
+            Button {
+                text: root.source.length ? "Replace…" : "Choose file…"
+                onClicked: fileDialog.open()
+            }
+
+            TextField {
+                id: captionField
+                Layout.fillWidth: true
+                text: root.caption
+                placeholderText: "Caption (optional)"
+                color: theme.textPrimary
+                placeholderTextColor: theme.textMuted
+                background: Rectangle {
+                    color: theme.surface
+                    radius: 4
+                    border.color: theme.border
                 }
-                if (e.key === Qt.Key_Up) {
-                    noteEditor.focusAdjacent(root.blockId, false)
-                    e.accepted = true
-                    return
+                onTextChanged: {
+                    if (text !== root.caption)
+                        root.captionChangedByUser(text)
                 }
-                if (e.key === Qt.Key_Down) {
-                    noteEditor.focusAdjacent(root.blockId, true)
-                    e.accepted = true
-                    return
+                onActiveFocusChanged: {
+                    if (activeFocus && noteEditor)
+                        noteEditor.setFocusedBlock(root.blockId)
                 }
             }
+        }
+    }
+
+    FileDialog {
+        id: fileDialog
+        title: "Choose image"
+        fileMode: FileDialog.OpenFile
+        nameFilters: [ "Images (*.png *.jpg *.jpeg *.gif *.webp *.bmp)", "All files (*)" ]
+        onAccepted: {
+            var path = selectedFile.toString()
+            if (noteEditor)
+                noteEditor.updateBlockImageSource(root.blockId, path)
+        }
+    }
+
+    // Keep controller in sync when caption changes
+    Connections {
+        target: root
+        function onCaptionChangedByUser(text) {
+            if (noteEditor)
+                noteEditor.updateBlockImageCaption(root.blockId, text)
+        }
+        function onSourceChangedByUser(path) {
+            if (noteEditor)
+                noteEditor.updateBlockImageSource(root.blockId, path)
+        }
+    }
+
+    Keys.onPressed: function (e) {
+        if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) {
+            if (noteEditor && noteEditor.pasteImageFromClipboard()) {
+                e.accepted = true
+                return
+            }
+        }
+        if ((e.modifiers & Qt.ControlModifier) &&
+            (e.key === Qt.Key_Return || e.key === Qt.Key_Enter)) {
+            if (noteEditor)
+                noteEditor.insertBlockAfter(root.blockId, 0, "")
+            e.accepted = true
         }
     }
 }
