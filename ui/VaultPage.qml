@@ -13,7 +13,6 @@ Page {
     property string searchText: ""
     property string sortMode: "recent"
 
-    // Shared column widths (header + rows)
     readonly property int colService: 200
     readonly property int colUser: 220
     readonly property int colPassword: 160
@@ -71,7 +70,6 @@ Page {
         sourceComponent: root.vaultUnlocked ? vaultContentComponent : pinGateComponent
     }
 
-    // ── PIN gate ────────────────────────────────────────────────
     Component {
         id: pinGateComponent
         Item {
@@ -170,7 +168,6 @@ Page {
         }
     }
 
-    // ── Vault content ───────────────────────────────────────────
     Component {
         id: vaultContentComponent
         Item {
@@ -181,7 +178,6 @@ Page {
                 anchors.margins: 24
                 spacing: 16
 
-                // Header (fixed)
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
@@ -214,7 +210,6 @@ Page {
                     }
                 }
 
-                // Category tiles (fixed)
                 GridLayout {
                     Layout.fillWidth: true
                     columns: 5
@@ -242,8 +237,8 @@ Page {
                                     Layout.fillWidth: true
                                     Label {
                                         text: modelData.glyph
-                                        color: theme.tertiary
                                         font.pixelSize: 22
+                                        font.family: "Noto Color Emoji"
                                     }
                                     Item { Layout.fillWidth: true }
                                     Label {
@@ -257,7 +252,7 @@ Page {
                                 Label {
                                     text: modelData.key
                                     color: theme.textPrimary
-                                    font.pixelSize: 14
+                                    font.pixelSize: 13
                                 }
                             }
                             MouseArea {
@@ -272,7 +267,6 @@ Page {
                     }
                 }
 
-                // Table title + sort (fixed)
                 RowLayout {
                     Layout.fillWidth: true
                     Label {
@@ -300,7 +294,6 @@ Page {
                         font.pixelSize: 12
                         MouseArea {
                             anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
                             onClicked: root.sortMode = "az"
                         }
                     }
@@ -311,13 +304,11 @@ Page {
                         Layout.leftMargin: 12
                         MouseArea {
                             anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
                             onClicked: root.sortMode = "recent"
                         }
                     }
                 }
 
-                // Column headers (fixed — same widths as rows)
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
@@ -365,7 +356,6 @@ Page {
                     }
                 }
 
-                // ONLY the entry list scrolls
                 ListView {
                     id: entryList
                     Layout.fillWidth: true
@@ -471,7 +461,6 @@ Page {
                 }
             }
 
-            // FAB
             Rectangle {
                 id: addBtn
                 width: 56
@@ -491,26 +480,13 @@ Page {
                 }
 
                 MouseArea {
-                    id: addBtnMouseArea
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onEntered: addBtn.scale = 1.08
-                    onExited: addBtn.scale = 1.0
                     onClicked: editDialog.openForCreate()
                 }
-                Behavior on scale { NumberAnimation { duration: 100 } }
-
-                ToolTip {
-                    visible: addBtnMouseArea.containsMouse
-                    text: "Add password"
-                    delay: 400
-                }
             }
 
-            VaultEntryDialog {
-                id: editDialog
-            }
+            VaultEntryDialog { id: editDialog }
         }
     }
 
@@ -562,10 +538,10 @@ Page {
             }
             color: iconBtn.iconColor
             font.pixelSize: 16
+            font.family: "Noto Color Emoji"
         }
 
         MouseArea {
-            id: iconMouseArea
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             hoverEnabled: true
@@ -576,7 +552,7 @@ Page {
         Behavior on scale { NumberAnimation { duration: 80 } }
 
         ToolTip {
-            visible: iconBtn.tooltip.length > 0 && iconMouseArea.containsMouse
+            visible: iconBtn.tooltip.length > 0 && parent.scale > 1.0
             text: iconBtn.tooltip
             delay: 400
         }

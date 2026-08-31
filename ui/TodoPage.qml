@@ -16,7 +16,7 @@ Page {
     ]
     readonly property var emojiChoices: [
         "📁", "💼", "🏠", "📚", "🎯", "💪", "🛒", "💡",
-        "🎮", "✈️", "❤️", "🔧", "📝", "🌟", "🎵", "🧠"
+        "🎮", "✈️", "❤️", "🔧", "📝", "⭐", "🎵", "🧠"
     ]
 
     function refresh() {
@@ -69,7 +69,6 @@ Page {
         anchors.fill: parent
         spacing: 0
 
-        // ── Sidebar ───────────────────────────────────────────
         Rectangle {
             Layout.preferredWidth: 240
             Layout.fillHeight: true
@@ -116,7 +115,7 @@ Page {
                         width: 26
                         height: 26
                         radius: 6
-                        color: newProjMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                        color: newProjMa.containsMouse ? theme.hoverFill : "transparent"
 
                         Text {
                             anchors.centerIn: parent
@@ -170,7 +169,6 @@ Page {
             }
         }
 
-        // ── Main ──────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -196,6 +194,7 @@ Page {
                     Text {
                         text: (root.currentProjectMeta().emoji || "") + " "
                         font.pixelSize: 22
+                        font.family: "Noto Color Emoji"
                     }
                     Label {
                         text: root.currentProjectMeta().name || "Inbox"
@@ -216,7 +215,7 @@ Page {
                         width: 32
                         height: 32
                         radius: 8
-                        color: editMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                        color: editMa.containsMouse ? theme.hoverFill : "transparent"
 
                         Text {
                             anchors.centerIn: parent
@@ -263,13 +262,12 @@ Page {
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
                     radius: 20
-                    color: addBtnMa.containsMouse ? theme.tertiary
-                                                  : Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.85)
+                    color: theme.tertiary
 
                     Text {
                         anchors.centerIn: parent
                         text: "+"
-                        color: "#0A140A"
+                        color: theme.onAccent
                         font.pixelSize: 20
                         font.bold: true
                     }
@@ -361,7 +359,6 @@ Page {
         }
     }
 
-    // ── Project dialog ────────────────────────────────────────
     Dialog {
         id: projectDialog
         property string editId: ""
@@ -404,7 +401,12 @@ Page {
                         color: projectDialog.editEmoji === modelData ? theme.surface : "transparent"
                         border.color: projectDialog.editEmoji === modelData ? theme.tertiary : "transparent"
                         border.width: 1
-                        Text { anchors.centerIn: parent; text: modelData; font.pixelSize: 16 }
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData
+                            font.pixelSize: 16
+                            font.family: "Noto Color Emoji"
+                        }
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
@@ -439,7 +441,6 @@ Page {
                 Layout.topMargin: 4
                 spacing: 8
 
-                // Delete
                 Rectangle {
                     visible: projectDialog.isEdit
                     width: 36
@@ -451,6 +452,7 @@ Page {
                         anchors.centerIn: parent
                         text: "🗑"
                         font.pixelSize: 14
+                        font.family: "Noto Color Emoji"
                     }
                     MouseArea {
                         id: delMa
@@ -471,12 +473,11 @@ Page {
 
                 Item { Layout.fillWidth: true }
 
-                // Cancel
                 Rectangle {
                     width: 36
                     height: 36
                     radius: 8
-                    color: cancelMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                    color: cancelMa.containsMouse ? theme.hoverFill : "transparent"
 
                     Text {
                         anchors.centerIn: parent
@@ -491,30 +492,23 @@ Page {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: projectDialog.close()
                     }
-                    ToolTip.visible: cancelMa.containsMouse
-                    ToolTip.text: "Cancel"
-                    ToolTip.delay: 400
                 }
 
-                // Save / Create
                 Rectangle {
                     width: 36
                     height: 36
                     radius: 8
-                    color: saveMa.containsMouse ? theme.tertiary
-                                                : Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.85)
+                    color: theme.tertiary
 
                     Text {
                         anchors.centerIn: parent
                         text: "✓"
-                        color: "#0A140A"
+                        color: theme.onAccent
                         font.pixelSize: 16
                         font.bold: true
                     }
                     MouseArea {
-                        id: saveMa
                         anchors.fill: parent
-                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             var n = nameField.text.trim()
@@ -527,9 +521,6 @@ Page {
                             projectDialog.close()
                         }
                     }
-                    ToolTip.visible: saveMa.containsMouse
-                    ToolTip.text: projectDialog.isEdit ? "Save" : "Create"
-                    ToolTip.delay: 400
                 }
             }
         }
@@ -540,7 +531,6 @@ Page {
         }
     }
 
-    // ── Project row ───────────────────────────────────────────
     component ProjectRow: Rectangle {
         property string emoji: ""
         property string title: ""
@@ -553,7 +543,7 @@ Page {
         height: 36
         implicitHeight: 36
         radius: 8
-        color: selected ? Qt.rgba(1, 1, 1, 0.08)
+        color: selected ? theme.hoverFill
                         : (ma.containsMouse ? Qt.rgba(1, 1, 1, 0.04) : "transparent")
 
         RowLayout {
@@ -562,7 +552,11 @@ Page {
             anchors.rightMargin: 8
             spacing: 8
             Rectangle { width: 4; height: 18; radius: 2; color: accent }
-            Text { text: emoji; font.pixelSize: 14 }
+            Text {
+                text: emoji
+                font.pixelSize: 14
+                font.family: "Noto Color Emoji"
+            }
             Label {
                 text: title
                 color: selected ? theme.textPrimary : theme.textSecondary
@@ -586,7 +580,6 @@ Page {
         }
     }
 
-    // ── Task row ──────────────────────────────────────────────
     component TaskRow: Item {
         id: taskRow
         property string taskId: ""
@@ -604,7 +597,7 @@ Page {
         Rectangle {
             anchors.fill: parent
             radius: 8
-            color: rowMa.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+            color: rowMa.containsMouse ? theme.hoverFill : "transparent"
         }
 
         RowLayout {
@@ -625,7 +618,7 @@ Page {
                 Text {
                     anchors.centerIn: parent
                     text: taskRow.done ? "✓" : ""
-                    color: "#1e1e2e"
+                    color: theme.onAccent
                     font.pixelSize: 12
                     font.bold: true
                 }
@@ -639,13 +632,11 @@ Page {
             Label {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
-                Layout.minimumWidth: 80
                 text: taskRow.title
                 color: taskRow.done ? theme.textMuted : theme.textPrimary
                 font.strikeout: taskRow.done
                 font.pixelSize: 14
                 elide: Text.ElideRight
-                wrapMode: Text.NoWrap
             }
 
             Text {

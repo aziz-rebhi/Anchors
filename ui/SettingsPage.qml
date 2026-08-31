@@ -37,228 +37,227 @@ Page {
     ScrollView {
         id: scroll
         anchors.fill: parent
-        contentWidth: availableWidth
         clip: true
+        contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-        Item {
-            width: scroll.availableWidth
-            height: col.implicitHeight + 80
+        // Content must report a real height so the page can scroll
+        ColumnLayout {
+            id: col
+            width: Math.min(root.maxContentWidth, scroll.availableWidth - pageMargin * 2)
+            x: Math.max(pageMargin, (scroll.availableWidth - width) / 2)
+            spacing: 24
+
+            // top padding
+            Item { Layout.preferredHeight: 12 }
 
             ColumnLayout {
-                id: col
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(root.maxContentWidth, parent.width - pageMargin * 2)
-                spacing: 24
-                y: 36
+                Layout.fillWidth: true
+                spacing: 4
+                Label {
+                    text: "Settings"
+                    color: theme.textPrimary
+                    font.pixelSize: 28
+                    font.weight: Font.DemiBold
+                    font.family: theme.headlineFont
+                }
+                Label {
+                    text: "Preferences, security, and data"
+                    color: theme.textMuted
+                    font.pixelSize: 13
+                }
+            }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-                    Label {
-                        text: "Settings"
-                        color: theme.textPrimary
-                        font.pixelSize: 28
-                        font.weight: Font.DemiBold
-                        font.family: theme.headlineFont
-                    }
-                    Label {
-                        text: "Preferences, security, and data"
-                        color: theme.textMuted
-                        font.pixelSize: 13
+            GroupCard {
+                title: "General"
+                Layout.fillWidth: true
+
+                GroupRow {
+                    title: "Start page"
+                    subtitle: "Page shown after unlock"
+                    trailing: TahoeCombo {
+                        model: [
+                            { t: "Dashboard", v: "dashboard" },
+                            { t: "Notes", v: "notes" },
+                            { t: "Vault", v: "vault" },
+                            { t: "Calendar", v: "calendar" },
+                            { t: "To-Do", v: "todo" }
+                        ]
+                        value: settingsController.startPage
+                        onValuePicked: settingsController.startPage = v
                     }
                 }
-
-                GroupCard {
-                    title: "General"
-                    Layout.fillWidth: true
-
-                    GroupRow {
-                        title: "Start page"
-                        subtitle: "Page shown after unlock"
-                        trailing: TahoeCombo {
-                            model: [
-                                { t: "Dashboard", v: "dashboard" },
-                                { t: "Notes", v: "notes" },
-                                { t: "Vault", v: "vault" },
-                                { t: "Calendar", v: "calendar" },
-                                { t: "To-Do", v: "todo" }
-                            ]
-                            value: settingsController.startPage
-                            onValuePicked: settingsController.startPage = v
-                        }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Calendar default view"
+                    subtitle: "Month or week when opening Calendar"
+                    trailing: TahoeCombo {
+                        model: [
+                            { t: "Month", v: "month" },
+                            { t: "Week", v: "week" }
+                        ]
+                        value: settingsController.calendarDefaultView
+                        onValuePicked: settingsController.calendarDefaultView = v
                     }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Calendar default view"
-                        subtitle: "Month or week when opening Calendar"
-                        trailing: TahoeCombo {
-                            model: [
-                                { t: "Month", v: "month" },
-                                { t: "Week", v: "week" }
-                            ]
-                            value: settingsController.calendarDefaultView
-                            onValuePicked: settingsController.calendarDefaultView = v
+                }
+            }
+
+            GroupCard {
+                title: "Security"
+                Layout.fillWidth: true
+
+                GroupRow {
+                    title: "Auto-lock"
+                    subtitle: "Lock after inactivity"
+                    trailing: TahoeCombo {
+                        model: [
+                            { t: "1 minute", v: 1 },
+                            { t: "5 minutes", v: 5 },
+                            { t: "15 minutes", v: 15 },
+                            { t: "30 minutes", v: 30 },
+                            { t: "Never", v: 0 }
+                        ]
+                        value: settingsController.autoLockMinutes
+                        onValuePicked: settingsController.autoLockMinutes = v
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Clear clipboard after copy"
+                    subtitle: "Wipe vault secrets from the clipboard"
+                    trailing: RoundedSwitch {
+                        checked: settingsController.clearClipboard
+                        onToggled: settingsController.clearClipboard = checked
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Lock when minimized"
+                    subtitle: "Lock when the window is minimized"
+                    trailing: RoundedSwitch {
+                        checked: settingsController.lockOnMinimize
+                        onToggled: settingsController.lockOnMinimize = checked
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Lock now"
+                    subtitle: "Lock the session immediately"
+                    trailing: TahoeIconButton {
+                        symbol: "🔒"
+                        onClicked: settingsController.lockNow()
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Change master password"
+                    subtitle: "Re-encrypt local data with a new password"
+                    trailing: TahoeIconButton {
+                        symbol: "🔑"
+                        onClicked: passwordDialog.open()
+                    }
+                }
+            }
+
+            GroupCard {
+                title: "Appearance"
+                Layout.fillWidth: true
+
+                GroupRow {
+                    title: "Theme"
+                    subtitle: settingsController.themeId === "light"
+                              ? "Light theme is active" : "Dark theme is active"
+                    trailing: ThemeSlider {
+                        valueIsLight: settingsController.themeId === "light"
+                        onToggled: function (light) {
+                            settingsController.themeId = light ? "light" : "dark"
                         }
                     }
                 }
-
-                GroupCard {
-                    title: "Security"
-                    Layout.fillWidth: true
-
-                    GroupRow {
-                        title: "Auto-lock"
-                        subtitle: "Lock after inactivity"
-                        trailing: TahoeCombo {
-                            model: [
-                                { t: "1 minute", v: 1 },
-                                { t: "5 minutes", v: 5 },
-                                { t: "15 minutes", v: 15 },
-                                { t: "30 minutes", v: 30 },
-                                { t: "Never", v: 0 }
-                            ]
-                            value: settingsController.autoLockMinutes
-                            onValuePicked: settingsController.autoLockMinutes = v
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Clear clipboard after copy"
-                        subtitle: "Wipe vault secrets from the clipboard"
-                        trailing: RoundedSwitch {
-                            checked: settingsController.clearClipboard
-                            onToggled: settingsController.clearClipboard = checked
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Lock when minimized"
-                        subtitle: "Lock when the window is minimized"
-                        trailing: RoundedSwitch {
-                            checked: settingsController.lockOnMinimize
-                            onToggled: settingsController.lockOnMinimize = checked
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Lock now"
-                        subtitle: "Lock the session immediately"
-                        trailing: TahoeIconButton {
-                            symbol: "🔒"
-                            onClicked: settingsController.lockNow()
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Change master password"
-                        subtitle: "Re-encrypt local data with a new password"
-                        trailing: TahoeIconButton {
-                            symbol: "🔑"
-                            onClicked: passwordDialog.open()
-                        }
-                    }
-                }
-
-                GroupCard {
-                    title: "Appearance"
-                    Layout.fillWidth: true
-
-                    GroupRow {
-                        title: "Theme"
-                        subtitle: settingsController.themeId === "light"
-                                  ? "Light theme is active" : "Dark theme is active"
-                        trailing: ThemeSlider {
-                            valueIsLight: settingsController.themeId === "light"
-                            onToggled: function (light) {
-                                settingsController.themeId = light ? "light" : "dark"
-                            }
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Accent color"
-                        subtitle: "Highlights and active states"
-                        trailing: Row {
-                            spacing: 8
-                            Repeater {
-                                model: root.accentChoices
-                                delegate: Rectangle {
-                                    width: 18; height: 18; radius: 9
-                                    color: modelData
-                                    border.width: modelData === settingsController.accentColor ? 2 : 0
-                                    border.color: theme.textPrimary
-                                    scale: modelData === settingsController.accentColor ? 1.15 : 1
-                                    Behavior on scale { NumberAnimation { duration: 80 } }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: settingsController.accentColor = modelData
-                                    }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Accent color"
+                    subtitle: "Highlights and active states"
+                    trailing: Row {
+                        spacing: 8
+                        Repeater {
+                            model: root.accentChoices
+                            delegate: Rectangle {
+                                width: 18; height: 18; radius: 9
+                                color: modelData
+                                border.width: modelData === settingsController.accentColor ? 2 : 0
+                                border.color: theme.textPrimary
+                                scale: modelData === settingsController.accentColor ? 1.15 : 1
+                                Behavior on scale { NumberAnimation { duration: 80 } }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: settingsController.accentColor = modelData
                                 }
                             }
                         }
                     }
                 }
-
-                GroupCard {
-                    title: "Data"
-                    Layout.fillWidth: true
-
-                    GroupRow {
-                        title: "Data location"
-                        subtitle: settingsController.dataPath
-                        trailing: TahoeIconButton {
-                            symbol: "📂"
-                            onClicked: settingsController.openDataLocation()
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Export backup"
-                        subtitle: "Copy encrypted data files to a folder"
-                        trailing: TahoeIconButton {
-                            symbol: "📤"
-                            onClicked: exportDialog.open()
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Import backup"
-                        subtitle: "Restore from a previous export"
-                        trailing: TahoeIconButton {
-                            symbol: "📥"
-                            onClicked: importDialog.open()
-                        }
-                    }
-                    GroupSeparator {}
-                    GroupRow {
-                        title: "Wipe all data"
-                        subtitle: "Delete local encrypted files (cannot undo)"
-                        trailing: TahoeIconButton {
-                            symbol: "🗑"
-                            danger: true
-                            onClicked: wipeDialog.open()
-                        }
-                    }
-                }
-
-                GroupCard {
-                    title: "About"
-                    Layout.fillWidth: true
-                    GroupRow {
-                        title: "Anchors"
-                        subtitle: "Private notes, vault, tasks & calendar"
-                        trailing: Label {
-                            text: "v" + settingsController.appVersion
-                            color: theme.textMuted
-                            font.pixelSize: 13
-                        }
-                    }
-                }
-
-                Item { Layout.preferredHeight: 24 }
             }
+
+            GroupCard {
+                title: "Data"
+                Layout.fillWidth: true
+
+                GroupRow {
+                    title: "Data location"
+                    subtitle: settingsController.dataPath
+                    trailing: TahoeIconButton {
+                        symbol: "📂"
+                        onClicked: settingsController.openDataLocation()
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Export backup"
+                    subtitle: "Copy encrypted data files to a folder"
+                    trailing: TahoeIconButton {
+                        symbol: "📤"
+                        onClicked: exportDialog.open()
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Import backup"
+                    subtitle: "Restore from a previous export"
+                    trailing: TahoeIconButton {
+                        symbol: "📥"
+                        onClicked: importDialog.open()
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Wipe all data"
+                    subtitle: "Delete local encrypted files (cannot undo)"
+                    trailing: TahoeIconButton {
+                        symbol: "🗑"
+                        danger: true
+                        onClicked: wipeDialog.open()
+                    }
+                }
+            }
+
+            GroupCard {
+                title: "About"
+                Layout.fillWidth: true
+                GroupRow {
+                    title: "Anchors"
+                    subtitle: "Private notes, vault, tasks & calendar"
+                    trailing: Label {
+                        text: "v" + settingsController.appVersion
+                        color: theme.textMuted
+                        font.pixelSize: 13
+                    }
+                }
+            }
+
+            Item { Layout.preferredHeight: 48 }
         }
     }
 
@@ -267,6 +266,7 @@ Page {
         property alias text: toastLabel.text
         property bool isError: false
         visible: false
+        z: 10
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 28
@@ -556,7 +556,6 @@ Page {
             color: theme.surface
             border.color: theme.border
             border.width: 1
-
             Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         }
 
@@ -609,7 +608,6 @@ Page {
                    : (theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.12))
             border.color: sw.checked ? theme.tertiary : theme.border
             border.width: 1
-
             Behavior on color { ColorAnimation { duration: 120 } }
 
             Rectangle {
@@ -620,11 +618,9 @@ Page {
                 x: sw.checked ? parent.width - width - 3 : 3
                 color: theme.isDark ? "#f5f5f7" : "#ffffff"
                 border.color: theme.isDark ? Qt.rgba(0, 0, 0, 0.1) : Qt.rgba(0, 0, 0, 0.08)
-
                 Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
             }
         }
-
         contentItem: Item {}
     }
 
@@ -644,7 +640,9 @@ Page {
         Text {
             anchors.centerIn: parent
             text: parent.symbol
-            font.pixelSize: 13
+            font.pixelSize: 14
+            // Color emoji (Flatpak + Linux)
+            font.family: "Noto Color Emoji"
         }
         MouseArea {
             id: ma
