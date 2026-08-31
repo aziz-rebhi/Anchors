@@ -16,7 +16,7 @@ Page {
     readonly property int colService: 200
     readonly property int colUser: 220
     readonly property int colPassword: 160
-    readonly property int colActions: 96
+    readonly property int colActions: 120
 
     readonly property var categoryDefs: [
         { key: "Social",        glyph: "👥" },
@@ -37,6 +37,15 @@ Page {
 
     function categoryCount(key) {
         return allEntries.filter(function (e) { return e.category === key }).length
+    }
+
+    function copyPassword(pw) {
+        if (!pw || !pw.length)
+            return
+        clipHelper.text = pw
+        clipHelper.selectAll()
+        clipHelper.copy()
+        // Optional toast if you add one later
     }
 
     readonly property var visibleEntries: {
@@ -63,6 +72,14 @@ Page {
     }
 
     background: Rectangle { color: theme.background }
+
+    // Hidden helper for clipboard
+    TextEdit {
+        id: clipHelper
+        visible: false
+        width: 1
+        height: 1
+    }
 
     Loader {
         id: mainLoader
@@ -294,6 +311,7 @@ Page {
                         font.pixelSize: 12
                         MouseArea {
                             anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: root.sortMode = "az"
                         }
                     }
@@ -304,6 +322,7 @@ Page {
                         Layout.leftMargin: 12
                         MouseArea {
                             anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: root.sortMode = "recent"
                         }
                     }
@@ -420,7 +439,7 @@ Page {
                             RowLayout {
                                 Layout.preferredWidth: root.colActions
                                 Layout.maximumWidth: root.colActions
-                                spacing: 4
+                                spacing: 2
                                 layoutDirection: Qt.RightToLeft
 
                                 IconButton {
@@ -434,6 +453,12 @@ Page {
                                     iconColor: theme.textSecondary
                                     tooltip: "Edit entry"
                                     onClicked: editDialog.openForEdit(modelData)
+                                }
+                                IconButton {
+                                    iconName: "copy"
+                                    iconColor: theme.textSecondary
+                                    tooltip: "Copy password"
+                                    onClicked: root.copyPassword(modelData.password || "")
                                 }
                             }
                         }
@@ -525,7 +550,6 @@ Page {
         height: 28
 
         Label {
-            id: iconLabel
             anchors.centerIn: parent
             text: {
                 switch (iconBtn.iconName) {
@@ -533,15 +557,17 @@ Page {
                 case "visibility_off": return "👁‍🗨"
                 case "edit": return "✏️"
                 case "delete": return "🗑️"
+                case "copy": return "📋"
                 default: return "?"
                 }
             }
             color: iconBtn.iconColor
-            font.pixelSize: 16
+            font.pixelSize: 15
             font.family: "Noto Color Emoji"
         }
 
         MouseArea {
+            id: iconMouseArea
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             hoverEnabled: true
@@ -552,7 +578,7 @@ Page {
         Behavior on scale { NumberAnimation { duration: 80 } }
 
         ToolTip {
-            visible: iconBtn.tooltip.length > 0 && parent.scale > 1.0
+            visible: iconBtn.tooltip.length > 0 && iconMouseArea.containsMouse
             text: iconBtn.tooltip
             delay: 400
         }
