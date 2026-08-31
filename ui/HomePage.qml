@@ -14,10 +14,10 @@ Page {
     }
 
     property bool sidebarCollapsed: true
+    property string pendingTodoFilter: ""
 
     readonly property int sidebarExpandedWidth: 220
     readonly property int sidebarCollapsedWidth: 72
-
     readonly property string iconSuffix: theme.isDark ? "white" : "black"
 
     readonly property var navItems: [
@@ -74,11 +74,6 @@ Page {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44
                     Layout.bottomMargin: 14
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {}
-                    }
 
                     Image {
                         id: logo
@@ -169,7 +164,6 @@ Page {
                                    : navItem.hovered
                                      ? (theme.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.04))
                                      : "transparent"
-                            Behavior on color { ColorAnimation { duration: 100 } }
 
                             Rectangle {
                                 visible: navItem.active
@@ -224,7 +218,11 @@ Page {
                             cursorShape: Qt.PointingHandCursor
                             onEntered: navItem.hovered = true
                             onExited: navItem.hovered = false
-                            onClicked: root.activeKey = modelData.key
+                            onClicked: {
+                                if (modelData.key !== "todo")
+                                    root.pendingTodoFilter = ""
+                                root.activeKey = modelData.key
+                            }
                         }
                     }
                 }
@@ -273,7 +271,7 @@ Page {
         }
     }
 
-    component SidebarBtn : Item {
+    component SidebarBtn: Item {
         id: btn
         property string iconSource: ""
         property string label: ""
@@ -339,19 +337,28 @@ Page {
     Component {
         id: dashboardComponent
         DashboardPage {
-            onNavigateRequested: function (pageName) { root.activeKey = pageName }
+            onNavigateRequested: function (pageName, filter) {
+                root.pendingTodoFilter = (pageName === "todo") ? (filter || "") : ""
+                root.activeKey = pageName
+            }
         }
     }
-    Component { id: vaultComponent;    VaultPage {} }
-    Component { id: notesComponent;    NotesPage {} }
+    Component { id: vaultComponent; VaultPage {} }
+    Component { id: notesComponent; NotesPage {} }
     Component { id: calendarComponent; CalendarPage {} }
-    Component { id: todoComponent;     TodoPage {} }
+    Component {
+        id: todoComponent
+        TodoPage {
+            focusFilter: root.pendingTodoFilter
+        }
+    }
     Component {
         id: settingsComponent
         SettingsPage {
             onLockRequested: session.lock()
         }
     }
+
     Component.onCompleted: {
         if (typeof settingsController !== "undefined" && settingsController.startPage)
             activeKey = settingsController.startPage

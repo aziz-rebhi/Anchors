@@ -9,6 +9,7 @@ Page {
     property var allTasks: []
     property var allProjects: []
     property string currentProjectId: ""
+    property string focusFilter: ""   // "" | "overdue"
 
     readonly property var colorPalette: [
         "#f38ba8", "#fab387", "#f9e2af", "#a6e3a1",
@@ -32,6 +33,11 @@ Page {
         function onProjectsChanged() { root.refresh() }
     }
 
+    function isOverdue(t) {
+        var due = t.dueAt || 0
+        return due > 0 && due < (Date.now() / 1000)
+    }
+
     function tasksForProject(pid) {
         return allTasks.filter(function (t) {
             var p = t.projectId || ""
@@ -40,8 +46,21 @@ Page {
     }
 
     readonly property var currentTasks: tasksForProject(currentProjectId)
-    readonly property var openTasks: currentTasks.filter(function (t) { return !t.done })
-    readonly property var completedTasks: currentTasks.filter(function (t) { return t.done })
+
+    // Overdue view: all projects; otherwise current project only
+    readonly property var openTasks: {
+        var source = (focusFilter === "overdue") ? allTasks : currentTasks
+        var list = source.filter(function (t) { return !t.done })
+        if (focusFilter === "overdue")
+            list = list.filter(function (t) { return root.isOverdue(t) })
+        return list
+    }
+
+    readonly property var completedTasks: {
+        if (focusFilter === "overdue")
+            return []
+        return currentTasks.filter(function (t) { return t.done })
+    }
 
     readonly property var inboxCount: allTasks.filter(function (t) {
         return !t.done && (!t.projectId || t.projectId === "")
@@ -95,8 +114,11 @@ Page {
                     title: "Inbox"
                     accent: theme.tertiary
                     count: root.inboxCount
-                    selected: root.currentProjectId === ""
-                    onClicked: root.currentProjectId = ""
+                    selected: root.currentProjectId === "" && root.focusFilter !== "overdue"
+                    onClicked: {
+                        root.focusFilter = ""
+                        root.currentProjectId = ""
+                    }
                 }
 
                 RowLayout {
@@ -155,8 +177,11 @@ Page {
                         title: modelData.name
                         accent: modelData.color || theme.tertiary
                         count: root.projectOpenCount(modelData.id)
-                        selected: root.currentProjectId === modelData.id
-                        onClicked: root.currentProjectId = modelData.id
+                        selected: root.currentProjectId === modelData.id && root.focusFilter !== "overdue"
+                        onClicked: {
+                            root.focusFilter = ""
+                            root.currentProjectId = modelData.id
+                        }
                         onPressAndHold: {
                             projectDialog.editId = modelData.id
                             projectDialog.editName = modelData.name
@@ -189,15 +214,21 @@ Page {
                         width: 4
                         height: 28
                         radius: 2
-                        color: root.currentProjectMeta().color || theme.tertiary
+                        color: root.focusFilter === "overdue"
+                               ? theme.danger
+                               : (root.currentProjectMeta().color || theme.tertiary)
                     }
                     Text {
-                        text: (root.currentProjectMeta().emoji || "") + " "
+                        text: root.focusFilter === "overdue"
+                              ? "⚠️ "
+                              : ((root.currentProjectMeta().emoji || "") + " ")
                         font.pixelSize: 22
                         font.family: "Noto Color Emoji"
                     }
                     Label {
-                        text: root.currentProjectMeta().name || "Inbox"
+                        text: root.focusFilter === "overdue"
+                              ? "Overdue"
+                              : (root.currentProjectMeta().name || "Inbox")
                         color: theme.textPrimary
                         font.family: theme.headlineFont
                         font.pixelSize: 24
@@ -211,7 +242,7 @@ Page {
                     }
 
                     Rectangle {
-                        visible: root.currentProjectId.length > 0
+                        visible: root.currentProjectId.length > 0 && root.focusFilter !== "overdue"
                         width: 32
                         height: 32
                         radius: 8
@@ -244,12 +275,50 @@ Page {
                 }
             }
 
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                Layout.topMargin: 8
+                visible: root.focusFilter === "overdue"
+                height: visible ? 36 : 0
+                radius: 8
+                color: Qt.rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.12)
+                border.color: Qt.rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.35)
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    Label {
+                        text: "Showing overdue tasks across all projects"
+                        color: theme.danger
+                        font.pixelSize: 12
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: "Clear"
+                        color: theme.tertiary
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.focusFilter = ""
+                        }
+                    }
+                }
+            }
+
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
                 Layout.topMargin: 8
                 spacing: 8
+                visible: root.focusFilter !== "overdue"
 
                 StyledTextField {
                     id: newTaskField
@@ -303,7 +372,7 @@ Page {
                     spacing: 6
 
                     Label {
-                        text: "Active"
+                        text: root.focusFilter === "overdue" ? "Overdue" : "Active"
                         color: theme.textMuted
                         font.pixelSize: 11
                         visible: root.openTasks.length > 0
@@ -317,14 +386,18 @@ Page {
                             taskId: modelData.id
                             title: modelData.title || ""
                             done: false
-                            accent: root.currentProjectMeta().color || theme.tertiary
+                            accent: root.focusFilter === "overdue"
+                                    ? theme.danger
+                                    : (root.currentProjectMeta().color || theme.tertiary)
                             onToggle: taskController.setDone(taskId, true)
                             onRemove: taskController.deleteEntry(taskId)
                         }
                     }
 
                     Label {
-                        text: "No active tasks"
+                        text: root.focusFilter === "overdue"
+                              ? "No overdue tasks"
+                              : "No active tasks"
                         color: theme.textMuted
                         font.pixelSize: 13
                         visible: root.openTasks.length === 0
@@ -466,9 +539,6 @@ Page {
                             projectDialog.close()
                         }
                     }
-                    ToolTip.visible: delMa.containsMouse
-                    ToolTip.text: "Delete project"
-                    ToolTip.delay: 400
                 }
 
                 Item { Layout.fillWidth: true }
@@ -478,7 +548,6 @@ Page {
                     height: 36
                     radius: 8
                     color: cancelMa.containsMouse ? theme.hoverFill : "transparent"
-
                     Text {
                         anchors.centerIn: parent
                         text: "✕"
@@ -499,7 +568,6 @@ Page {
                     height: 36
                     radius: 8
                     color: theme.tertiary
-
                     Text {
                         anchors.centerIn: parent
                         text: "✓"

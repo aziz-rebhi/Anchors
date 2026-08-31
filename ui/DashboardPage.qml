@@ -7,607 +7,943 @@ Page {
 
     Theme { id: theme }
 
-    readonly property color cardBg: theme.surfaceAlt
-    readonly property color cardBorder: theme.border
-    readonly property color cardShadow: Qt.rgba(0, 0, 0, 0.5)
-    readonly property color subtleBg: "#111311"
-
     property var openTasks: []
     property var upcomingEvents: []
+    property var recentNotes: []
+    property var weekDays: []
     property int overdueCount: 0
+    property int vaultCount: 0
+    property int notesCount: 0
+    property string profileName: ""
+    property string todoFocusFilter: ""
 
-    signal navigateRequested(string pageName)
+    signal navigateRequested(string pageName, string filter)
+
+    readonly property string greeting: {
+        var h = new Date().getHours()
+        if (h < 12) return "Good morning"
+        if (h < 18) return "Good afternoon"
+        return "Good evening"
+    }
+
+    readonly property string todayLabel: Qt.formatDate(new Date(), "dddd, MMMM d")
+
+    function tDue(t) {
+        if (!t) return 0
+        return t.dueAt || 0
+    }
+
+    function startOfDay(d) {
+        var x = new Date(d)
+        x.setHours(0, 0, 0, 0)
+        return x
+    }
+
+    function priorityScore(t) {
+        var due = tDue(t)
+        if (due <= 0) return 5000000000
+        var now = Date.now() / 1000
+        var day = 86400
+        if (due < now) return due
+        var todayEnd = startOfDay(new Date()).getTime() / 1000 + day
+        if (due < todayEnd) return 1000000000 + due
+        if (due < now + 7 * day) return 2000000000 + due
+        return 3000000000 + due
+    }
+
+    function projectMeta(projectId) {
+        var fallback = { name: "Inbox", emoji: "📥", color: theme.tertiary }
+        if (!projectId) return fallback
+        if (typeof taskController === "undefined" || !taskController)
+            return fallback
+        try {
+            var projects = taskController.projects()
+            if (!projects) return fallback
+            for (var i = 0; i < projects.length; i++) {
+                if (projects[i].id === projectId)
+                    return projects[i]
+            }
+        } catch (e) {}
+        return fallback
+    }
 
     function refreshTasks() {
-        var all = taskController.entries()
-        var open = all.filter(function (t) { return !t.done })
-        open.sort(function (a, b) { return (a.dueAt || Infinity) - (b.dueAt || Infinity) })
-        openTasks = open.slice(0, 4)
+        if (typeof taskController === "undefined" || !taskController)
+            return
+        var all = taskController.entries() || []
+        var open = all.filter(function (t) { return t && !t.done })
+        open.sort(function (a, b) {
+            return priorityScore(a) - priorityScore(b)
+        })
+        openTasks = open.slice(0, 5)
 
         var nowSecs = Date.now() / 1000
-        overdueCount = open.filter(function (t) { return t.dueAt > 0 && t.dueAt < nowSecs }).length
+        overdueCount = open.filter(function (t) {
+            return tDue(t) > 0 && tDue(t) < nowSecs
+        }).length
     }
 
     function refreshEvents() {
-        var all = calendarController.entries()
+        if (typeof calendarController === "undefined" || !calendarController) {
+            upcomingEvents = []
+            buildWeekStrip([])
+            return
+        }
+        var all = calendarController.entries() || []
         var nowSecs = Date.now() / 1000
         var upcoming = all.filter(function (e) {
+            if (!e || e.start === undefined || e.start === null)
+                return false
             return new Date(e.start).getTime() / 1000 >= nowSecs - 3600
         })
-        upcoming.sort(function (a, b) { return new Date(a.start) - new Date(b.start) })
-        upcomingEvents = upcoming.slice(0, 3)
+        upcoming.sort(function (a, b) {
+            return new Date(a.start) - new Date(b.start)
+        })
+        upcomingEvents = upcoming.slice(0, 4)
+        buildWeekStrip(all)
     }
 
-    Component.onCompleted: {
+    function buildWeekStrip(allEvents) {
+        var events = allEvents || []
+        var days = []
+        var base = startOfDay(new Date())
+        for (var i = 0; i < 7; i++) {
+            var d = new Date(base)
+            d.setDate(base.getDate() + i)
+            var dayStart = d.getTime()
+            var dayEnd = dayStart + 86400000
+            var count = 0
+            for (var j = 0; j < events.length; j++) {
+                if (!events[j] || events[j].start === undefined)
+                    continue
+                var t = new Date(events[j].start).getTime()
+                if (t >= dayStart && t < dayEnd)
+                    count++
+            }
+            days.push({
+                label: Qt.formatDate(d, "ddd"),
+                dayNum: d.getDate(),
+                isToday: i === 0,
+                eventCount: count
+            })
+        }
+        weekDays = days
+    }
+
+    function refreshNotes() {
+        if (typeof noteController === "undefined" || !noteController) {
+            notesCount = 0
+            recentNotes = []
+            return
+        }
+        var all = noteController.entries() || []
+        notesCount = all.length
+        var list = all.filter(function (n) {
+            return n && (n.title || "") !== "Scratchpad"
+        })
+        list.sort(function (a, b) {
+            return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+        })
+        recentNotes = list.slice(0, 3)
+    }
+
+    function refreshVault() {
+        vaultCount = 0
+        try {
+            if (typeof vaultController !== "undefined" && vaultController)
+                vaultCount = (vaultController.entries() || []).length
+        } catch (e) {}
+    }
+
+    function refreshProfile() {
+        profileName = ""
+        try {
+            if (typeof settingsController !== "undefined" && settingsController
+                    && settingsController.userName)
+                profileName = settingsController.userName
+        } catch (e) {}
+    }
+
+    function refreshAll() {
         refreshTasks()
         refreshEvents()
+        refreshNotes()
+        refreshVault()
+        refreshProfile()
+    }
+
+    function goTodo(filter) {
+        todoFocusFilter = filter || ""
+        navigateRequested("todo", todoFocusFilter)
+    }
+    function goNotes()    { navigateRequested("notes", "") }
+    function goCalendar() { navigateRequested("calendar", "") }
+    function goVault()    { navigateRequested("vault", "") }
+
+    function quickAddTask() {
+        if (typeof taskController === "undefined" || !taskController)
+            return
+        var t = quickField.text.trim()
+        if (!t.length) return
+        taskController.addEntry(t, 0, "")
+        quickField.text = ""
+        refreshTasks()
+    }
+
+    function nextEventMinutes() {
+        if (!upcomingEvents || upcomingEvents.length === 0)
+            return -1
+        var ev = upcomingEvents[0]
+        if (!ev || ev.start === undefined)
+            return -1
+        return Math.max(0, Math.round((new Date(ev.start) - new Date()) / 60000))
+    }
+
+    Component.onCompleted: refreshAll()
+
+    onVisibleChanged: {
+        if (visible)
+            refreshAll()
     }
 
     Connections {
-        target: taskController
+        target: typeof taskController !== "undefined" ? taskController : null
         function onEntriesChanged() { dashboardPage.refreshTasks() }
+        function onProjectsChanged() { dashboardPage.refreshTasks() }
     }
-
     Connections {
-        target: calendarController
+        target: typeof calendarController !== "undefined" ? calendarController : null
         function onEntriesChanged() { dashboardPage.refreshEvents() }
+    }
+    Connections {
+        target: typeof noteController !== "undefined" ? noteController : null
+        function onEntriesChanged() { dashboardPage.refreshNotes() }
+    }
+    Connections {
+        target: typeof vaultController !== "undefined" ? vaultController : null
+        function onEntriesChanged() { dashboardPage.refreshVault() }
     }
 
     background: Rectangle { color: theme.background }
 
     ScrollView {
+        id: scroll
         anchors.fill: parent
-        contentWidth: availableWidth
         clip: true
+        contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-        ColumnLayout {
-            width: parent.width
-            spacing: theme.spacingLarge
-            Layout.margins: 20
+        // Equal left/right margins
+        Item {
+            width: scroll.availableWidth
+            height: col.implicitHeight + 48
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 0
+            ColumnLayout {
+                id: col
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 8
+                width: Math.min(2200, parent.width - 32)
+                spacing: 18
 
-                ColumnLayout {
-                    spacing: 4
-
-                    Label {
-                        text: "MORNING OVERVIEW"
-                        color: theme.textMuted
-                        font.family: theme.labelFont
-                        font.pixelSize: 11
-                        font.letterSpacing: 1.5
-                        textFormat: Text.PlainText
-                        opacity: 0.6
-                    }
-                    Label {
-                        text: "Today"
-                        color: theme.textPrimary
-                        font.family: theme.headlineFont
-                        font.pixelSize: 32
-                        font.weight: Font.Bold
-                        font.letterSpacing: -0.5
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
+                // Header
                 RowLayout {
-                    spacing: 8
-                    // padding removed – RowLayout does not have that property
-                    Layout.alignment: Qt.AlignBottom
-                    Rectangle {
-                        width: 8
-                        height: 8
-                        radius: 4
-                        color: theme.tertiary
-                        layer.enabled: true
-                        layer.effect: null
+                    Layout.fillWidth: true
+                    ColumnLayout {
+                        spacing: 2
+                        Label {
+                            text: dashboardPage.greeting.toUpperCase()
+                                  + (dashboardPage.profileName.length
+                                     ? (", " + dashboardPage.profileName).toUpperCase()
+                                     : "")
+                            color: theme.textMuted
+                            font.pixelSize: 11
+                            font.letterSpacing: 1.1
+                            opacity: 0.8
+                        }
+                        Label {
+                            text: "Today"
+                            color: theme.textPrimary
+                            font.family: theme.headlineFont
+                            font.pixelSize: 30
+                            font.weight: Font.Bold
+                        }
+                        Label {
+                            text: dashboardPage.todayLabel
+                            color: theme.textSecondary
+                            font.pixelSize: 13
+                        }
                     }
-                    Label {
-                        text: "System Active"
-                        color: theme.textSecondary
-                        font.family: theme.bodyFont
-                        font.pixelSize: 12
-                        font.weight: Font.Medium
+                    Item { Layout.fillWidth: true }
+                    RowLayout {
+                        spacing: 8
+                        Layout.alignment: Qt.AlignBottom
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: theme.tertiary
+                        }
+                        Label {
+                            text: "System Active"
+                            color: theme.textSecondary
+                            font.pixelSize: 12
+                        }
                     }
                 }
-            }
 
-            GridLayout {
-                Layout.fillWidth: true
-                columnSpacing: 20
-                rowSpacing: 20
-                columns: 12
-
-                // Priority Tasks
+                // Week strip
                 Rectangle {
-                    Layout.columnSpan: 8
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: 320
-                    color: cardBg
-                    border.color: cardBorder
+                    height: 72
+                    radius: theme.radiusMedium
+                    color: theme.surfaceAlt
+                    border.color: theme.border
                     border.width: 1
-                    radius: 16
 
-                    ColumnLayout {
+                    RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 16
+                        anchors.margins: 10
+                        spacing: 6
+                        Repeater {
+                            model: dashboardPage.weekDays
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                radius: 10
+                                color: modelData.isToday
+                                       ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.15)
+                                       : "transparent"
+                                border.color: modelData.isToday ? theme.tertiary : "transparent"
+                                border.width: 1
 
-                        RowLayout {
-                            Layout.fillWidth: true
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 2
+                                    Label {
+                                        text: modelData.label
+                                        color: theme.textMuted
+                                        font.pixelSize: 10
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+                                    Label {
+                                        text: "" + modelData.dayNum
+                                        color: theme.textPrimary
+                                        font.pixelSize: 15
+                                        font.weight: Font.DemiBold
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+                                    Rectangle {
+                                        width: 5; height: 5; radius: 2.5
+                                        color: theme.tertiary
+                                        visible: modelData.eventCount > 0
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: dashboardPage.goCalendar()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Summary chips
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    SummaryChip {
+                        Layout.fillWidth: true
+                        title: "Vault"
+                        value: "" + dashboardPage.vaultCount
+                        subtitle: "entries"
+                        onClicked: dashboardPage.goVault()
+                    }
+                    SummaryChip {
+                        Layout.fillWidth: true
+                        title: "Notes"
+                        value: "" + dashboardPage.notesCount
+                        subtitle: "total"
+                        onClicked: dashboardPage.goNotes()
+                    }
+                    SummaryChip {
+                        Layout.fillWidth: true
+                        title: "Overdue"
+                        value: "" + dashboardPage.overdueCount
+                        subtitle: "tasks"
+                        accent: dashboardPage.overdueCount > 0 ? theme.danger : theme.tertiary
+                        onClicked: dashboardPage.goTodo("overdue")
+                    }
+                }
+
+                // Quick add
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    StyledTextField {
+                        id: quickField
+                        Layout.fillWidth: true
+                        placeholderText: "Quick add task to Inbox…"
+                        onAccepted: dashboardPage.quickAddTask()
+                    }
+                    Rectangle {
+                        width: 40; height: 40; radius: 20
+                        color: theme.tertiary
+                        Label {
+                            anchors.centerIn: parent
+                            text: "+"
+                            color: theme.onAccent
+                            font.pixelSize: 20
+                            font.bold: true
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: dashboardPage.quickAddTask()
+                        }
+                    }
+                }
+
+                // Priority + Action
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 16
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 2
+                        Layout.minimumHeight: 200
+                        implicitHeight: priorityCol.implicitHeight + 32
+                        color: theme.surfaceAlt
+                        border.color: theme.border
+                        border.width: 1
+                        radius: theme.radiusMedium
+
+                        ColumnLayout {
+                            id: priorityCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 16
+                            spacing: 10
 
                             RowLayout {
-                                spacing: 8
+                                Layout.fillWidth: true
                                 Label {
                                     text: "✓"
                                     color: theme.tertiary
-                                    font.pixelSize: 18
+                                    font.pixelSize: 16
+                                    font.bold: true
                                 }
                                 Label {
                                     text: "Priority Tasks"
                                     color: theme.textPrimary
                                     font.family: theme.headlineFont
-                                    font.pixelSize: 18
-                                    font.weight: Font.Medium
+                                    font.pixelSize: 17
+                                    font.weight: Font.DemiBold
                                 }
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            Button {
-                                text: "Add Task"
-                                font.family: theme.labelFont
-                                font.pixelSize: 12
-                                font.weight: Font.Medium
-                                background: Rectangle {
+                                Item { Layout.fillWidth: true }
+                                Rectangle {
                                     radius: 999
-                                    color: "#0B3D0B"
-                                }
-                                contentItem: Text {
-                                    text: parent.text
-                                    color: theme.tertiary
-                                    font: parent.font
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                padding: 10
-                                Layout.preferredHeight: 32
-                                onClicked: {
-                                    dashboardPage.navigateRequested("todo")
+                                    implicitHeight: 30
+                                    implicitWidth: addLbl.implicitWidth + 20
+                                    color: Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.18)
+                                    Label {
+                                        id: addLbl
+                                        anchors.centerIn: parent
+                                        text: "Open To-Do"
+                                        color: theme.tertiary
+                                        font.pixelSize: 12
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: dashboardPage.goTodo("")
+                                    }
                                 }
                             }
-                        }
-
-                        ColumnLayout {
-                            spacing: 8
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
 
                             Repeater {
                                 model: dashboardPage.openTasks
-
                                 delegate: Rectangle {
                                     Layout.fillWidth: true
-                                    height: 48
-                                    color: "transparent"
-                                    radius: 8
+                                    height: 52
+                                    radius: 10
+                                    color: rowMa.containsMouse ? theme.hoverFill : "transparent"
+
+                                    readonly property var proj: dashboardPage.projectMeta(
+                                        modelData ? modelData.projectId : "")
 
                                     RowLayout {
                                         anchors.fill: parent
                                         anchors.leftMargin: 4
-                                        spacing: 12
+                                        anchors.rightMargin: 8
+                                        spacing: 10
 
                                         Rectangle {
-                                            width: 20
-                                            height: 20
-                                            radius: 4
-                                            border.color: "#42493e"
-                                            border.width: 1
+                                            width: 20; height: 20; radius: 6
+                                            border.color: theme.tertiary
+                                            border.width: 1.5
                                             color: "transparent"
-
+                                            Layout.alignment: Qt.AlignVCenter
                                             MouseArea {
                                                 anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    taskController.setDone(modelData.id, true)
+                                                    if (modelData && taskController)
+                                                        taskController.setDone(modelData.id, true)
                                                 }
                                             }
                                         }
 
-                                        Label {
-                                            text: modelData.title
-                                            color: index === 0 ? theme.textPrimary : theme.textSecondary
-                                            font.family: theme.bodyFont
-                                            font.pixelSize: 15
+                                        ColumnLayout {
                                             Layout.fillWidth: true
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Label {
-                                            text: modelData.dueAt > 0
-                                                  ? "Due " + Qt.formatDateTime(new Date(modelData.dueAt * 1000), "h:mm AP")
-                                                  : ""
-                                            color: theme.textMuted
-                                            font.family: theme.labelFont
-                                            font.pixelSize: 11
-                                            opacity: 0.7
+                                            spacing: 2
+                                            Label {
+                                                text: modelData ? (modelData.title || "") : ""
+                                                color: theme.textPrimary
+                                                font.pixelSize: 14
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                            RowLayout {
+                                                spacing: 6
+                                                Text {
+                                                    text: (proj && proj.emoji) ? proj.emoji : "📥"
+                                                    font.pixelSize: 11
+                                                    font.family: "Noto Color Emoji"
+                                                }
+                                                Label {
+                                                    text: (proj && proj.name) ? proj.name : "Inbox"
+                                                    color: theme.textMuted
+                                                    font.pixelSize: 11
+                                                }
+                                                Label {
+                                                    visible: modelData && (modelData.dueAt || 0) > 0
+                                                    text: {
+                                                        if (!modelData) return ""
+                                                        var d = modelData.dueAt
+                                                        var now = Date.now() / 1000
+                                                        if (d < now) return "· Overdue"
+                                                        return "· Due " + Qt.formatDateTime(
+                                                            new Date(d * 1000), "MMM d, h:mm AP")
+                                                    }
+                                                    color: modelData && (modelData.dueAt || 0) < Date.now() / 1000
+                                                           ? theme.danger : theme.textMuted
+                                                    font.pixelSize: 11
+                                                }
+                                            }
                                         }
                                     }
 
                                     MouseArea {
+                                        id: rowMa
                                         anchors.fill: parent
                                         hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
                                         z: -1
-                                        onEntered: parent.color = Qt.rgba(0.2, 0.2, 0.2, 0.3)
-                                        onExited: parent.color = "transparent"
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: dashboardPage.goTodo("")
                                     }
                                 }
                             }
 
                             Label {
-                                text: "No open tasks. Nice."
                                 visible: dashboardPage.openTasks.length === 0
+                                text: "No open tasks. You're clear."
                                 color: theme.textMuted
-                                font.family: theme.bodyFont
                                 font.pixelSize: 13
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 1
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.minimumWidth: 200
+                        Layout.maximumWidth: 280
+                        Layout.minimumHeight: 200
+                        color: theme.surfaceAlt
+                        border.color: theme.border
+                        border.width: 1
+                        radius: theme.radiusMedium
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 10
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 3
+                                radius: 2
+                                color: dashboardPage.overdueCount > 0 ? theme.danger : theme.tertiary
+                            }
+
+                            Label {
+                                text: dashboardPage.overdueCount > 0 ? "Action Required" : "All clear"
+                                color: theme.textPrimary
+                                font.family: theme.headlineFont
+                                font.pixelSize: 16
+                                font.weight: Font.DemiBold
                             }
 
                             Item { Layout.fillHeight: true }
-                        }
-                    }
-                }
 
-                // Action Required
-                Rectangle {
-                    Layout.columnSpan: 4
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: 320
-                    color: cardBg
-                    border.color: cardBorder
-                    border.width: 1
-                    radius: 16
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 12
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 4
-                            color: "#E0574C"
-                            radius: 2
-                        }
-
-                        RowLayout {
-                            spacing: 8
                             Label {
-                                text: "⚠"
-                                color: theme.danger
-                                font.pixelSize: 18
-                            }
-                            Label {
-                                text: "Action Required"
+                                text: "" + dashboardPage.overdueCount
                                 color: theme.textPrimary
-                                font.family: theme.headlineFont
-                                font.pixelSize: 18
-                                font.weight: Font.Medium
-                            }
-                        }
-
-                        Item { Layout.fillHeight: true }
-
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignCenter
-                            spacing: 4
-
-                            Label {
-                                text: dashboardPage.overdueCount
-                                color: theme.textPrimary
-                                font.family: theme.headlineFont
-                                font.pixelSize: 56
+                                font.pixelSize: 48
                                 font.weight: Font.Bold
                                 Layout.alignment: Qt.AlignHCenter
+                                opacity: dashboardPage.overdueCount > 0 ? 1 : 0.4
                             }
                             Label {
-                                text: dashboardPage.overdueCount === 1
-                                      ? "task is overdue."
-                                      : "tasks are overdue."
+                                text: dashboardPage.overdueCount === 0
+                                      ? "No overdue tasks."
+                                      : (dashboardPage.overdueCount === 1
+                                         ? "task is overdue." : "tasks are overdue.")
                                 color: theme.textSecondary
-                                font.family: theme.bodyFont
                                 font.pixelSize: 13
-                                wrapMode: Text.WordWrap
                                 horizontalAlignment: Text.AlignHCenter
-                                Layout.maximumWidth: parent.width
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.fillWidth: true
                             }
-                        }
 
-                        Item { Layout.fillHeight: true }
+                            Item { Layout.fillHeight: true }
 
-                        Button {
-                            text: "Review Actions"
-                            flat: true
-                            Layout.fillWidth: true
-                            font.family: theme.labelFont
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            background: Rectangle {
-                                color: "transparent"
-                                border.color: cardBorder
-                                border.width: 1
-                                radius: 8
-                            }
-                            contentItem: Text {
-                                text: parent.text
-                                color: theme.textPrimary
-                                font: parent.font
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            padding: 10
-                            onClicked: {
-                                dashboardPage.navigateRequested("todo")
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 36
+                                radius: 10
+                                border.color: theme.border
+                                color: dashboardPage.overdueCount > 0
+                                       ? Qt.rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.12)
+                                       : "transparent"
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: "Review Actions"
+                                    color: theme.textPrimary
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: dashboardPage.goTodo(
+                                        dashboardPage.overdueCount > 0 ? "overdue" : "")
+                                }
                             }
                         }
                     }
                 }
 
-                // Schedule
-                Rectangle {
-                    Layout.columnSpan: 7
+                // Schedule + Scratchpad (fixed equal height)
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: 280
-                    color: cardBg
-                    border.color: cardBorder
-                    border.width: 1
-                    radius: 16
+                    spacing: 16
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 16
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 7
+                        Layout.preferredHeight: 260
+                        Layout.minimumHeight: 260
+                        color: theme.surfaceAlt
+                        border.color: theme.border
+                        border.width: 1
+                        radius: theme.radiusMedium
 
-                        RowLayout {
-                            Layout.fillWidth: true
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 10
+
                             RowLayout {
-                                spacing: 8
+                                Layout.fillWidth: true
                                 Label {
                                     text: "📅"
-                                    color: theme.textPrimary
-                                    font.pixelSize: 18
+                                    font.family: "Noto Color Emoji"
+                                    font.pixelSize: 16
                                 }
                                 Label {
                                     text: "Schedule"
                                     color: theme.textPrimary
                                     font.family: theme.headlineFont
-                                    font.pixelSize: 18
-                                    font.weight: Font.Medium
+                                    font.pixelSize: 17
+                                    font.weight: Font.DemiBold
+                                }
+                                Item { Layout.fillWidth: true }
+                                Label {
+                                    visible: dashboardPage.nextEventMinutes() >= 0
+                                    text: "Next: " + dashboardPage.nextEventMinutes() + "m"
+                                    color: theme.textMuted
+                                    font.pixelSize: 11
                                 }
                             }
-                            Item { Layout.fillWidth: true }
-                            Label {
-                                text: {
-                                    if (dashboardPage.upcomingEvents.length === 0) return ""
-                                    var mins = Math.max(0, Math.round((new Date(dashboardPage.upcomingEvents[0].start) - new Date()) / 60000))
-                                    return "Next: " + mins + "m"
-                                }
-                                color: theme.textMuted
-                                font.family: theme.labelFont
-                                font.pixelSize: 11
-                                font.weight: Font.Medium
-                            }
-                        }
 
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
+                            Flickable {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+                                contentHeight: scheduleInner.implicitHeight
+                                boundsBehavior: Flickable.StopAtBounds
 
-                            ColumnLayout {
-                                anchors.fill: parent
-                                spacing: 16
+                                ColumnLayout {
+                                    id: scheduleInner
+                                    width: parent.width
+                                    spacing: 8
 
-                                Repeater {
-                                    model: dashboardPage.upcomingEvents
-
-                                    delegate: RowLayout {
-                                        spacing: 12
-                                        Layout.fillWidth: true
-
-                                        Label {
-                                            text: Qt.formatDateTime(new Date(modelData.start), "h:mm AP")
-                                            color: theme.textSecondary
-                                            font.family: theme.bodyFont
-                                            font.pixelSize: 12
-                                            font.weight: Font.Medium
-                                            width: 60
-                                            horizontalAlignment: Text.AlignRight
-                                        }
-
-                                        Item {
-                                            width: 16
-                                            height: 16
-                                            Rectangle {
-                                                width: 8
-                                                height: 8
-                                                radius: 4
-                                                color: index === 0 ? theme.tertiary : theme.textMuted
-                                                anchors.centerIn: parent
-                                                Rectangle {
-                                                    width: 16
-                                                    height: 16
-                                                    radius: 8
-                                                    color: "transparent"
-                                                    border.color: Qt.rgba(1,1,1,0.1)
-                                                    border.width: 4
-                                                    anchors.centerIn: parent
-                                                }
-                                            }
-                                            Rectangle {
-                                                visible: index === 0 && dashboardPage.upcomingEvents.length > 1
-                                                width: 1
-                                                height: parent.parent.height - parent.y - 16
-                                                color: cardBorder
-                                                anchors.top: parent.bottom
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-                                        }
-
-                                        Rectangle {
+                                    Repeater {
+                                        model: dashboardPage.upcomingEvents
+                                        delegate: Rectangle {
                                             Layout.fillWidth: true
-                                            height: 64
-                                            color: index === 0 ? subtleBg : "transparent"
-                                            border.color: index === 0 ? cardBorder : "transparent"
+                                            height: 56
+                                            radius: 10
+                                            color: index === 0
+                                                   ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.08)
+                                                   : "transparent"
+                                            border.color: index === 0 ? theme.border : "transparent"
                                             border.width: 1
-                                            radius: 8
-                                            ColumnLayout {
+
+                                            RowLayout {
                                                 anchors.fill: parent
-                                                anchors.margins: 8
-                                                spacing: 2
+                                                anchors.margins: 10
+                                                spacing: 12
                                                 Label {
-                                                    text: modelData.title
-                                                    color: index === 0 ? theme.textPrimary : theme.textSecondary
-                                                    font.family: theme.headlineFont
-                                                    font.pixelSize: 14
-                                                    font.weight: Font.Medium
-                                                    elide: Text.ElideRight
-                                                }
-                                                Label {
-                                                    text: modelData.description
-                                                    color: theme.textMuted
-                                                    font.family: theme.bodyFont
+                                                    text: modelData && modelData.start !== undefined
+                                                          ? Qt.formatDateTime(new Date(modelData.start), "h:mm AP")
+                                                          : ""
+                                                    color: theme.textSecondary
                                                     font.pixelSize: 12
-                                                    elide: Text.ElideRight
+                                                    Layout.preferredWidth: 72
                                                 }
+                                                Rectangle {
+                                                    width: 8; height: 8; radius: 4
+                                                    color: index === 0 ? theme.tertiary : theme.textMuted
+                                                }
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 2
+                                                    Label {
+                                                        text: modelData ? (modelData.title || "") : ""
+                                                        color: theme.textPrimary
+                                                        font.pixelSize: 14
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                    }
+                                                    Label {
+                                                        text: modelData ? (modelData.description || "") : ""
+                                                        color: theme.textMuted
+                                                        font.pixelSize: 12
+                                                        visible: modelData && (modelData.description || "").length > 0
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                    }
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: dashboardPage.goCalendar()
                                             }
                                         }
                                     }
-                                }
 
-                                Label {
-                                    text: "Nothing on the calendar yet."
-                                    visible: dashboardPage.upcomingEvents.length === 0
-                                    color: theme.textMuted
-                                    font.family: theme.bodyFont
-                                    font.pixelSize: 13
+                                    Label {
+                                        visible: dashboardPage.upcomingEvents.length === 0
+                                        text: "Nothing on the calendar yet."
+                                        color: theme.textMuted
+                                        font.pixelSize: 13
+                                        Layout.topMargin: 8
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // Scratchpad
-                Rectangle {
-                    Layout.columnSpan: 5
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: 280
-                    color: cardBg
-                    border.color: cardBorder
-                    border.width: 1
-                    radius: 16
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 5
+                        Layout.preferredHeight: 260
+                        Layout.minimumHeight: 260
+                        color: theme.surfaceAlt
+                        border.color: theme.border
+                        border.width: 1
+                        radius: theme.radiusMedium
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 12
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 8
 
-                        RowLayout {
-                            Layout.fillWidth: true
                             RowLayout {
-                                spacing: 8
+                                Layout.fillWidth: true
                                 Label {
                                     text: "📝"
-                                    color: theme.textPrimary
-                                    font.pixelSize: 18
+                                    font.family: "Noto Color Emoji"
+                                    font.pixelSize: 16
                                 }
                                 Label {
                                     text: "Scratchpad"
                                     color: theme.textPrimary
                                     font.family: theme.headlineFont
-                                    font.pixelSize: 18
-                                    font.weight: Font.Medium
+                                    font.pixelSize: 17
+                                    font.weight: Font.DemiBold
+                                }
+                                Item { Layout.fillWidth: true }
+                                Label {
+                                    text: "↗"
+                                    color: theme.textMuted
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        anchors.margins: -6
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: dashboardPage.goNotes()
+                                    }
                                 }
                             }
-                            Item { Layout.fillWidth: true }
-                            Button {
-                                text: "↗"
-                                flat: true
-                                font.pixelSize: 16
-                                onClicked: {
-                                    console.log("Open scratchpad full view")
+
+                            TextArea {
+                                id: scratchpadArea
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                placeholderText: "Capture thoughts quickly..."
+                                placeholderTextColor: theme.textMuted
+                                color: theme.textPrimary
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                                selectByMouse: true
+                                padding: 10
+                                background: Rectangle {
+                                    color: theme.surface
+                                    border.color: theme.border
+                                    radius: 10
                                 }
-                            }
-                        }
-
-                        TextArea {
-                            id: scratchpadArea
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            placeholderText: "Capture thoughts quickly..."
-                            placeholderTextColor: theme.textMuted
-                            color: theme.textPrimary
-                            font.family: theme.bodyFont
-                            font.pixelSize: 14
-                            background: Rectangle {
-                                color: subtleBg
-                                border.color: cardBorder
-                                border.width: 1
-                                radius: 8
-                            }
-                            wrapMode: Text.WordWrap
-                            selectByMouse: true
-                            padding: 12
-
-                            property string noteId: ""
-                            property bool loading: true
-
-                            function load() {
-                                loading = true
-                                var all = noteController.entries()
-                                for (var i = 0; i < all.length; i++) {
-                                    if (all[i].title === "Scratchpad") {
-                                        noteId = all[i].id
-                                        text = all[i].content
+                                property string noteId: ""
+                                property bool loading: true
+                                function load() {
+                                    loading = true
+                                    if (typeof noteController === "undefined" || !noteController) {
+                                        noteId = ""
+                                        text = ""
                                         loading = false
                                         return
                                     }
+                                    var all = noteController.entries() || []
+                                    for (var i = 0; i < all.length; i++) {
+                                        if (all[i].title === "Scratchpad") {
+                                            noteId = all[i].id
+                                            text = all[i].content || ""
+                                            loading = false
+                                            return
+                                        }
+                                    }
+                                    noteId = ""
+                                    text = ""
+                                    loading = false
                                 }
-                                noteId = ""
-                                text = ""
-                                loading = false
+                                Component.onCompleted: load()
+                                onTextChanged: if (!loading) saveTimer.restart()
+                                Timer {
+                                    id: saveTimer
+                                    interval: 800
+                                    onTriggered: {
+                                        if (!noteController) return
+                                        if (scratchpadArea.noteId.length > 0)
+                                            noteController.updateEntry(
+                                                scratchpadArea.noteId, "Scratchpad", scratchpadArea.text)
+                                        else if (scratchpadArea.text.trim().length > 0) {
+                                            noteController.addEntry("Scratchpad", scratchpadArea.text)
+                                            scratchpadArea.load()
+                                        }
+                                    }
+                                }
                             }
 
-                            Component.onCompleted: load()
-
-                            onTextChanged: {
-                                if (loading) return
-                                saveTimer.restart()
+                            Label {
+                                text: "Recent notes"
+                                color: theme.textMuted
+                                font.pixelSize: 11
+                                visible: dashboardPage.recentNotes.length > 0
                             }
-
-                            Timer {
-                                id: saveTimer
-                                interval: 800
-                                onTriggered: {
-                                    if (scratchpadArea.noteId.length > 0) {
-                                        noteController.updateEntry(scratchpadArea.noteId, "Scratchpad", scratchpadArea.text)
-                                    } else {
-                                        noteController.addEntry("Scratchpad", scratchpadArea.text)
-                                        scratchpadArea.load()
+                            Repeater {
+                                model: dashboardPage.recentNotes
+                                delegate: Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 28
+                                    radius: 6
+                                    color: nMa.containsMouse ? theme.hoverFill : "transparent"
+                                    Label {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: 6
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 6
+                                        text: modelData ? (modelData.title || "Untitled") : ""
+                                        color: theme.textSecondary
+                                        font.pixelSize: 12
+                                        elide: Text.ElideRight
+                                    }
+                                    MouseArea {
+                                        id: nMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: dashboardPage.goNotes()
                                     }
                                 }
                             }
                         }
                     }
                 }
+
+                Item { Layout.preferredHeight: 24 }
             }
+        }
+    }
+
+    component SummaryChip: Rectangle {
+        property string title: ""
+        property string value: "0"
+        property string subtitle: ""
+        property color accent: theme.tertiary
+        signal clicked()
+
+        height: 64
+        radius: theme.radiusMedium
+        color: theme.surfaceAlt
+        border.color: theme.border
+        border.width: 1
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 10
+            ColumnLayout {
+                spacing: 2
+                Layout.fillWidth: true
+                Label {
+                    text: title
+                    color: theme.textMuted
+                    font.pixelSize: 11
+                }
+                Label {
+                    text: value
+                    color: theme.textPrimary
+                    font.pixelSize: 20
+                    font.weight: Font.DemiBold
+                }
+            }
+            Label {
+                text: subtitle
+                color: theme.textMuted
+                font.pixelSize: 11
+            }
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.clicked()
         }
     }
 }
