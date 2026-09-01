@@ -7,14 +7,10 @@ Page {
 
     Theme { id: theme }
 
-    // Emitted once the password is verified and the Session is unlocked.
     signal unlocked(string name)
-    // Not wired to anything yet - the mockup shows it, but the README
-    // states there's deliberately no recovery mechanism if you lose your
-    // master password. Flagging that conflict rather than guessing at
-    // what this should do; happy to wire it up once you tell me the
-    // intent (e.g. a "quit app" action, or something else entirely).
     signal emergencyOverrideRequested()
+
+    property bool passwordVisible: false
 
     background: Rectangle { color: theme.background }
 
@@ -23,14 +19,11 @@ Page {
         spacing: 20
         width: Math.min(parent.width * 0.8, 340)
 
-        // --- glow + padlock icon ---
         Item {
             Layout.alignment: Qt.AlignHCenter
             width: 96
             height: 96
 
-            // Soft radial glow, faked with stacked translucent circles
-            // (no GraphicalEffects dependency needed).
             Repeater {
                 model: 3
                 Rectangle {
@@ -69,8 +62,6 @@ Page {
                         y: 0
                     }
                     Rectangle {
-                        // masks the bottom half of the ring above so only
-                        // the shackle's top arc is visible
                         width: 24
                         height: 10
                         color: parent.parent.color
@@ -106,13 +97,44 @@ Page {
             Layout.alignment: Qt.AlignHCenter
         }
 
-        StyledTextField {
-            id: passwordField
-            placeholderText: "Enter passphrase"
-            echoMode: TextInput.Password
+        RowLayout {
             Layout.fillWidth: true
             Layout.topMargin: 8
-            onAccepted: unlockButton.clicked()
+            spacing: 8
+
+            StyledTextField {
+                id: passwordField
+                placeholderText: "Enter passphrase"
+                echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
+                Layout.fillWidth: true
+                onAccepted: unlockButton.clicked()
+            }
+
+            Rectangle {
+                width: 40
+                height: 40
+                radius: 10
+                color: eyeMa.containsMouse ? theme.hoverFill : theme.surfaceAlt
+                border.color: theme.border
+                border.width: 1
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root.passwordVisible ? "🙈" : "👁"
+                    font.pixelSize: 16
+                    font.family: "Noto Color Emoji"
+                }
+                MouseArea {
+                    id: eyeMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.passwordVisible = !root.passwordVisible
+                }
+                ToolTip.visible: eyeMa.containsMouse
+                ToolTip.text: root.passwordVisible ? "Hide password" : "Show password"
+                ToolTip.delay: 300
+            }
         }
 
         Label {
@@ -134,6 +156,7 @@ Page {
                 if (authController.tryUnlock(passwordField.text)) {
                     var name = authController.currentUserName()
                     passwordField.text = ""
+                    root.passwordVisible = false
                     root.unlocked(name)
                 }
             }
@@ -161,6 +184,7 @@ Page {
         function onUnlockFailed() {
             errorLabel.visible = true
             passwordField.text = ""
+            root.passwordVisible = false
             passwordField.forceActiveFocus()
         }
     }

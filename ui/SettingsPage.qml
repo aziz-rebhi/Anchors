@@ -166,12 +166,16 @@ Page {
 
                 GroupRow {
                     title: "Theme"
-                    subtitle: settingsController.themeId === "light"
-                              ? "Light theme is active" : "Dark theme is active"
-                    trailing: ThemeSlider {
-                        valueIsLight: settingsController.themeId === "light"
-                        onToggled: function (light) {
-                            settingsController.themeId = light ? "light" : "dark"
+                    subtitle: {
+                        var id = settingsController.themeId
+                        if (id === "light") return "Light theme is active"
+                        if (id === "system") return "Following system appearance"
+                        return "Dark theme is active"
+                    }
+                    trailing: ThemeModePicker {
+                        mode: settingsController.themeId
+                        onModePicked: function (m) {
+                            settingsController.themeId = m
                         }
                     }
                 }
@@ -557,25 +561,32 @@ Page {
         onActivated: valuePicked(model[currentIndex].v)
     }
 
-    component ThemeSlider: Rectangle {
-        id: slider
-        property bool valueIsLight: false
-        signal toggled(bool light)
+    component ThemeModePicker: Rectangle {
+        id: picker
+        property string mode: "dark"   // dark | system | light
+        signal modePicked(string m)
 
-        implicitWidth: 112
+        readonly property var modes: ["dark", "system", "light"]
+        readonly property var labels: ["Dark", "System", "Light"]
+
+        implicitWidth: 168
         implicitHeight: 28
         radius: height / 2
         color: theme.isDark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.06)
         border.color: theme.border
         border.width: 1
 
+        readonly property int idx: {
+            var i = modes.indexOf(mode)
+            return i >= 0 ? i : 0
+        }
+
         Rectangle {
-            id: thumb
-            width: parent.width / 2 - 3
+            width: parent.width / 3 - 2
             height: parent.height - 6
             radius: height / 2
             anchors.verticalCenter: parent.verticalCenter
-            x: slider.valueIsLight ? parent.width / 2 + 1 : 3
+            x: 2 + picker.idx * (parent.width / 3)
             color: theme.surface
             border.color: theme.border
             border.width: 1
@@ -584,25 +595,18 @@ Page {
 
         Row {
             anchors.fill: parent
-            Text {
-                width: parent.width / 2
-                height: parent.height
-                text: "Dark"
-                font.pixelSize: 11
-                font.weight: !slider.valueIsLight ? Font.DemiBold : Font.Normal
-                color: !slider.valueIsLight ? theme.textPrimary : theme.textMuted
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-            Text {
-                width: parent.width / 2
-                height: parent.height
-                text: "Light"
-                font.pixelSize: 11
-                font.weight: slider.valueIsLight ? Font.DemiBold : Font.Normal
-                color: slider.valueIsLight ? theme.textPrimary : theme.textMuted
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            Repeater {
+                model: 3
+                Text {
+                    width: picker.width / 3
+                    height: picker.height
+                    text: picker.labels[index]
+                    font.pixelSize: 10
+                    font.weight: picker.idx === index ? Font.DemiBold : Font.Normal
+                    color: picker.idx === index ? theme.textPrimary : theme.textMuted
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
             }
         }
 
@@ -610,9 +614,10 @@ Page {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                var light = mouseX > width / 2
-                if (light !== slider.valueIsLight)
-                    slider.toggled(light)
+                var i = Math.min(2, Math.max(0, Math.floor(mouseX / (width / 3))))
+                var m = picker.modes[i]
+                if (m !== picker.mode)
+                    picker.modePicked(m)
             }
         }
     }

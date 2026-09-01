@@ -3,8 +3,27 @@ import QtQuick 2.15
 QtObject {
     id: root
 
-    readonly property bool isDark:
-        !settingsController || settingsController.themeId !== "light"
+    // Prefer Qt 6 styleHints; fall back to dark if unavailable
+    readonly property bool systemIsDark: {
+        try {
+            if (Qt.styleHints && Qt.styleHints.colorScheme !== undefined)
+                return Qt.styleHints.colorScheme === Qt.Dark
+        } catch (e) {}
+        return true
+    }
+
+    // themeId: "dark" | "light" | "system"
+    readonly property bool isDark: {
+        if (!settingsController)
+            return true
+        var id = settingsController.themeId || "dark"
+        if (id === "light")
+            return false
+        if (id === "dark")
+            return true
+        // "system" (or anything else)
+        return root.systemIsDark
+    }
 
     readonly property color accent:
         (settingsController && settingsController.accentColor
@@ -29,7 +48,6 @@ QtObject {
     readonly property color warning: isDark ? "#fab387" : "#d97706"
     readonly property color neutral: isDark ? "#6c7086" : "#94a3b8"
 
-    // Code-block palette (readable in both themes)
     readonly property color codeBg:       isDark ? "#1e1e2e" : "#f0f0f3"
     readonly property color codeHeader:   isDark ? "#313244" : "#e4e4ea"
     readonly property color codeText:     isDark ? "#cdd6f4" : "#1c1c1e"
@@ -47,4 +65,13 @@ QtObject {
     readonly property int spacingLarge: 20
 
     readonly property color hoverFill: isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,0,0,0.06)
+
+    // Re-evaluate when OS theme changes (Qt 6)
+    property var _schemeWatcher: Connections {
+        target: (typeof Qt.styleHints !== "undefined") ? Qt.styleHints : null
+        function onColorSchemeChanged() {
+            // touch a dependency so isDark bindings refresh
+            root.systemIsDarkChanged()
+        }
+    }
 }
