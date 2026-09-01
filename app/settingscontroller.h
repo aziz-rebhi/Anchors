@@ -4,6 +4,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QNetworkAccessManager>
 
 class SettingsController : public QObject
 {
@@ -17,6 +18,9 @@ class SettingsController : public QObject
     Q_PROPERTY(QString calendarDefaultView READ calendarDefaultView WRITE setCalendarDefaultView NOTIFY calendarDefaultViewChanged)
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString dataPath READ dataPath CONSTANT)
+    Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateInfoChanged)
+    Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
+    Q_PROPERTY(bool checkingUpdate READ checkingUpdate NOTIFY checkingUpdateChanged)
 
 public:
     explicit SettingsController(QObject *parent = nullptr);
@@ -42,8 +46,12 @@ public:
     QString calendarDefaultView() const { return m_calendarDefaultView; }
     void setCalendarDefaultView(const QString &v);
 
-    QString appVersion() const { return QStringLiteral("1.0.0"); }
+    QString appVersion() const;
     QString dataPath() const;
+
+    QString latestVersion() const { return m_latestVersion; }
+    bool updateAvailable() const { return m_updateAvailable; }
+    bool checkingUpdate() const { return m_checkingUpdate; }
 
     Q_INVOKABLE void lockNow();
     Q_INVOKABLE void openDataLocation();
@@ -52,6 +60,8 @@ public:
     Q_INVOKABLE bool wipeAllData();
     Q_INVOKABLE QString changeMasterPassword(const QString &currentPassword,
                                              const QString &newPassword);
+    Q_INVOKABLE void checkForUpdates();
+    Q_INVOKABLE void openLatestRelease();
 
 signals:
     void autoLockMinutesChanged();
@@ -64,11 +74,14 @@ signals:
     void operationFailed(QString reason);
     void operationSucceeded(QString message);
     void lockRequested();
+    void updateInfoChanged();
+    void checkingUpdateChanged();
 
 private:
     void load();
     void save();
     static QString normalizeLocalPath(QString path);
+    static QString stripV(QString tag);
 
     int m_autoLockMinutes = 5;
     bool m_clearClipboard = true;
@@ -77,6 +90,11 @@ private:
     QString m_accentColor = QStringLiteral("#89b4fa");
     QString m_startPage = QStringLiteral("dashboard");
     QString m_calendarDefaultView = QStringLiteral("month");
+
+    QNetworkAccessManager m_nam;
+    QString m_latestVersion;
+    bool m_updateAvailable = false;
+    bool m_checkingUpdate = false;
 };
 
 #endif

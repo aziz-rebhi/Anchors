@@ -14,9 +14,10 @@ Page {
     property string sortMode: "recent"
 
     readonly property int colService: 200
-    readonly property int colUser: 220
+    readonly property int colUser: 180
+    readonly property int colUrl: 200
     readonly property int colPassword: 160
-    readonly property int colActions: 120
+    readonly property int colActions: 140
 
     readonly property var categoryDefs: [
         { key: "Social",        glyph: "👥" },
@@ -32,7 +33,11 @@ Page {
     ]
 
     function refresh() {
-        allEntries = vaultController.entries()
+        if (typeof vaultController === "undefined" || !vaultController) {
+            allEntries = []
+            return
+        }
+        allEntries = vaultController.entries() || []
     }
 
     function categoryCount(key) {
@@ -45,7 +50,37 @@ Page {
         clipHelper.text = pw
         clipHelper.selectAll()
         clipHelper.copy()
-        // Optional toast if you add one later
+    }
+
+    function openUrl(url) {
+        if (!url || !url.length)
+            return
+        var u = url
+        if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0)
+            u = "https://" + u
+        Qt.openUrlExternally(u)
+    }
+
+    function serviceGlyph(title, url) {
+        var t = (title || "").toLowerCase()
+        var u = (url || "").toLowerCase()
+        if (t.indexOf("facebook") >= 0 || u.indexOf("facebook") >= 0) return "📘"
+        if (t.indexOf("instagram") >= 0 || u.indexOf("instagram") >= 0) return "📸"
+        if (t.indexOf("gmail") >= 0 || u.indexOf("mail.google") >= 0) return "📧"
+        if (t.indexOf("google") >= 0 || u.indexOf("google") >= 0) return "🔵"
+        if (t.indexOf("github") >= 0 || u.indexOf("github") >= 0) return "🐙"
+        if (t.indexOf("linkedin") >= 0 || u.indexOf("linkedin") >= 0) return "💼"
+        if (t.indexOf("amazon") >= 0 || u.indexOf("amazon") >= 0) return "📦"
+        if (t.indexOf("netflix") >= 0 || u.indexOf("netflix") >= 0) return "🎬"
+        if (t.indexOf("discord") >= 0 || u.indexOf("discord") >= 0) return "💬"
+        if (t.indexOf("steam") >= 0 || u.indexOf("steam") >= 0) return "🎮"
+        if (t.indexOf("apple") >= 0 || u.indexOf("apple") >= 0) return "🍎"
+        if (t.indexOf("microsoft") >= 0 || u.indexOf("microsoft") >= 0) return "🪟"
+        if (t.indexOf("paypal") >= 0 || u.indexOf("paypal") >= 0) return "💳"
+        if (t.indexOf("spotify") >= 0 || u.indexOf("spotify") >= 0) return "🎵"
+        if (t.indexOf("twitter") >= 0 || t === "x" || u.indexOf("x.com") >= 0
+                || u.indexOf("twitter") >= 0) return "🐦"
+        return "🔐"
     }
 
     readonly property var visibleEntries: {
@@ -57,6 +92,7 @@ Page {
             var q = searchText.toLowerCase()
             return (e.title || "").toLowerCase().indexOf(q) >= 0
                 || (e.username || "").toLowerCase().indexOf(q) >= 0
+                || (e.url || "").toLowerCase().indexOf(q) >= 0
         })
         var sorted = list.slice()
         if (sortMode === "az") {
@@ -73,7 +109,6 @@ Page {
 
     background: Rectangle { color: theme.background }
 
-    // Hidden helper for clipboard
     TextEdit {
         id: clipHelper
         visible: false
@@ -328,6 +363,7 @@ Page {
                     }
                 }
 
+                // Column headers
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
@@ -337,7 +373,7 @@ Page {
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 12
-                        spacing: 8
+                        spacing: 16
 
                         Label {
                             text: "SERVICE"
@@ -351,6 +387,14 @@ Page {
                             text: "USERNAME"
                             Layout.preferredWidth: root.colUser
                             Layout.maximumWidth: root.colUser
+                            color: theme.textMuted
+                            font.pixelSize: 10
+                            font.letterSpacing: 1
+                        }
+                        Label {
+                            text: "URL"
+                            Layout.preferredWidth: root.colUrl
+                            Layout.maximumWidth: root.colUrl
                             color: theme.textMuted
                             font.pixelSize: 10
                             font.letterSpacing: 1
@@ -395,16 +439,27 @@ Page {
                             anchors.fill: parent
                             anchors.leftMargin: 12
                             anchors.rightMargin: 12
-                            spacing: 8
+                            spacing: 16
 
-                            Label {
-                                text: modelData.title || ""
+                            // SERVICE + glyph
+                            RowLayout {
                                 Layout.preferredWidth: root.colService
                                 Layout.maximumWidth: root.colService
-                                color: theme.textPrimary
-                                font.pixelSize: 14
-                                elide: Text.ElideRight
+                                spacing: 6
+                                Text {
+                                    text: root.serviceGlyph(modelData.title, modelData.url)
+                                    font.pixelSize: 14
+                                    font.family: "Noto Color Emoji"
+                                }
+                                Label {
+                                    text: modelData.title || ""
+                                    color: theme.textPrimary
+                                    font.pixelSize: 14
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
                             }
+
                             Label {
                                 text: modelData.username || ""
                                 Layout.preferredWidth: root.colUser
@@ -412,6 +467,23 @@ Page {
                                 color: theme.textSecondary
                                 font.pixelSize: 13
                                 elide: Text.ElideRight
+                            }
+
+                            // URL (clickable)
+                            Label {
+                                text: (modelData.url && modelData.url.length) ? modelData.url : "—"
+                                Layout.preferredWidth: root.colUrl
+                                Layout.maximumWidth: root.colUrl
+                                color: (modelData.url && modelData.url.length)
+                                       ? theme.tertiary : theme.textMuted
+                                font.pixelSize: 12
+                                elide: Text.ElideMiddle
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: !!(modelData.url && modelData.url.length)
+                                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: root.openUrl(modelData.url)
+                                }
                             }
 
                             RowLayout {
@@ -423,7 +495,7 @@ Page {
                                     Layout.fillWidth: true
                                     text: entryRow.revealed
                                           ? (modelData.password || "")
-                                          : "•".repeat(Math.min((modelData.password || "").length, 12))
+                                          : "•".repeat(Math.min((modelData.password || "").length || 8, 12))
                                     color: theme.textSecondary
                                     font.pixelSize: 13
                                     elide: Text.ElideRight
@@ -516,12 +588,12 @@ Page {
     }
 
     Connections {
-        target: vaultController
+        target: typeof vaultController !== "undefined" ? vaultController : null
         function onEntriesChanged() { root.refresh() }
     }
 
     Connections {
-        target: session
+        target: typeof session !== "undefined" ? session : null
         function onLocked() {
             root.vaultUnlocked = false
             root.filterCategory = ""

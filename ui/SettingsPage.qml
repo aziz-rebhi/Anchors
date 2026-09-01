@@ -255,6 +255,29 @@ Page {
                         font.pixelSize: 13
                     }
                 }
+                GroupSeparator {}
+                GroupRow {
+                    title: settingsController.updateAvailable
+                           ? ("Update available: v" + settingsController.latestVersion)
+                           : "Check for updates"
+                    subtitle: settingsController.checkingUpdate
+                              ? "Checking…"
+                              : (settingsController.updateAvailable
+                                 ? "A newer release is on GitHub"
+                                 : "Compare with the latest GitHub release")
+                    trailing: Row {
+                        spacing: 8
+                        TahoeIconButton {
+                            symbol: settingsController.updateAvailable ? "⬇" : "🔄"
+                            onClicked: {
+                                if (settingsController.updateAvailable)
+                                    settingsController.openLatestRelease()
+                                else
+                                    settingsController.checkForUpdates()
+                            }
+                        }
+                    }
+                }
             }
 
             Item { Layout.preferredHeight: 48 }

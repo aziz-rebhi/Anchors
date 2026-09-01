@@ -9,13 +9,34 @@
 #include <QDateTime>
 #include <QUrl>
 #include <QDesktopServices>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QVersionNumber>
 
 SettingsController::SettingsController(QObject *parent)
     : QObject(parent)
 {
     load();
-    // Ensure data dir exists so "Open location" always works
     QDir().mkpath(dataPath());
+}
+
+QString SettingsController::appVersion() const
+{
+#ifdef APP_VERSION
+    return QStringLiteral(APP_VERSION);
+#else
+    return QStringLiteral("0.0.0");
+#endif
+}
+
+QString SettingsController::stripV(QString tag)
+{
+    tag = tag.trimmed();
+    if (tag.startsWith(QLatin1Char('v')) || tag.startsWith(QLatin1Char('V')))
+        tag = tag.mid(1);
+    return tag;
 }
 
 void SettingsController::load()
@@ -108,7 +129,6 @@ QString SettingsController::normalizeLocalPath(QString path)
     path = path.trimmed();
     if (path.startsWith(QStringLiteral("file://")))
         path = QUrl(path).toLocalFile();
-    // FolderDialog sometimes returns trailing slash quirks
     while (path.endsWith(QLatin1Char('/')) && path.size() > 1)
         path.chop(1);
     return path;
@@ -151,7 +171,6 @@ bool SettingsController::exportBackup(const QString &destPath)
 
     QFileInfo fi(dest);
     if (fi.isDir() || !fi.exists()) {
-        // User picked a folder → create timestamped subfolder inside it
         if (!QDir(dest).exists() && !QDir().mkpath(dest)) {
             emit operationFailed(QStringLiteral("Could not create destination folder."));
             return false;
@@ -203,16 +222,13 @@ bool SettingsController::importBackup(const QString &srcPath)
         return false;
     }
 
-    // Accept either the timestamped folder or a folder that directly contains the files
     QStringList files = srcDir.entryList(QDir::Files);
     if (files.isEmpty()) {
-        // Maybe user selected parent of anchors-backup-*
         const QStringList subdirs = srcDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
         QString best;
         for (const QString &d : subdirs) {
-            if (d.startsWith(QStringLiteral("anchors-backup-"))) {
-                best = d; // last match is fine; user can pick the exact folder
-            }
+            if (d.startsWith(QStringLiteral("anchors-backup-")))
+                best = d;
         }
         if (!best.isEmpty()) {
             srcDir = QDir(srcDir.filePath(best));
@@ -225,8 +241,6 @@ bool SettingsController::importBackup(const QString &srcPath)
         return false;
     }
 
-    // Safety: look for at least one known file if present in your app
-    // (verify.enc / notes / vault — soft check only)
     const bool looksLikeBackup =
         files.contains(QStringLiteral("verify.enc"))
         || files.contains(QStringLiteral("salt.bin"))
@@ -260,7 +274,6 @@ bool SettingsController::importBackup(const QString &srcPath)
         ++copied;
     }
 
-    // Drop any in-memory keys; user must unlock with the backup's password
     if (Session::instance())
         Session::instance()->lock();
     emit lockRequested();
@@ -297,4 +310,57 @@ QString SettingsController::changeMasterPassword(const QString &currentPassword,
     Q_UNUSED(currentPassword);
     Q_UNUSED(newPassword);
     return QStringLiteral("Change password is not implemented yet.");
+}
+
+void SettingsController::checkForUpdates()
+{
+    if (m_checkingUpdate)
+        return;
+
+    m_checkingUpdate = true;
+    emit checkingUpdateChanged();
+
+    QNetworkRequest req(QUrl(
+        QStringLiteral("https://api.github.com/repos/aziz-rebhi/Anchors/releases/latest")));
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("Anchors/%1").arg(appVersion()));
+    req.setRawHeader("Accept", "application/vnd.github+json");
+
+    QNetworkReply *reply = m_nam.get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        m_checkingUpdate = false;
+        emit checkingUpdateChanged();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            emit operationFailed(QStringLiteral("Could not check for updates."));
+            return;
+        }
+
+        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QString tag = doc.object().value(QStringLiteral("tag_name")).toString();
+        tag = stripV(tag);
+        if (tag.isEmpty()) {
+            emit operationFailed(QStringLiteral("No release information found."));
+            return;
+        }
+
+        m_latestVersion = tag;
+        const QVersionNumber current = QVersionNumber::fromString(appVersion());
+        const QVersionNumber latest = QVersionNumber::fromString(tag);
+        m_updateAvailable = !latest.isNull() && latest > current;
+        emit updateInfoChanged();
+
+        if (m_updateAvailable)
+            emit operationSucceeded(
+                QStringLiteral("Update available: v%1").arg(m_latestVersion));
+        else
+            emit operationSucceeded(QStringLiteral("You're up to date."));
+    });
+}
+
+void SettingsController::openLatestRelease()
+{
+    QDesktopServices::openUrl(
+        QUrl(QStringLiteral("https://github.com/aziz-rebhi/Anchors/releases/latest")));
 }
