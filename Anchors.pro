@@ -2,7 +2,7 @@ QT += widgets core quick qml sql
 
 CONFIG += c++17
 
-VERSION = 1.0.0
+VERSION = 1.0.23
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 
 QT += network
