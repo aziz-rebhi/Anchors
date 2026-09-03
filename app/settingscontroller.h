@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QString>
 #include <QNetworkAccessManager>
+#include <QStringList>
 
 class SettingsController : public QObject
 {
@@ -21,6 +22,7 @@ class SettingsController : public QObject
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateInfoChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
     Q_PROPERTY(bool checkingUpdate READ checkingUpdate NOTIFY checkingUpdateChanged)
+    Q_PROPERTY(QStringList vaultCategories READ vaultCategories WRITE setVaultCategories NOTIFY vaultCategoriesChanged)
 
 public:
     explicit SettingsController(QObject *parent = nullptr);
@@ -63,6 +65,12 @@ public:
     Q_INVOKABLE void checkForUpdates();
     Q_INVOKABLE void openLatestRelease();
 
+
+    QStringList vaultCategories() const { return m_vaultCategories; }
+    void setVaultCategories(const QStringList &v);
+    Q_INVOKABLE void addVaultCategory(const QString &name);
+    Q_INVOKABLE void removeVaultCategory(const QString &name);
+
 signals:
     void autoLockMinutesChanged();
     void clearClipboardChanged();
@@ -76,6 +84,7 @@ signals:
     void lockRequested();
     void updateInfoChanged();
     void checkingUpdateChanged();
+    void vaultCategoriesChanged();
 
 private:
     void load();
@@ -95,6 +104,7 @@ private:
     QString m_latestVersion;
     bool m_updateAvailable = false;
     bool m_checkingUpdate = false;
+    QStringList m_vaultCategories;
 };
 
 #endif

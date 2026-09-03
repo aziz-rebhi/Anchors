@@ -9,6 +9,7 @@ Popup {
 
     property string editingId: ""
     readonly property bool isEditing: editingId.length > 0
+    property var knownCategories: []
 
     modal: true
     focus: true
@@ -25,7 +26,6 @@ Popup {
         border.color: theme.border
     }
 
-    // Preset apps: glyph + default URL (title filled when picked)
     readonly property var servicePresets: [
         { name: "Facebook",  glyph: "📘", url: "https://www.facebook.com" },
         { name: "Instagram", glyph: "📸", url: "https://www.instagram.com" },
@@ -45,11 +45,6 @@ Popup {
         { name: "Custom",    glyph: "🔗", url: "" }
     ]
 
-    readonly property var categoryOptions: [
-        "Social", "Work", "Learning", "Finance", "Gaming",
-        "Shopping", "Entertainment", "Email", "Development", "Cloud"
-    ]
-
     function applyPreset(p) {
         if (!p) return
         if (p.name !== "Custom")
@@ -64,7 +59,7 @@ Popup {
         usernameField.text = ""
         passwordField.text = ""
         urlField.text = ""
-        categoryCombo.currentIndex = 0
+        categoryField.text = knownCategories.length ? knownCategories[0] : ""
         errorLabel.text = ""
         open()
     }
@@ -75,8 +70,7 @@ Popup {
         usernameField.text = entry.username || ""
         passwordField.text = entry.password || ""
         urlField.text = entry.url || ""
-        var idx = categoryOptions.indexOf(entry.category)
-        categoryCombo.currentIndex = idx < 0 ? 0 : idx
+        categoryField.text = entry.category || ""
         errorLabel.text = ""
         open()
     }
@@ -113,7 +107,6 @@ Popup {
                     color: presetMa.containsMouse ? theme.hoverFill : theme.surfaceAlt
                     border.color: theme.border
                     border.width: 1
-
                     Text {
                         anchors.centerIn: parent
                         text: modelData.glyph
@@ -154,7 +147,6 @@ Popup {
                 echoMode: TextInput.Password
                 Layout.fillWidth: true
             }
-            // Generate — icon
             Rectangle {
                 width: 40
                 height: 40
@@ -187,35 +179,46 @@ Popup {
             Layout.fillWidth: true
         }
 
-        ComboBox {
-            id: categoryCombo
+        ColumnLayout {
             Layout.fillWidth: true
-            model: root.categoryOptions
-
-            contentItem: Text {
-                leftPadding: 12
-                rightPadding: 28
-                text: categoryCombo.displayText
-                color: theme.textPrimary
-                font.pixelSize: 14
-                verticalAlignment: Text.AlignVCenter
+            spacing: 6
+            Label {
+                text: "Category"
+                color: theme.textMuted
+                font.pixelSize: 11
             }
-            background: Rectangle {
-                color: theme.surfaceAlt
-                border.color: theme.border
-                border.width: 1
-                radius: theme.radiusMedium
-                implicitHeight: 44
+            StyledTextField {
+                id: categoryField
+                Layout.fillWidth: true
+                placeholderText: "Type a category or pick below"
             }
-            delegate: ItemDelegate {
-                width: categoryCombo.width
-                contentItem: Text {
-                    text: modelData
-                    color: theme.textPrimary
-                    font.pixelSize: 14
-                }
-                background: Rectangle {
-                    color: highlighted ? theme.surfaceAlt : theme.surface
+            Flow {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: root.knownCategories
+                    delegate: Rectangle {
+                        height: 26
+                        radius: 13
+                        color: categoryField.text === modelData
+                               ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.25)
+                               : theme.surfaceAlt
+                        border.color: theme.border
+                        border.width: 1
+                        implicitWidth: chipLab.implicitWidth + 16
+                        Label {
+                            id: chipLab
+                            anchors.centerIn: parent
+                            text: modelData
+                            font.pixelSize: 11
+                            color: theme.textSecondary
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: categoryField.text = modelData
+                        }
+                    }
                 }
             }
         }
@@ -235,7 +238,6 @@ Popup {
             spacing: 8
             Item { Layout.fillWidth: true }
 
-            // Cancel
             Rectangle {
                 width: 40
                 height: 40
@@ -261,7 +263,6 @@ Popup {
                 ToolTip.delay: 300
             }
 
-            // Save
             Rectangle {
                 width: 40
                 height: 40
@@ -282,7 +283,11 @@ Popup {
                             errorLabel.text = "Service name is required."
                             return
                         }
-                        var category = categoryCombo.displayText
+                        var category = categoryField.text.trim()
+                        if (!category.length) {
+                            errorLabel.text = "Category is required."
+                            return
+                        }
                         var ok
                         if (root.isEditing) {
                             ok = vaultController.updateEntry(
@@ -293,8 +298,13 @@ Popup {
                                 titleField.text, usernameField.text,
                                 passwordField.text, urlField.text, category)
                         }
-                        if (ok) root.close()
-                        else errorLabel.text = "Could not save. Is the vault unlocked?"
+                        if (ok) {
+                            if (typeof settingsController !== "undefined" && settingsController)
+                                settingsController.addVaultCategory(category)
+                            root.close()
+                        } else {
+                            errorLabel.text = "Could not save. Is the vault unlocked?"
+                        }
                     }
                 }
                 ToolTip.text: root.isEditing ? "Save" : "Add"

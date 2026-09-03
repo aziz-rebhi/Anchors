@@ -49,6 +49,7 @@ void SettingsController::load()
     m_accentColor = s.value(QStringLiteral("appearance/accentColor"), QStringLiteral("#89b4fa")).toString();
     m_startPage = s.value(QStringLiteral("general/startPage"), QStringLiteral("dashboard")).toString();
     m_calendarDefaultView = s.value(QStringLiteral("calendar/defaultView"), QStringLiteral("month")).toString();
+    m_vaultCategories = s.value(QStringLiteral("vault/categories")).toStringList();
 }
 
 void SettingsController::save()
@@ -61,6 +62,7 @@ void SettingsController::save()
     s.setValue(QStringLiteral("appearance/accentColor"), m_accentColor);
     s.setValue(QStringLiteral("general/startPage"), m_startPage);
     s.setValue(QStringLiteral("calendar/defaultView"), m_calendarDefaultView);
+    s.setValue(QStringLiteral("vault/categories"), m_vaultCategories);
 }
 
 void SettingsController::setAutoLockMinutes(int v)
@@ -363,4 +365,42 @@ void SettingsController::openLatestRelease()
 {
     QDesktopServices::openUrl(
         QUrl(QStringLiteral("https://github.com/aziz-rebhi/Anchors/releases/latest")));
+}
+
+void SettingsController::setVaultCategories(const QStringList &v)
+{
+    if (m_vaultCategories == v)
+        return;
+    m_vaultCategories = v;
+    save();
+    emit vaultCategoriesChanged();
+}
+
+void SettingsController::addVaultCategory(const QString &name)
+{
+    const QString n = name.trimmed();
+    if (n.isEmpty())
+        return;
+    for (const QString &c : m_vaultCategories) {
+        if (c.compare(n, Qt::CaseInsensitive) == 0)
+            return;
+    }
+    m_vaultCategories.append(n);
+    save();
+    emit vaultCategoriesChanged();
+}
+
+void SettingsController::removeVaultCategory(const QString &name)
+{
+    const QString n = name.trimmed();
+    QStringList next;
+    for (const QString &c : m_vaultCategories) {
+        if (c.compare(n, Qt::CaseInsensitive) != 0)
+            next.append(c);
+    }
+    if (next.size() == m_vaultCategories.size())
+        return;
+    m_vaultCategories = next;
+    save();
+    emit vaultCategoriesChanged();
 }

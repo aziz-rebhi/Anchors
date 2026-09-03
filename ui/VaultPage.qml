@@ -19,18 +19,31 @@ Page {
     readonly property int colPassword: 160
     readonly property int colActions: 140
 
-    readonly property var categoryDefs: [
-        { key: "Social",        glyph: "👥" },
-        { key: "Work",          glyph: "💼" },
-        { key: "Learning",      glyph: "📚" },
-        { key: "Finance",       glyph: "💳" },
-        { key: "Gaming",        glyph: "🎮" },
-        { key: "Shopping",      glyph: "🛒" },
-        { key: "Entertainment", glyph: "🎬" },
-        { key: "Email",         glyph: "✉️" },
-        { key: "Development",   glyph: "💻" },
-        { key: "Cloud",         glyph: "☁️" }
-    ]
+    readonly property var displayCategories: {
+        var set = {}
+        var list = []
+        var saved = []
+        if (typeof settingsController !== "undefined" && settingsController
+                && settingsController.vaultCategories)
+            saved = settingsController.vaultCategories
+
+        for (var i = 0; i < saved.length; i++) {
+            var s = ("" + saved[i]).trim()
+            if (s.length && !set[s.toLowerCase()]) {
+                set[s.toLowerCase()] = true
+                list.push(s)
+            }
+        }
+        for (var j = 0; j < allEntries.length; j++) {
+            var c = (allEntries[j].category || "").trim()
+            if (c.length && !set[c.toLowerCase()]) {
+                set[c.toLowerCase()] = true
+                list.push(c)
+            }
+        }
+        list.sort(function (a, b) { return a.localeCompare(b) })
+        return list
+    }
 
     function refresh() {
         if (typeof vaultController === "undefined" || !vaultController) {
@@ -41,7 +54,9 @@ Page {
     }
 
     function categoryCount(key) {
-        return allEntries.filter(function (e) { return e.category === key }).length
+        return allEntries.filter(function (e) {
+            return (e.category || "") === key
+        }).length
     }
 
     function copyPassword(pw) {
@@ -61,26 +76,14 @@ Page {
         Qt.openUrlExternally(u)
     }
 
-    function serviceGlyph(title, url) {
-        var t = (title || "").toLowerCase()
-        var u = (url || "").toLowerCase()
-        if (t.indexOf("facebook") >= 0 || u.indexOf("facebook") >= 0) return "📘"
-        if (t.indexOf("instagram") >= 0 || u.indexOf("instagram") >= 0) return "📸"
-        if (t.indexOf("gmail") >= 0 || u.indexOf("mail.google") >= 0) return "📧"
-        if (t.indexOf("google") >= 0 || u.indexOf("google") >= 0) return "🔵"
-        if (t.indexOf("github") >= 0 || u.indexOf("github") >= 0) return "🐙"
-        if (t.indexOf("linkedin") >= 0 || u.indexOf("linkedin") >= 0) return "💼"
-        if (t.indexOf("amazon") >= 0 || u.indexOf("amazon") >= 0) return "📦"
-        if (t.indexOf("netflix") >= 0 || u.indexOf("netflix") >= 0) return "🎬"
-        if (t.indexOf("discord") >= 0 || u.indexOf("discord") >= 0) return "💬"
-        if (t.indexOf("steam") >= 0 || u.indexOf("steam") >= 0) return "🎮"
-        if (t.indexOf("apple") >= 0 || u.indexOf("apple") >= 0) return "🍎"
-        if (t.indexOf("microsoft") >= 0 || u.indexOf("microsoft") >= 0) return "🪟"
-        if (t.indexOf("paypal") >= 0 || u.indexOf("paypal") >= 0) return "💳"
-        if (t.indexOf("spotify") >= 0 || u.indexOf("spotify") >= 0) return "🎵"
-        if (t.indexOf("twitter") >= 0 || t === "x" || u.indexOf("x.com") >= 0
-                || u.indexOf("twitter") >= 0) return "🐦"
-        return "🔐"
+    function openCreate() {
+        editDialog.knownCategories = root.displayCategories
+        editDialog.openForCreate()
+    }
+
+    function openEdit(entry) {
+        editDialog.knownCategories = root.displayCategories
+        editDialog.openForEdit(entry)
     }
 
     readonly property var visibleEntries: {
@@ -114,6 +117,158 @@ Page {
         visible: false
         width: 1
         height: 1
+    }
+
+    VaultEntryDialog {
+        id: editDialog
+        parent: Overlay.overlay
+    }
+
+    Dialog {
+        id: newCategoryDialog
+        modal: true
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: 320
+        padding: 0
+        standardButtons: Dialog.NoButton
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: theme.surface
+            radius: theme.radiusMedium
+            border.color: theme.border
+            border.width: 1
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 0
+
+            Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 18
+                text: "New category"
+                color: theme.textPrimary
+                font.family: theme.headlineFont
+                font.pixelSize: 16
+                font.bold: true
+            }
+
+            Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 4
+                text: "Name a group for your passwords."
+                color: theme.textMuted
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+
+            StyledTextField {
+                id: newCatField
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 16
+                placeholderText: "Category name"
+                onAccepted: addCatBtn.clicked()
+            }
+
+            Label {
+                id: newCatError
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 6
+                text: ""
+                color: theme.danger
+                font.pixelSize: 11
+                visible: text.length > 0
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 18
+                Layout.bottomMargin: 18
+                spacing: 10
+
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    width: 88
+                    height: 34
+                    radius: 10
+                    color: cancelMa.containsMouse ? theme.hoverFill : theme.surfaceAlt
+                    border.color: theme.border
+                    border.width: 1
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Cancel"
+                        color: theme.textSecondary
+                        font.pixelSize: 13
+                    }
+                    MouseArea {
+                        id: cancelMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: newCategoryDialog.close()
+                    }
+                }
+
+                Rectangle {
+                    id: addCatBtn
+                    width: 88
+                    height: 34
+                    radius: 10
+                    color: theme.tertiary
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Add"
+                        color: theme.onAccent
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                    function clicked() {
+                        newCatError.text = ""
+                        var n = newCatField.text.trim()
+                        if (!n.length) {
+                            newCatError.text = "Enter a name."
+                            return
+                        }
+                        var existing = root.displayCategories
+                        for (var i = 0; i < existing.length; i++) {
+                            if (("" + existing[i]).toLowerCase() === n.toLowerCase()) {
+                                newCatError.text = "That category already exists."
+                                return
+                            }
+                        }
+                        if (typeof settingsController !== "undefined" && settingsController)
+                            settingsController.addVaultCategory(n)
+                        root.filterCategory = n
+                        newCatField.text = ""
+                        newCategoryDialog.close()
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: addCatBtn.clicked()
+                    }
+                }
+            }
+        }
+
+        onOpened: {
+            newCatError.text = ""
+            newCatField.text = ""
+            newCatField.forceActiveFocus()
+        }
     }
 
     Loader {
@@ -233,7 +388,6 @@ Page {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-
                     ColumnLayout {
                         spacing: 4
                         Layout.fillWidth: true
@@ -245,14 +399,13 @@ Page {
                             font.bold: true
                         }
                         Label {
-                            text: "Securely manage your credentials across categories."
+                            text: "Create categories and store credentials your way."
                             color: theme.textSecondary
                             font.pixelSize: 13
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
                         }
                     }
-
                     StyledTextField {
                         Layout.preferredWidth: 240
                         Layout.alignment: Qt.AlignVCenter
@@ -269,52 +422,122 @@ Page {
                     rowSpacing: 12
 
                     Repeater {
-                        model: root.categoryDefs
+                        model: root.displayCategories
                         delegate: Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 80
+                            Layout.preferredHeight: 72
                             radius: theme.radiusMedium
-                            color: root.filterCategory === modelData.key
+                            color: root.filterCategory === modelData
                                    ? Qt.rgba(theme.tertiary.r, theme.tertiary.g, theme.tertiary.b, 0.18)
                                    : theme.surfaceAlt
                             border.width: 1
-                            border.color: root.filterCategory === modelData.key
+                            border.color: root.filterCategory === modelData
                                           ? theme.tertiary : theme.border
 
                             ColumnLayout {
                                 anchors.fill: parent
                                 anchors.margins: 12
                                 spacing: 4
+
                                 RowLayout {
                                     Layout.fillWidth: true
+                                    spacing: 6
+
                                     Label {
-                                        text: modelData.glyph
-                                        font.pixelSize: 22
-                                        font.family: "Noto Color Emoji"
-                                    }
-                                    Item { Layout.fillWidth: true }
-                                    Label {
-                                        text: root.categoryCount(modelData.key)
+                                        text: modelData
                                         color: theme.textPrimary
+                                        font.pixelSize: 13
                                         font.bold: true
-                                        font.pixelSize: 16
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    // Count when category has entries
+                                    Label {
+                                        text: "" + root.categoryCount(modelData)
+                                        color: theme.textMuted
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                        visible: root.categoryCount(modelData) > 0
+                                    }
+
+                                    // Delete only when empty (no overlap with count)
+                                    Rectangle {
+                                        visible: root.categoryCount(modelData) === 0
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: delMa.containsMouse
+                                               ? Qt.rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.25)
+                                               : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "×"
+                                            color: theme.textMuted
+                                            font.pixelSize: 14
+                                        }
+                                        MouseArea {
+                                            id: delMa
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (typeof settingsController !== "undefined")
+                                                    settingsController.removeVaultCategory(modelData)
+                                                if (root.filterCategory === modelData)
+                                                    root.filterCategory = ""
+                                            }
+                                        }
+                                        ToolTip.visible: delMa.containsMouse
+                                        ToolTip.text: "Delete category"
+                                        ToolTip.delay: 300
                                     }
                                 }
+
                                 Item { Layout.fillHeight: true }
-                                Label {
-                                    text: modelData.key
-                                    color: theme.textPrimary
-                                    font.pixelSize: 13
-                                }
                             }
+
                             MouseArea {
                                 anchors.fill: parent
+                                z: -1
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     root.filterCategory =
-                                        (root.filterCategory === modelData.key) ? "" : modelData.key
+                                        (root.filterCategory === modelData) ? "" : modelData
                                 }
                             }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 72
+                        radius: theme.radiusMedium
+                        color: addCatMa.containsMouse ? theme.hoverFill : theme.surfaceAlt
+                        border.width: 1
+                        border.color: theme.border
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 2
+                            Label {
+                                text: "+"
+                                color: theme.tertiary
+                                font.pixelSize: 22
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+                            Label {
+                                text: "New category"
+                                color: theme.textMuted
+                                font.pixelSize: 11
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+                        }
+                        MouseArea {
+                            id: addCatMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: newCategoryDialog.open()
                         }
                     }
                 }
@@ -363,18 +586,15 @@ Page {
                     }
                 }
 
-                // Column headers
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
                     color: "transparent"
-
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 12
                         spacing: 16
-
                         Label {
                             text: "SERVICE"
                             Layout.preferredWidth: root.colService
@@ -441,23 +661,14 @@ Page {
                             anchors.rightMargin: 12
                             spacing: 16
 
-                            // SERVICE + glyph
-                            RowLayout {
+                            // SERVICE — text only, no icon
+                            Label {
+                                text: modelData.title || ""
                                 Layout.preferredWidth: root.colService
                                 Layout.maximumWidth: root.colService
-                                spacing: 6
-                                Text {
-                                    text: root.serviceGlyph(modelData.title, modelData.url)
-                                    font.pixelSize: 14
-                                    font.family: "Noto Color Emoji"
-                                }
-                                Label {
-                                    text: modelData.title || ""
-                                    color: theme.textPrimary
-                                    font.pixelSize: 14
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
+                                color: theme.textPrimary
+                                font.pixelSize: 14
+                                elide: Text.ElideRight
                             }
 
                             Label {
@@ -469,7 +680,6 @@ Page {
                                 elide: Text.ElideRight
                             }
 
-                            // URL (clickable)
                             Label {
                                 text: (modelData.url && modelData.url.length) ? modelData.url : "—"
                                 Layout.preferredWidth: root.colUrl
@@ -490,7 +700,6 @@ Page {
                                 Layout.fillWidth: true
                                 Layout.minimumWidth: root.colPassword
                                 spacing: 6
-
                                 Label {
                                     Layout.fillWidth: true
                                     text: entryRow.revealed
@@ -513,7 +722,6 @@ Page {
                                 Layout.maximumWidth: root.colActions
                                 spacing: 2
                                 layoutDirection: Qt.RightToLeft
-
                                 IconButton {
                                     iconName: "delete"
                                     iconColor: theme.danger
@@ -524,7 +732,7 @@ Page {
                                     iconName: "edit"
                                     iconColor: theme.textSecondary
                                     tooltip: "Edit entry"
-                                    onClicked: editDialog.openForEdit(modelData)
+                                    onClicked: root.openEdit(modelData)
                                 }
                                 IconButton {
                                     iconName: "copy"
@@ -559,7 +767,6 @@ Page {
             }
 
             Rectangle {
-                id: addBtn
                 width: 56
                 height: 56
                 radius: 28
@@ -567,7 +774,6 @@ Page {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 24
-
                 Label {
                     anchors.centerIn: parent
                     text: "+"
@@ -575,15 +781,12 @@ Page {
                     font.pixelSize: 28
                     font.bold: true
                 }
-
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: editDialog.openForCreate()
+                    onClicked: root.openCreate()
                 }
             }
-
-            VaultEntryDialog { id: editDialog }
         }
     }
 
@@ -591,7 +794,12 @@ Page {
         target: typeof vaultController !== "undefined" ? vaultController : null
         function onEntriesChanged() { root.refresh() }
     }
-
+    Connections {
+        target: typeof settingsController !== "undefined" ? settingsController : null
+        function onVaultCategoriesChanged() {
+            root.filterCategory = root.filterCategory
+        }
+    }
     Connections {
         target: typeof session !== "undefined" ? session : null
         function onLocked() {
@@ -617,10 +825,8 @@ Page {
         property color iconColor: theme.textSecondary
         property string tooltip: ""
         signal clicked()
-
         width: 28
         height: 28
-
         Label {
             anchors.centerIn: parent
             text: {
@@ -637,7 +843,6 @@ Page {
             font.pixelSize: 15
             font.family: "Noto Color Emoji"
         }
-
         MouseArea {
             id: iconMouseArea
             anchors.fill: parent
@@ -648,7 +853,6 @@ Page {
             onClicked: iconBtn.clicked()
         }
         Behavior on scale { NumberAnimation { duration: 80 } }
-
         ToolTip {
             visible: iconBtn.tooltip.length > 0 && iconMouseArea.containsMouse
             text: iconBtn.tooltip
