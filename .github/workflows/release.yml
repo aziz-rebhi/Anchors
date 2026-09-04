@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────
-  # Linux
+  # Linux (portable binary)
   # ─────────────────────────────────────────
   linux:
     runs-on: ubuntu-22.04
@@ -42,7 +42,9 @@ jobs:
       - name: Build
         run: |
           export PATH="${Qt6_DIR}/bin:${PATH}"
-          qmake Anchors.pro CONFIG+=release
+          VER="${GITHUB_REF_NAME#v}"
+          echo "Building Linux VERSION=$VER"
+          qmake Anchors.pro CONFIG+=release VERSION="$VER"
           make -j"$(nproc)"
 
       - name: Locate binary
@@ -52,15 +54,18 @@ jobs:
           test -n "$BIN"
           cp "$BIN" Anchors-linux-x86_64
           chmod +x Anchors-linux-x86_64
+          # sanity: version string should appear in binary when APP_VERSION is defined
+          strings Anchors-linux-x86_64 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | head -5 || true
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@v4
         with:
           name: linux-binary
           path: Anchors-linux-x86_64
-  # ------------------------------------
+
+  # ─────────────────────────────────────────
   # Flatpak
-  # ------------------------------------
+  # ─────────────────────────────────────────
   flatpak:
     name: Flatpak
     runs-on: ubuntu-22.04
@@ -83,8 +88,9 @@ jobs:
         with:
           name: flatpak-bundle
           path: Anchors.flatpak
+
   # ─────────────────────────────────────────
-  # Windows (MinGW)
+  # Windows (MinGW) + Inno Setup installer
   # ─────────────────────────────────────────
   windows:
     runs-on: windows-latest
@@ -107,22 +113,27 @@ jobs:
         run: vcpkg install libsodium:x64-mingw-dynamic
 
       - name: Build
-        shell: cmd
+        shell: pwsh
         run: |
-          set PATH=%Qt6_DIR%\bin;%IQTA_TOOLS%\mingw1310_64\bin;%PATH%
-          set VCPKG_ROOT=%VCPKG_INSTALLATION_ROOT%
-          set INCLUDE=%VCPKG_ROOT%\installed\x64-mingw-dynamic\include;%INCLUDE%
-          set LIBRARY_PATH=%VCPKG_ROOT%\installed\x64-mingw-dynamic\lib;%LIBRARY_PATH%
-          set PATH=%VCPKG_ROOT%\installed\x64-mingw-dynamic\bin;%PATH%
+          $env:PATH = "$env:Qt6_DIR\bin;$env:IQTA_TOOLS\mingw1310_64\bin;$env:PATH"
+          $vcpkg = $env:VCPKG_INSTALLATION_ROOT
+          $env:PATH = "$vcpkg\installed\x64-mingw-dynamic\bin;$env:PATH"
+          $env:INCLUDE = "$vcpkg\installed\x64-mingw-dynamic\include;$env:INCLUDE"
+          $env:LIBRARY_PATH = "$vcpkg\installed\x64-mingw-dynamic\lib;$env:LIBRARY_PATH"
+          $env:LIB = "$vcpkg\installed\x64-mingw-dynamic\lib;$env:LIB"
 
-          where g++
-          where mingw32-make
-          where qmake
+          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          if (-not $ver) { $ver = "0.0.0" }
+          Write-Host "Building Windows VERSION=$ver"
 
-          qmake Anchors.pro CONFIG+=release
-          if errorlevel 1 exit /b 1
-          mingw32-make -j%NUMBER_OF_PROCESSORS%
-          if errorlevel 1 exit /b 1
+          where.exe g++
+          where.exe mingw32-make
+          where.exe qmake
+
+          & qmake Anchors.pro "CONFIG+=release" "VERSION=$ver"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & mingw32-make -j$env:NUMBER_OF_PROCESSORS
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Stage deploy folder
         shell: pwsh
@@ -138,6 +149,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item $exe.FullName "$out\Anchors.exe"
 
+          # windeployqt
           $windeploy = $null
           if ($env:Qt6_DIR -and (Test-Path "$env:Qt6_DIR\bin\windeployqt.exe")) {
             $windeploy = "$env:Qt6_DIR\bin\windeployqt.exe"
@@ -150,10 +162,9 @@ jobs:
             }
           }
           if (-not $windeploy) {
-            $windeploy = (
-              Get-ChildItem -Path "D:\a", "C:\a" -Recurse -Filter "windeployqt.exe" -ErrorAction SilentlyContinue |
+            $found = Get-ChildItem -Path "D:\a", "C:\a" -Recurse -Filter "windeployqt.exe" -ErrorAction SilentlyContinue |
               Select-Object -First 1
-            ).FullName
+            if ($found) { $windeploy = $found.FullName }
           }
           if (-not $windeploy -or -not (Test-Path $windeploy)) {
             throw "windeployqt.exe not found. Qt6_DIR='$($env:Qt6_DIR)'"
@@ -162,20 +173,46 @@ jobs:
           & $windeploy --release --qmldir ui "$out\Anchors.exe"
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with $LASTEXITCODE" }
 
+          # libsodium
           $vcpkg = $env:VCPKG_INSTALLATION_ROOT
           if ($vcpkg) {
             Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
-              ForEach-Object { Copy-Item $_.FullName $out }
+              ForEach-Object { Copy-Item $_.FullName $out -Force }
           }
 
+          # MinGW runtime
           $gpp = Get-Command g++ -ErrorAction SilentlyContinue
           if ($gpp) {
             $mingwBin = Split-Path $gpp.Source
             foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
               $src = Join-Path $mingwBin $dll
-              if (Test-Path $src) { Copy-Item $src $out }
+              if (Test-Path $src) { Copy-Item $src $out -Force }
             }
           }
+
+          # OpenSSL for HTTPS (update checker) — Qt bin + vcpkg
+          $qtBin = Join-Path $env:Qt6_DIR "bin"
+          foreach ($dll in @(
+            "libssl-3-x64.dll", "libcrypto-3-x64.dll",
+            "libssl-1_1-x64.dll", "libcrypto-1_1-x64.dll"
+          )) {
+            $src = Join-Path $qtBin $dll
+            if (Test-Path $src) {
+              Copy-Item $src $out -Force
+              Write-Host "Copied OpenSSL from Qt: $dll"
+            }
+          }
+          if ($vcpkg) {
+            Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\libssl*.dll",
+                          "$vcpkg\installed\x64-mingw-dynamic\bin\libcrypto*.dll" -ErrorAction SilentlyContinue |
+              ForEach-Object {
+                Copy-Item $_.FullName $out -Force
+                Write-Host "Copied OpenSSL from vcpkg: $($_.Name)"
+              }
+          }
+
+          Write-Host "Deploy folder contents:"
+          Get-ChildItem $out | Format-Table Name, Length
 
           Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
           Write-Host "Created Anchors-windows-x64.zip"
@@ -229,11 +266,5 @@ jobs:
             ### Downloads
             - **Windows installer:** `Anchors-Setup-*.exe` — full install, optional desktop shortcut
             - **Windows portable:** `Anchors-windows-x64.zip` — extract and run
-            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
-          files: |
-            artifacts/linux-binary/Anchors-linux-x86_64
-            artifacts/windows-zip/Anchors-windows-x64.zip
-            artifacts/windows-setup/Anchors-Setup-*.exe
-            artifacts/flatpak-bundle/Anchors.flatpak
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - **Linux binary:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
+            - **Flatpak:** `Anchors.flatpak` — install with:
