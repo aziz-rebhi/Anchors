@@ -119,21 +119,25 @@ jobs:
           $vcpkg = $env:VCPKG_INSTALLATION_ROOT
           $env:PATH = "$vcpkg\installed\x64-mingw-dynamic\bin;$env:PATH"
           $env:INCLUDE = "$vcpkg\installed\x64-mingw-dynamic\include;$env:INCLUDE"
-          $env:LIBRARY_PATH = "$vcpkg\installed\x64-mingw-dynamic\lib;$env:LIBRARY_PATH"
           $env:LIB = "$vcpkg\installed\x64-mingw-dynamic\lib;$env:LIB"
+          $env:LIBRARY_PATH = "$vcpkg\installed\x64-mingw-dynamic\lib;$env:LIBRARY_PATH"
 
           $ver = $env:GITHUB_REF_NAME.TrimStart('v')
           if (-not $ver) { $ver = "0.0.0" }
           Write-Host "Building Windows VERSION=$ver"
 
-          where.exe g++
-          where.exe mingw32-make
-          where.exe qmake
+          Write-Host "g++: $(Get-Command g++ | Select-Object -ExpandProperty Source)"
+          Write-Host "make: $(Get-Command mingw32-make | Select-Object -ExpandProperty Source)"
+          Write-Host "qmake: $(Get-Command qmake | Select-Object -ExpandProperty Source)"
 
           & qmake Anchors.pro "CONFIG+=release" "VERSION=$ver"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          & mingw32-make -j$env:NUMBER_OF_PROCESSORS
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ($LASTEXITCODE -ne 0) { throw "qmake failed with $LASTEXITCODE" }
+
+          # Pass -j as a real argument (do NOT write -j$n bare after &)
+          $jobs = $env:NUMBER_OF_PROCESSORS
+          if (-not $jobs) { $jobs = 4 }
+          & mingw32-make "--jobs=$jobs"
+          if ($LASTEXITCODE -ne 0) { throw "mingw32-make failed with $LASTEXITCODE" }
 
       - name: Stage deploy folder
         shell: pwsh
