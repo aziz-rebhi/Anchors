@@ -261,13 +261,22 @@ Page {
                 }
                 GroupSeparator {}
                 GroupRow {
+                    title: "Check for updates on startup"
+                    subtitle: "Notify when a newer GitHub release exists"
+                    trailing: RoundedSwitch {
+                        checked: settingsController.checkUpdatesOnStartup
+                        onToggled: settingsController.checkUpdatesOnStartup = checked
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
                     title: settingsController.updateAvailable
                            ? ("Update available: v" + settingsController.latestVersion)
                            : "Check for updates"
                     subtitle: settingsController.checkingUpdate
                               ? "Checking…"
                               : (settingsController.updateAvailable
-                                 ? "A newer release is on GitHub"
+                                 ? "Tap to open the download page"
                                  : "Compare with the latest GitHub release")
                     trailing: Row {
                         spacing: 8
@@ -277,7 +286,7 @@ Page {
                                 if (settingsController.updateAvailable)
                                     settingsController.openLatestRelease()
                                 else
-                                    settingsController.checkForUpdates()
+                                    settingsController.checkForUpdates(false)
                             }
                         }
                     }

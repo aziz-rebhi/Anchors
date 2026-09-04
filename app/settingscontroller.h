@@ -17,6 +17,7 @@ class SettingsController : public QObject
     Q_PROPERTY(QString accentColor READ accentColor WRITE setAccentColor NOTIFY accentColorChanged)
     Q_PROPERTY(QString startPage READ startPage WRITE setStartPage NOTIFY startPageChanged)
     Q_PROPERTY(QString calendarDefaultView READ calendarDefaultView WRITE setCalendarDefaultView NOTIFY calendarDefaultViewChanged)
+    Q_PROPERTY(bool checkUpdatesOnStartup READ checkUpdatesOnStartup WRITE setCheckUpdatesOnStartup NOTIFY checkUpdatesOnStartupChanged)
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString dataPath READ dataPath CONSTANT)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateInfoChanged)
@@ -48,6 +49,9 @@ public:
     QString calendarDefaultView() const { return m_calendarDefaultView; }
     void setCalendarDefaultView(const QString &v);
 
+    bool checkUpdatesOnStartup() const { return m_checkUpdatesOnStartup; }
+    void setCheckUpdatesOnStartup(bool v);
+
     QString appVersion() const;
     QString dataPath() const;
 
@@ -62,9 +66,8 @@ public:
     Q_INVOKABLE bool wipeAllData();
     Q_INVOKABLE QString changeMasterPassword(const QString &currentPassword,
                                              const QString &newPassword);
-    Q_INVOKABLE void checkForUpdates();
+    Q_INVOKABLE void checkForUpdates(bool quiet = false);
     Q_INVOKABLE void openLatestRelease();
-
 
     QStringList vaultCategories() const { return m_vaultCategories; }
     void setVaultCategories(const QStringList &v);
@@ -79,6 +82,7 @@ signals:
     void accentColorChanged();
     void startPageChanged();
     void calendarDefaultViewChanged();
+    void checkUpdatesOnStartupChanged();
     void operationFailed(QString reason);
     void operationSucceeded(QString message);
     void lockRequested();
@@ -99,6 +103,7 @@ private:
     QString m_accentColor = QStringLiteral("#89b4fa");
     QString m_startPage = QStringLiteral("dashboard");
     QString m_calendarDefaultView = QStringLiteral("month");
+    bool m_checkUpdatesOnStartup = true;
 
     QNetworkAccessManager m_nam;
     QString m_latestVersion;

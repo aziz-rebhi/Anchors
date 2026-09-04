@@ -14,12 +14,19 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QVersionNumber>
+#include <QTimer>
 
 SettingsController::SettingsController(QObject *parent)
     : QObject(parent)
 {
     load();
     QDir().mkpath(dataPath());
+
+    if (m_checkUpdatesOnStartup) {
+        QTimer::singleShot(2500, this, [this]() {
+            checkForUpdates(/* quiet */ true);
+        });
+    }
 }
 
 QString SettingsController::appVersion() const
@@ -50,6 +57,7 @@ void SettingsController::load()
     m_startPage = s.value(QStringLiteral("general/startPage"), QStringLiteral("dashboard")).toString();
     m_calendarDefaultView = s.value(QStringLiteral("calendar/defaultView"), QStringLiteral("month")).toString();
     m_vaultCategories = s.value(QStringLiteral("vault/categories")).toStringList();
+    m_checkUpdatesOnStartup = s.value(QStringLiteral("general/checkUpdatesOnStartup"), true).toBool();
 }
 
 void SettingsController::save()
@@ -63,6 +71,15 @@ void SettingsController::save()
     s.setValue(QStringLiteral("general/startPage"), m_startPage);
     s.setValue(QStringLiteral("calendar/defaultView"), m_calendarDefaultView);
     s.setValue(QStringLiteral("vault/categories"), m_vaultCategories);
+    s.setValue(QStringLiteral("general/checkUpdatesOnStartup"), m_checkUpdatesOnStartup);
+}
+
+void SettingsController::setCheckUpdatesOnStartup(bool v)
+{
+    if (m_checkUpdatesOnStartup == v) return;
+    m_checkUpdatesOnStartup = v;
+    save();
+    emit checkUpdatesOnStartupChanged();
 }
 
 void SettingsController::setAutoLockMinutes(int v)
@@ -314,7 +331,7 @@ QString SettingsController::changeMasterPassword(const QString &currentPassword,
     return QStringLiteral("Change password is not implemented yet.");
 }
 
-void SettingsController::checkForUpdates()
+void SettingsController::checkForUpdates(bool quiet)
 {
     if (m_checkingUpdate)
         return;
@@ -327,37 +344,52 @@ void SettingsController::checkForUpdates()
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("Anchors/%1").arg(appVersion()));
     req.setRawHeader("Accept", "application/vnd.github+json");
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    req.setTransferTimeout(15000);
+#endif
 
     QNetworkReply *reply = m_nam.get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, quiet]() {
         reply->deleteLater();
         m_checkingUpdate = false;
         emit checkingUpdateChanged();
 
         if (reply->error() != QNetworkReply::NoError) {
-            emit operationFailed(QStringLiteral("Could not check for updates."));
+            if (!quiet) {
+                const int http = reply->attribute(
+                                          QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                emit operationFailed(
+                    QStringLiteral("Update check failed: %1 (HTTP %2)")
+                        .arg(reply->errorString())
+                        .arg(http));
+            }
             return;
         }
 
         const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        QString tag = doc.object().value(QStringLiteral("tag_name")).toString();
-        tag = stripV(tag);
+        QString tag = stripV(doc.object().value(QStringLiteral("tag_name")).toString());
         if (tag.isEmpty()) {
-            emit operationFailed(QStringLiteral("No release information found."));
+            if (!quiet)
+                emit operationFailed(QStringLiteral("Update check: no tag_name in release."));
             return;
         }
 
         m_latestVersion = tag;
         const QVersionNumber current = QVersionNumber::fromString(appVersion());
-        const QVersionNumber latest = QVersionNumber::fromString(tag);
-        m_updateAvailable = !latest.isNull() && latest > current;
+        const QVersionNumber latest  = QVersionNumber::fromString(tag);
+        m_updateAvailable = !latest.isNull() && !current.isNull() && latest > current;
         emit updateInfoChanged();
 
-        if (m_updateAvailable)
+        if (m_updateAvailable) {
             emit operationSucceeded(
-                QStringLiteral("Update available: v%1").arg(m_latestVersion));
-        else
-            emit operationSucceeded(QStringLiteral("You're up to date."));
+                QStringLiteral("Update available: v%1 (you have v%2)")
+                    .arg(m_latestVersion, appVersion()));
+        } else if (!quiet) {
+            emit operationSucceeded(
+                QStringLiteral("You're up to date (v%1).").arg(appVersion()));
+        }
     });
 }
 
