@@ -111,7 +111,7 @@ jobs:
         run: vcpkg install libsodium:x64-mingw-dynamic
 
       # Use cmd so -j is not eaten by PowerShell
-      - name: Build
+        - name: Build
         shell: cmd
         run: |
           set PATH=%Qt6_DIR%\bin;%IQTA_TOOLS%\mingw1310_64\bin;%VCPKG_INSTALLATION_ROOT%\installed\x64-mingw-dynamic\bin;%PATH%
@@ -124,15 +124,32 @@ jobs:
           if "%VER%"=="" set VER=0.0.0
           echo Building Windows VERSION=%VER%
 
-          where g++
-          where mingw32-make
+          echo Qt6_DIR=%Qt6_DIR%
+          echo IQTA_TOOLS=%IQTA_TOOLS%
           where qmake
+          where g++
+          dir "%IQTA_TOOLS%\mingw1310_64\bin\mingw32-make.exe"
 
           qmake Anchors.pro CONFIG+=release VERSION=%VER%
-          if errorlevel 1 exit /b 1
+          if errorlevel 1 (
+            echo qmake failed
+            exit /b 1
+          )
 
-          mingw32-make -j%NUMBER_OF_PROCESSORS%
-          if errorlevel 1 exit /b 1
+          if not exist Makefile (
+            echo ERROR: Makefile was not created by qmake
+            dir
+            exit /b 1
+          )
+
+          rem Call MinGW make by full path — avoids a wrong "make" on PATH
+          "%IQTA_TOOLS%\mingw1310_64\bin\mingw32-make.exe" -j4
+          if errorlevel 1 (
+            echo mingw32-make failed
+            exit /b 1
+          )
+
+          dir /s /b Anchors.exe
 
       - name: Stage deploy folder
         shell: pwsh
