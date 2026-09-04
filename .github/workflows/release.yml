@@ -88,7 +88,7 @@ jobs:
           path: Anchors.flatpak
 
   # ─────────────────────────────────────────
-  # Windows (MinGW) + Inno Setup
+  # Windows (MSVC) + Inno Setup
   # ─────────────────────────────────────────
   windows:
     runs-on: windows-latest
@@ -96,58 +96,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Qt (MinGW)
+      - name: Install Qt (MSVC)
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.3'
           host: windows
           target: desktop
-          arch: win64_mingw
-          tools: 'tools_mingw1310'
+          arch: win64_msvc2019_64
           modules: 'qtshadertools'
           cache: true
 
-      - name: Install libsodium (vcpkg mingw)
-        run: vcpkg install libsodium:x64-mingw-dynamic
+      - name: Install libsodium (vcpkg MSVC)
+        run: vcpkg install libsodium:x64-windows
 
-      # Use cmd so -j is not eaten by PowerShell
-        - name: Build
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build
         shell: cmd
         run: |
-          set PATH=%Qt6_DIR%\bin;%IQTA_TOOLS%\mingw1310_64\bin;%VCPKG_INSTALLATION_ROOT%\installed\x64-mingw-dynamic\bin;%PATH%
-          set INCLUDE=%VCPKG_INSTALLATION_ROOT%\installed\x64-mingw-dynamic\include;%INCLUDE%
-          set LIB=%VCPKG_INSTALLATION_ROOT%\installed\x64-mingw-dynamic\lib;%LIB%
-          set LIBRARY_PATH=%VCPKG_INSTALLATION_ROOT%\installed\x64-mingw-dynamic\lib;%LIBRARY_PATH%
+          set PATH=%Qt6_DIR%\bin;%PATH%
+          set INCLUDE=%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\include;%INCLUDE%
+          set LIB=%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\lib;%LIB%
+          set PATH=%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin;%PATH%
 
           set VER=%GITHUB_REF_NAME%
           if "%VER:~0,1%"=="v" set VER=%VER:~1%
           if "%VER%"=="" set VER=0.0.0
           echo Building Windows VERSION=%VER%
 
-          echo Qt6_DIR=%Qt6_DIR%
-          echo IQTA_TOOLS=%IQTA_TOOLS%
           where qmake
-          where g++
-          dir "%IQTA_TOOLS%\mingw1310_64\bin\mingw32-make.exe"
+          where cl
+          where nmake
 
-          qmake Anchors.pro CONFIG+=release VERSION=%VER%
-          if errorlevel 1 (
-            echo qmake failed
-            exit /b 1
-          )
+          qmake Anchors.pro -spec win32-msvc CONFIG+=release VERSION=%VER%
+          if errorlevel 1 exit /b 1
 
           if not exist Makefile (
-            echo ERROR: Makefile was not created by qmake
+            echo Makefile missing after qmake
             dir
             exit /b 1
           )
 
-          rem Call MinGW make by full path — avoids a wrong "make" on PATH
-          "%IQTA_TOOLS%\mingw1310_64\bin\mingw32-make.exe" -j4
-          if errorlevel 1 (
-            echo mingw32-make failed
-            exit /b 1
-          )
+          nmake
+          if errorlevel 1 exit /b 1
 
           dir /s /b Anchors.exe
 
@@ -165,24 +159,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item $exe.FullName "$out\Anchors.exe"
 
-          $windeploy = $null
-          if ($env:Qt6_DIR -and (Test-Path "$env:Qt6_DIR\bin\windeployqt.exe")) {
-            $windeploy = "$env:Qt6_DIR\bin\windeployqt.exe"
-          }
-          if (-not $windeploy) {
-            $qmakeCmd = Get-Command qmake -ErrorAction SilentlyContinue
-            if ($qmakeCmd) {
-              $candidate = Join-Path (Split-Path $qmakeCmd.Source) "windeployqt.exe"
-              if (Test-Path $candidate) { $windeploy = $candidate }
-            }
-          }
-          if (-not $windeploy) {
-            $found = Get-ChildItem -Path "D:\a", "C:\a" -Recurse -Filter "windeployqt.exe" -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if ($found) { $windeploy = $found.FullName }
-          }
-          if (-not $windeploy -or -not (Test-Path $windeploy)) {
-            throw "windeployqt.exe not found. Qt6_DIR='$($env:Qt6_DIR)'"
+          $windeploy = Join-Path $env:Qt6_DIR "bin\windeployqt.exe"
+          if (-not (Test-Path $windeploy)) {
+            throw "windeployqt not found at $windeploy"
           }
           Write-Host "windeployqt: $windeploy"
           & $windeploy --release --qmldir ui "$out\Anchors.exe"
@@ -190,20 +169,13 @@ jobs:
 
           $vcpkg = $env:VCPKG_INSTALLATION_ROOT
           if ($vcpkg) {
-            Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
+            Get-ChildItem "$vcpkg\installed\x64-windows\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
+              ForEach-Object { Copy-Item $_.FullName $out -Force }
+            Get-ChildItem "$vcpkg\installed\x64-windows\bin\libssl*.dll",
+                          "$vcpkg\installed\x64-windows\bin\libcrypto*.dll" -ErrorAction SilentlyContinue |
               ForEach-Object { Copy-Item $_.FullName $out -Force }
           }
 
-          $gpp = Get-Command g++ -ErrorAction SilentlyContinue
-          if ($gpp) {
-            $mingwBin = Split-Path $gpp.Source
-            foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
-              $src = Join-Path $mingwBin $dll
-              if (Test-Path $src) { Copy-Item $src $out -Force }
-            }
-          }
-
-          # OpenSSL for HTTPS (in-app update check)
           $qtBin = Join-Path $env:Qt6_DIR "bin"
           foreach ($dll in @(
             "libssl-3-x64.dll", "libcrypto-3-x64.dll",
@@ -212,16 +184,8 @@ jobs:
             $src = Join-Path $qtBin $dll
             if (Test-Path $src) {
               Copy-Item $src $out -Force
-              Write-Host "Copied OpenSSL from Qt: $dll"
+              Write-Host "Copied OpenSSL: $dll"
             }
-          }
-          if ($vcpkg) {
-            Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\libssl*.dll",
-                          "$vcpkg\installed\x64-mingw-dynamic\bin\libcrypto*.dll" -ErrorAction SilentlyContinue |
-              ForEach-Object {
-                Copy-Item $_.FullName $out -Force
-                Write-Host "Copied OpenSSL from vcpkg: $($_.Name)"
-              }
           }
 
           Write-Host "Deploy folder:"
