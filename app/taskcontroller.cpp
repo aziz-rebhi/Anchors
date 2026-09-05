@@ -14,7 +14,7 @@ QVariantList TaskController::entries() const
     if (!Session::instance()->isUnlocked())
         return list;
 
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     bool ok = false;
     const QVector<TaskEntry> all = repo.loadAllTasks(&ok);
     if (!ok) return list;
@@ -40,7 +40,7 @@ QVariantList TaskController::projects() const
     if (!Session::instance()->isUnlocked())
         return list;
 
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     bool ok = false;
     const QVector<ProjectEntry> all = repo.loadAllProjects(&ok);
     if (!ok) return list;
@@ -64,7 +64,7 @@ bool TaskController::addEntry(const QString &title, qint64 dueAtSecs, const QStr
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     TaskEntry e;
     e.m_title = title;
     e.m_dueAt = dueAtSecs;
@@ -81,7 +81,7 @@ bool TaskController::updateEntry(const QString &id, const QString &title, qint64
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     const bool ok = repo.updateTaskTitleDue(id, title, dueAtSecs);
     if (ok) emit entriesChanged();
     else emit operationFailed(QStringLiteral("Could not update the task."));
@@ -94,7 +94,7 @@ bool TaskController::setDone(const QString &id, bool done)
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     const bool ok = repo.setDone(id, done);
     if (ok) emit entriesChanged();
     else emit operationFailed(QStringLiteral("Could not update the task."));
@@ -107,7 +107,7 @@ bool TaskController::deleteEntry(const QString &id)
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     const bool ok = repo.deleteTask(id);
     if (ok) emit entriesChanged();
     else emit operationFailed(QStringLiteral("Could not delete the task."));
@@ -120,7 +120,7 @@ bool TaskController::moveTaskToProject(const QString &taskId, const QString &pro
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     const bool ok = repo.moveTaskToProject(taskId, projectId);
     if (ok) emit entriesChanged();
     else emit operationFailed(QStringLiteral("Could not move the task."));
@@ -133,7 +133,7 @@ bool TaskController::addProject(const QString &name, const QString &emoji, const
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     ProjectEntry p;
     p.m_name = name;
     p.m_emoji = emoji.isEmpty() ? QStringLiteral("📁") : emoji;
@@ -151,7 +151,7 @@ bool TaskController::updateProject(const QString &id, const QString &name,
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     const bool ok = repo.updateProject(id, name, emoji, color);
     if (ok) emit projectsChanged();
     else emit operationFailed(QStringLiteral("Could not update project."));
@@ -164,7 +164,7 @@ bool TaskController::deleteProject(const QString &id)
         emit operationFailed(QStringLiteral("Tasks are locked."));
         return false;
     }
-    TaskRepository repo(Session::instance()->sessionKey());
+    TaskRepository repo(Session::instance()->secureKey());
     const bool ok = repo.deleteProject(id);
     if (ok) {
         emit projectsChanged();

@@ -7,7 +7,7 @@
 #include <QUuid>
 #include <algorithm>
 
-NoteRepository::NoteRepository(const QByteArray &sessionKey)
+NoteRepository::NoteRepository(const SecureBuffer &sessionKey)
     : m_sessionKey(sessionKey)
 {
 }

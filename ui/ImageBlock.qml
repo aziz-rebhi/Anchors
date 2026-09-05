@@ -52,7 +52,10 @@ Rectangle {
                 id: img
                 anchors.fill: parent
                 anchors.margins: 8
-                source: root.source
+                // Note content only ever stores the ciphertext path; the
+                // controller decrypts it into a temp file for rendering.
+                source: root.source.length > 0 && noteEditor
+                        ? noteEditor.resolveImageSource(root.source) : ""
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 visible: root.source.length > 0
@@ -111,9 +114,13 @@ Rectangle {
         fileMode: FileDialog.OpenFile
         nameFilters: [ "Images (*.png *.jpg *.jpeg *.gif *.webp *.bmp)", "All files (*)" ]
         onAccepted: {
-            var path = selectedFile.toString()
-            if (noteEditor)
-                noteEditor.updateBlockImageSource(root.blockId, path)
+            if (noteEditor) {
+                // importImageFromFile() encrypts the chosen image into the
+                // images dir and returns the stored ciphertext path.
+                var stored = noteEditor.importImageFromFile(selectedFile)
+                if (stored.length)
+                    noteEditor.updateBlockImageSource(root.blockId, stored)
+            }
         }
     }
 

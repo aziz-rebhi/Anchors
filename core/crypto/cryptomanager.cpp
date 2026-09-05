@@ -63,6 +63,56 @@ QByteArray CryptoManager::encrypt(const QByteArray &plaintext, const QByteArray 
         return QByteArray();
     }
 
+    return encryptWithKey(plaintext,
+                          reinterpret_cast<const unsigned char *>(key.constData()),
+                          static_cast<size_t>(key.size()));
+}
+
+QByteArray CryptoManager::decrypt(const QByteArray &nonceAndCiphertext,
+                                  const QByteArray &key,
+                                  bool *ok)
+{
+    if (key.size() != crypto_secretbox_KEYBYTES) {
+        qWarning() << "CryptoManager::decrypt: invalid key size";
+        if (ok) *ok = false;
+        return QByteArray();
+    }
+
+    return decryptWithKey(nonceAndCiphertext,
+                          reinterpret_cast<const unsigned char *>(key.constData()),
+                          static_cast<size_t>(key.size()),
+                          ok);
+}
+
+QByteArray CryptoManager::encrypt(const QByteArray &plaintext, const SecureBuffer &key)
+{
+    if (key.size() != crypto_secretbox_KEYBYTES || !key.isValid()) {
+        qWarning() << "CryptoManager::encrypt: invalid key size";
+        return QByteArray();
+    }
+
+    return encryptWithKey(plaintext, key.data(), key.size());
+}
+
+QByteArray CryptoManager::decrypt(const QByteArray &nonceAndCiphertext,
+                                  const SecureBuffer &key,
+                                  bool *ok)
+{
+    if (key.size() != crypto_secretbox_KEYBYTES || !key.isValid()) {
+        qWarning() << "CryptoManager::decrypt: invalid key size";
+        if (ok) *ok = false;
+        return QByteArray();
+    }
+
+    return decryptWithKey(nonceAndCiphertext, key.data(), key.size(), ok);
+}
+
+QByteArray CryptoManager::encryptWithKey(const QByteArray &plaintext,
+                                         const unsigned char *keyData, size_t keySize)
+{
+    // secretbox keys are always KEYBYTES; callers validate size before dispatch.
+    Q_UNUSED(keySize);
+
     QByteArray nonce(crypto_secretbox_NONCEBYTES, 0);
     randombytes_buf(reinterpret_cast<unsigned char *>(nonce.data()), nonce.size());
 
@@ -73,24 +123,20 @@ QByteArray CryptoManager::encrypt(const QByteArray &plaintext, const QByteArray 
         reinterpret_cast<const unsigned char *>(plaintext.constData()),
         static_cast<unsigned long long>(plaintext.size()),
         reinterpret_cast<const unsigned char *>(nonce.constData()),
-        reinterpret_cast<const unsigned char *>(key.constData()));
+        keyData);
 
     return nonce + ciphertext;
 }
 
-QByteArray CryptoManager::decrypt(const QByteArray &nonceAndCiphertext,
-                                  const QByteArray &key,
-                                  bool *ok)
+QByteArray CryptoManager::decryptWithKey(const QByteArray &nonceAndCiphertext,
+                                         const unsigned char *keyData, size_t keySize,
+                                         bool *ok)
 {
+    Q_UNUSED(keySize);
     auto fail = [ok]() {
         if (ok) *ok = false;
         return QByteArray();
     };
-
-    if (key.size() != crypto_secretbox_KEYBYTES) {
-        qWarning() << "CryptoManager::decrypt: invalid key size";
-        return fail();
-    }
 
     const int minSize = crypto_secretbox_NONCEBYTES + crypto_secretbox_MACBYTES;
     if (nonceAndCiphertext.size() < minSize) {
@@ -109,7 +155,7 @@ QByteArray CryptoManager::decrypt(const QByteArray &nonceAndCiphertext,
         reinterpret_cast<const unsigned char *>(ciphertext.constData()),
         static_cast<unsigned long long>(ciphertext.size()),
         reinterpret_cast<const unsigned char *>(nonce.constData()),
-        reinterpret_cast<const unsigned char *>(key.constData()));
+        keyData);
 
     if (result != 0) {
         // Authentication failed: either the key is wrong, or the

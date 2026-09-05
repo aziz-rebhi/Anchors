@@ -1,5 +1,6 @@
 #include "notesdatabase.h"
 #include "core/models/document.h"
+#include "core/crypto/cryptomanager.h"
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QJsonDocument>
@@ -32,6 +33,7 @@ bool NotesDatabase::initialize(const QString& dbPath)
     if (m_isOpen)
         return true;
 
+    m_dbPath = dbPath;
     m_db = QSqlDatabase::addDatabase("QSQLITE", "notes_connection");
     m_db.setDatabaseName(dbPath);
 
@@ -53,7 +55,20 @@ bool NotesDatabase::initialize(const QString& dbPath)
         return false;
     }
 
+    if (!migrateSchema()) {
+        qWarning() << "Failed to migrate schema";
+        return false;
+    }
+
     return true;
+}
+
+bool NotesDatabase::reset()
+{
+    if (m_dbPath.isEmpty())
+        return false;
+    close();
+    return initialize(m_dbPath);
 }
 
 void NotesDatabase::close()
@@ -124,7 +139,7 @@ bool NotesDatabase::createTables()
             block_id TEXT PRIMARY KEY,
             rows INTEGER,
             cols INTEGER,
-            FOREIGN KEY (block_id) REFERENCES tables(id) ON DELETE CASCADE
+            FOREIGN KEY (block_id) REFERENCES blocks(id) ON DELETE CASCADE
         )
     )";
     queries << R"(
@@ -150,43 +165,70 @@ bool NotesDatabase::createTables()
     return true;
 }
 
+bool NotesDatabase::columnExists(const QSqlDatabase& db, const QString& table, const QString& column)
+{
+    QSqlQuery query(db);
+    // PRAGMA table_info gives one row per column of the target table.
+    query.prepare("PRAGMA table_info(" + table + ")");
+    if (!query.exec())
+        return false;
+    while (query.next()) {
+        if (query.value(1).toString().compare(column, Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool NotesDatabase::migrateSchema()
+{
+    if (!m_isOpen)
+        return false;
+
+    QSqlQuery query(m_db);
+
+    if (!columnExists(m_db, QStringLiteral("notes"), QStringLiteral("data"))) {
+        if (!query.exec("ALTER TABLE notes ADD COLUMN data BLOB")) {
+            qWarning() << "migrateSchema: could not add notes.data:"
+                       << query.lastError().text();
+            return false;
+        }
+    }
+    if (!columnExists(m_db, QStringLiteral("notes"), QStringLiteral("is_encrypted"))) {
+        if (!query.exec("ALTER TABLE notes ADD COLUMN is_encrypted INTEGER DEFAULT 0")) {
+            qWarning() << "migrateSchema: could not add notes.is_encrypted:"
+                       << query.lastError().text();
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // ----------------------------------------------------------------
 // CRUD operations
 // ----------------------------------------------------------------
 
-bool NotesDatabase::saveDocument(const Document& doc)
+bool NotesDatabase::saveDocument(const Document& doc, const SecureBuffer& key)
 {
     if (!m_isOpen) return false;
 
     QJsonObject docJson = doc.toJson();
     QString docId = docJson["id"].toString();
 
+    const QByteArray plaintext = QJsonDocument(docJson).toJson(QJsonDocument::Compact);
+    if (plaintext.isEmpty())
+        return false;
+
+    const QByteArray encrypted = CryptoManager::encrypt(plaintext, key);
+    if (encrypted.isEmpty())
+        return false;
+
     m_db.transaction();
 
     QSqlQuery query(m_db);
 
-    // Upsert the note row
-    query.prepare(R"(
-        INSERT INTO notes (id, title, created_at, updated_at, is_deleted)
-        VALUES (?, ?, ?, ?, 0)
-        ON CONFLICT(id) DO UPDATE SET
-            title = excluded.title,
-            updated_at = excluded.updated_at,
-            is_deleted = 0
-    )");
-    query.addBindValue(docId);
-    query.addBindValue(docJson["title"].toString());
-    qint64 now = QDateTime::currentSecsSinceEpoch();
-    query.addBindValue(now);
-    query.addBindValue(now);
-
-    if (!query.exec()) {
-        qWarning() << "saveDocument note upsert failed:" << query.lastError().text();
-        m_db.rollback();
-        return false;
-    }
-
-    // Delete existing blocks for this note (clean re-insert)
+    // Delete any legacy plaintext block rows for this note (and, via ON
+    // DELETE CASCADE, their aux-table rows) so no residue stays behind.
     query.prepare("DELETE FROM blocks WHERE note_id = ?");
     query.addBindValue(docId);
     if (!query.exec()) {
@@ -195,34 +237,30 @@ bool NotesDatabase::saveDocument(const Document& doc)
         return false;
     }
 
-    // Insert each block
-    QJsonArray blocksArr = docJson["blocks"].toArray();
-    for (const QJsonValue& val : blocksArr) {
-        QJsonObject blockObj = val.toObject();
+    // Upsert the note row. Title column is blanked: the real title lives
+    // inside the encrypted blob, so we don't leak it into the metadata
+    // columns.
+    query.prepare(R"(
+        INSERT INTO notes (id, title, created_at, updated_at, is_deleted, data, is_encrypted)
+        VALUES (?, ?, ?, ?, 0, ?, 1)
+        ON CONFLICT(id) DO UPDATE SET
+            title = '',
+            updated_at = excluded.updated_at,
+            is_deleted = 0,
+            data = excluded.data,
+            is_encrypted = 1
+    )");
+    query.addBindValue(docId);
+    query.addBindValue(QString());
+    qint64 now = QDateTime::currentSecsSinceEpoch();
+    query.addBindValue(now);
+    query.addBindValue(now);
+    query.addBindValue(encrypted);
 
-        query.prepare(R"(
-            INSERT INTO blocks (id, note_id, parent_id, type, order_index, content, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        )");
-        query.addBindValue(blockObj["id"].toString());
-        query.addBindValue(docId);
-        query.addBindValue(blockObj["parentId"].toString());
-        query.addBindValue(blockObj["blockType"].toString());
-        query.addBindValue(blockObj["orderIndex"].toInt());
-
-        // Store block data as compact JSON in the content column
-        QJsonObject dataObj = blockObj["data"].toObject();
-        query.addBindValue(QString::fromUtf8(
-            QJsonDocument(dataObj).toJson(QJsonDocument::Compact)));
-
-        query.addBindValue(now);
-        query.addBindValue(now);
-
-        if (!query.exec()) {
-            qWarning() << "saveDocument block insert failed:" << query.lastError().text();
-            m_db.rollback();
-            return false;
-        }
+    if (!query.exec()) {
+        qWarning() << "saveDocument note upsert failed:" << query.lastError().text();
+        m_db.rollback();
+        return false;
     }
 
     if (!m_db.commit()) {
@@ -233,15 +271,14 @@ bool NotesDatabase::saveDocument(const Document& doc)
     return true;
 }
 
-Document* NotesDatabase::loadDocument(QUuid id)
+Document* NotesDatabase::loadDocument(QUuid id, const SecureBuffer& key)
 {
     if (!m_isOpen) return nullptr;
 
     QString idStr = id.toString(QUuid::WithoutBraces);
     QSqlQuery query(m_db);
 
-    // Load the note row
-    query.prepare("SELECT id, title FROM notes WHERE id = ? AND is_deleted = 0");
+    query.prepare("SELECT id, is_encrypted, data FROM notes WHERE id = ? AND is_deleted = 0");
     query.addBindValue(idStr);
     if (!query.exec() || !query.next()) {
         qDebug() << "loadDocument: note not found" << idStr;
@@ -249,10 +286,40 @@ Document* NotesDatabase::loadDocument(QUuid id)
     }
 
     QJsonObject docJson;
-    docJson["id"]    = query.value(0).toString();
-    docJson["title"] = query.value(1).toString();
+    docJson["id"] = query.value(0).toString();
 
-    // Load blocks ordered by order_index
+    const int isEncrypted = query.value(1).toInt();
+    const QByteArray blob = query.value(2).toByteArray();
+
+    if (isEncrypted == 1 && !blob.isEmpty()) {
+        // Modern path: the whole document is one encrypted blob.
+        bool decryptOk = false;
+        const QByteArray plaintext = CryptoManager::decrypt(blob, key, &decryptOk);
+        if (!decryptOk) {
+            qWarning() << "loadDocument: failed to decrypt note" << idStr;
+            return nullptr;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(plaintext, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            qWarning() << "loadDocument: decrypted note is not valid JSON" << idStr;
+            return nullptr;
+        }
+        return Document::fromJson(doc.object());
+    }
+
+    // Legacy path: plaintext rows in the old notes/blocks layout. Parse
+    // them the historical way, then immediately re-save as a single
+    // encrypted blob (lazy migration) so the next load takes the fast path
+    // and the plaintext rows are scrubbed.
+    query.prepare("SELECT title FROM notes WHERE id = ?");
+    query.addBindValue(idStr);
+    if (!query.exec() || !query.next()) {
+        return nullptr;
+    }
+    docJson["title"] = query.value(0).toString();
+
     query.prepare("SELECT id, parent_id, type, order_index, content "
                   "FROM blocks WHERE note_id = ? ORDER BY order_index");
     query.addBindValue(idStr);
@@ -290,7 +357,11 @@ Document* NotesDatabase::loadDocument(QUuid id)
 
     docJson["blocks"] = blocksArr;
 
-    return Document::fromJson(docJson);
+    Document* doc = Document::fromJson(docJson);
+    if (doc)
+        saveDocument(*doc, key);
+
+    return doc;
 }
 
 bool NotesDatabase::deleteDocument(QUuid id)

@@ -1,8 +1,10 @@
 #include "noteeditorcontroller.h"
+#include "session.h"
 #include "../core/models/document.h"
 #include "../core/models/blockmodel.h"
 #include "../core/models/blockcommands.h"
 #include "../core/storage/notesdatabase.h"
+#include "../core/storage/FilePaths.h"
 
 #include <QDebug>
 #include <QJsonDocument>
@@ -10,16 +12,28 @@
 #include <QUndoStack>
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QBuffer>
 #include <QImage>
+#include <QImageReader>
 #include <QMimeData>
 #include <QStandardPaths>
+#include <QCryptographicHash>
+#include <QSaveFile>
+#include <QFile>
+#include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QDateTime>
 
 NoteEditorController::NoteEditorController(QObject* parent)
     : QObject(parent)
     , m_db(NotesDatabase::instance())
 {
+    // When the app (and therefore the session) locks, evict every decrypted
+    // image we spilled into the temp folder so the plaintext bytes don't
+    // outlive the unlocked session.
+    connect(Session::instance(), &Session::locked,
+            this, &NoteEditorController::cleanTempImages);
 }
 
 NoteEditorController::~NoteEditorController()
@@ -97,7 +111,7 @@ void NoteEditorController::createNewNote(const QString& title)
     BlockData data = ParagraphData{""};
     m_document->insertBlock(QUuid(), 0, data);
 
-    if (m_db && !m_db->saveDocument(*m_document))
+    if (m_db && !m_db->saveDocument(*m_document, Session::instance()->secureKey()))
         emit errorOccurred(QStringLiteral("Failed to save new note"));
 
     emit documentChanged();
@@ -118,7 +132,7 @@ void NoteEditorController::loadNote(const QString& id)
         m_document = nullptr;
     }
 
-    m_document = m_db ? m_db->loadDocument(docId) : nullptr;
+    m_document = m_db ? m_db->loadDocument(docId, Session::instance()->secureKey()) : nullptr;
     if (!m_document) {
         emit errorOccurred(QStringLiteral("Failed to load note"));
         return;
@@ -136,7 +150,7 @@ void NoteEditorController::loadNote(const QString& id)
 void NoteEditorController::saveNote()
 {
     if (!m_document || !m_db) return;
-    if (!m_db->saveDocument(*m_document))
+    if (!m_db->saveDocument(*m_document, Session::instance()->secureKey()))
         emit errorOccurred(QStringLiteral("Failed to save note"));
 }
 
@@ -584,7 +598,7 @@ QVariantList NoteEditorController::getDocuments() const
     if (!m_db) return list;
     const QList<QUuid> ids = m_db->allDocumentIds();
     for (const QUuid& id : ids) {
-        Document* doc = m_db->loadDocument(id);
+        Document* doc = m_db->loadDocument(id, Session::instance()->secureKey());
         if (doc) {
             QVariantMap map;
             map[QStringLiteral("id")] = doc->id().toString(QUuid::WithoutBraces);
@@ -1094,20 +1108,40 @@ bool NoteEditorController::pasteImageFromClipboard()
     if (image.isNull())
         return false;
 
-    const QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                            + QStringLiteral("/Anchors/images");
+    // Encode to PNG, then encrypt the bytes with the session key and only
+    // ever write the ciphertext to disk.
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    if (!image.save(&buffer, "PNG"))
+        return false;
+    buffer.close();
+
+    const QByteArray encrypted = Session::instance()->encryptData(png);
+    if (encrypted.isEmpty()) {
+        emit errorOccurred(QStringLiteral("Session is locked — cannot save image."));
+        return false;
+    }
+
+    const QString dirPath = FilePaths::imagesDir();
     QDir().mkpath(dirPath);
 
-    const QString fileName = QStringLiteral("img_%1.png")
+    const QString fileName = QStringLiteral("img_%1.png.enc")
                                  .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_hhmmss_zzz")));
     const QString fullPath = dirPath + QLatin1Char('/') + fileName;
 
-    if (!image.save(fullPath, "PNG")) {
+    QSaveFile out(fullPath);
+    if (!out.open(QIODevice::WriteOnly)) {
+        emit errorOccurred(QStringLiteral("Failed to save clipboard image"));
+        return false;
+    }
+    if (out.write(encrypted) != encrypted.size() || !out.commit()) {
         emit errorOccurred(QStringLiteral("Failed to save clipboard image"));
         return false;
     }
 
-    // Prefer file:// so QML Image loads it reliably
+    // Store the ciphertext path as the block source; QML renders through
+    // resolveImageSource().
     const QString source = QUrl::fromLocalFile(fullPath).toString();
 
     // If focus is an empty image block → fill it; else insert after focused / at end
@@ -1138,4 +1172,143 @@ bool NoteEditorController::pasteImageFromClipboard()
     if (!m_pendingFocusId.isEmpty())
         updateBlockImageSource(m_pendingFocusId, source);
     return true;
+}
+
+QString NoteEditorController::resolveImageSource(const QString& source) const
+{
+    if (source.isEmpty())
+        return QString();
+
+    // Normalize to an absolute local path. Anything with a non-file scheme
+    // (http://, https://, qrc:, data:, …) is refused outright — the old
+    // ImageBlock accepted arbitrary remote URLs, which let a malicious note
+    // phone home or load attacker-controlled content.
+    QUrl url(source);
+    QString local;
+    if (url.isValid() && !url.scheme().isEmpty()) {
+        if (url.isLocalFile())
+            local = url.toLocalFile();
+        else
+            return QString();
+    } else {
+        local = source;
+    }
+
+    QFileInfo info(local);
+    if (!info.isAbsolute())
+        info.setFile(QDir(FilePaths::dataDir()).filePath(local));
+    if (!info.exists())
+        return QString();
+
+    const QString imagesDir = QDir::cleanPath(FilePaths::imagesDir());
+    if (!QDir::cleanPath(info.absoluteFilePath()).startsWith(imagesDir + QLatin1Char('/')))
+        return QString(); // file lives outside the images dir → refuse
+
+    if (info.fileName().endsWith(QLatin1String(".enc"), Qt::CaseInsensitive))
+        return decryptImageToTemp(info.absoluteFilePath());
+
+    // Symlink-free legacy plaintext image (unnamed imports are ignored).
+    return QUrl::fromLocalFile(info.absoluteFilePath()).toString();
+}
+
+QString NoteEditorController::importImageFromFile(const QUrl& fileUrl)
+{
+    if (m_document == nullptr)
+        return QString();
+
+    if (!fileUrl.isValid() || !fileUrl.isLocalFile())
+        return QString();
+
+    const QString filePath = fileUrl.toLocalFile();
+
+    QImageReader reader(filePath);
+    reader.setAutoTransform(true);
+    const QImage image = reader.read();
+    if (image.isNull()) {
+        emit errorOccurred(QStringLiteral("Could not read that image file."));
+        return QString();
+    }
+
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    if (!image.save(&buffer, "PNG"))
+        return QString();
+    buffer.close();
+
+    const QByteArray encrypted = Session::instance()->encryptData(png);
+    if (encrypted.isEmpty()) {
+        emit errorOccurred(QStringLiteral("Session is locked — cannot import image."));
+        return QString();
+    }
+
+    const QString dirPath = FilePaths::imagesDir();
+    QDir().mkpath(dirPath);
+
+    const QString fileName = QStringLiteral("img_%1.png.enc")
+                                 .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_hhmmss_zzz")));
+    const QString fullPath = dirPath + QLatin1Char('/') + fileName;
+
+    QSaveFile out(fullPath);
+    if (!out.open(QIODevice::WriteOnly)) {
+        emit errorOccurred(QStringLiteral("Failed to import image."));
+        return QString();
+    }
+    if (out.write(encrypted) != encrypted.size() || !out.commit()) {
+        emit errorOccurred(QStringLiteral("Failed to import image."));
+        return QString();
+    }
+
+    return QUrl::fromLocalFile(fullPath).toString();
+}
+
+QString NoteEditorController::decryptImageToTemp(const QString& encPath) const
+{
+    if (!Session::instance()->isUnlocked())
+        return QString();
+
+    QFile in(encPath);
+    if (!in.open(QIODevice::ReadOnly))
+        return QString();
+    const QByteArray ciphertext = in.readAll();
+    in.close();
+
+    bool ok = false;
+    const QByteArray plain = Session::instance()->decryptData(ciphertext, &ok);
+    if (!ok)
+        return QString();
+
+    const QString dirPath = FilePaths::tempImagesDir();
+    QDir().mkpath(dirPath);
+
+    // Prune stale temp decodes older than one hour before spilling a new one.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    QDirIterator it(dirPath, QDir::Files);
+    while (it.hasNext()) {
+        it.next();
+        if (now - it.fileInfo().lastModified().toMSecsSinceEpoch() > 3600 * 1000)
+            QFile::remove(it.filePath());
+    }
+
+    const QString digest = QString::fromLatin1(
+        QCryptographicHash::hash(encPath.toUtf8(), QCryptographicHash::Sha256).toHex().left(16));
+    const QString tempPath = dirPath + QStringLiteral("/img_%1.png").arg(digest);
+
+    QSaveFile out(tempPath);
+    if (!out.open(QIODevice::WriteOnly))
+        return QString();
+    if (out.write(plain) != plain.size() || !out.commit())
+        return QString();
+
+    return QUrl::fromLocalFile(tempPath).toString();
+}
+
+void NoteEditorController::cleanTempImages()
+{
+    QDir dir(FilePaths::tempImagesDir());
+    if (!dir.exists())
+        return;
+    for (const QString& entry : dir.entryList(QDir::Files)) {
+        QFile::remove(dir.filePath(entry));
+    }
 }

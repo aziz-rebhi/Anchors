@@ -9,7 +9,7 @@
 #include <QUuid>
 #include <algorithm>
 
-TaskRepository::TaskRepository(const QByteArray &sessionKey)
+TaskRepository::TaskRepository(const SecureBuffer &sessionKey)
     : m_sessionKey(sessionKey)
 {
 }

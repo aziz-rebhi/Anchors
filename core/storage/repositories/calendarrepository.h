@@ -4,13 +4,13 @@
 #pragma once
 
 #include "core/models/Calendarentry.h"
-#include <QByteArray>
+#include "core/crypto/SecureBuffer.h"
 #include <QVector>
 
 class CalendarRepository
 {
 public:
-    explicit CalendarRepository(const QByteArray &sessionKey);
+    explicit CalendarRepository(const SecureBuffer &sessionKey);
 
     QVector<CalendarEntry> loadAll(bool *ok = nullptr) const;
     bool saveAll(const QVector<CalendarEntry> &entries) const;
@@ -20,7 +20,7 @@ public:
     bool deleteEntry(const QString &id) const;
 
 private:
-    QByteArray m_sessionKey;
+    const SecureBuffer &m_sessionKey;
 };
 
 #endif // CALENDARREPOSITORY_H

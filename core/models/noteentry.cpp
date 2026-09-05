@@ -8,7 +8,7 @@ QJsonObject NoteEntry::toJson() const {
     obj["title"] = m_title;
     obj["content"] = m_content;
     obj["createdAt"] = m_createdAt;
-    obj["UpdatedAt"] = m_updatedAt;
+    obj["updatedAt"] = m_updatedAt;
     obj["folder"] = m_folder;
     return obj;
 }
@@ -19,7 +19,10 @@ NoteEntry NoteEntry::fromJson(const QJsonObject &obj){
     e.m_title = obj.value("title").toString();
     e.m_content = obj.value("content").toString();
     e.m_createdAt = static_cast<qint64>(obj.value("createdAt").toDouble());
-    e.m_updatedAt = static_cast<qint64>(obj.value("updatedAt").toDouble());
+    // Old builds wrote "UpdatedAt" (capital U); read it as a fallback so
+    // files produced before the fix keep their timestamp.
+    e.m_updatedAt = static_cast<qint64>(obj.value("updatedAt").toDouble(
+        obj.value("UpdatedAt").toDouble()));
     e.m_folder = obj.value("folder").toString();
     return e;
 }

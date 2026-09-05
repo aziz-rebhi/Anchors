@@ -16,6 +16,22 @@ inline QString dataDir()
     return path;
 }
 
+// Directory for note-attachment images. Every image is stored here as an
+// *.png.enc blob (encrypted with the session key) — never as plaintext.
+inline QString imagesDir()
+{
+    return dataDir() + QStringLiteral("/Anchors/images");
+}
+
+// Scratch directory under the OS temp location where decrypted image bytes
+// are spilled so QML can render them while a note is open. Never the on-disk
+// home for an attachment: it is wiped on every lock.
+inline QString tempImagesDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+           + QStringLiteral("/Anchors-images");
+}
+
 inline QString vaultFile()    { return dataDir() + QStringLiteral("/vault.enc"); }
 inline QString notesFile()    { return dataDir() + QStringLiteral("/notes.enc"); }
 inline QString tasksFile()    { return dataDir() + QStringLiteral("/tasks.enc"); }

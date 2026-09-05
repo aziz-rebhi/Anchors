@@ -4,13 +4,13 @@
 #pragma once
 
 #include "../../models/noteentry.h"
-#include <QByteArray>
+#include "../../crypto/SecureBuffer.h"
 #include <QVector>
 
 class NoteRepository
 {
 public:
-    explicit NoteRepository(const QByteArray &sessionKey);
+    explicit NoteRepository(const SecureBuffer &sessionKey);
 
     QVector<NoteEntry> loadAll(bool *ok = nullptr) const ;
     bool saveAll(const QVector<NoteEntry> &entries) const;
@@ -20,7 +20,7 @@ public:
     bool deleteEntry(const QString &id) const ;
 
 private:
-    QByteArray m_sessionKey;
+    const SecureBuffer &m_sessionKey;
 };
 
 #endif // NOTEREPOSITORY_H

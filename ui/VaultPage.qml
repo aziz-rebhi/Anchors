@@ -12,6 +12,7 @@ Page {
     property var allEntries: []
     property string searchText: ""
     property string sortMode: "recent"
+    property var revealedId: null
 
     readonly property int colService: 200
     readonly property int colUser: 180
@@ -51,6 +52,7 @@ Page {
             return
         }
         allEntries = vaultController.entries() || []
+        revealedId = null
     }
 
     function categoryCount(key) {
@@ -62,18 +64,25 @@ Page {
     function copyPassword(pw) {
         if (!pw || !pw.length)
             return
-        clipHelper.text = pw
-        clipHelper.selectAll()
-        clipHelper.copy()
+        if (typeof clipboardGuard === "undefined" || !clipboardGuard)
+            return
+        var secs = 0
+        if (typeof settingsController !== "undefined" && settingsController)
+            secs = settingsController.clearClipboard
+                   ? settingsController.clipboardClearSeconds : 0
+        clipboardGuard.copyWithAutoClear(pw, secs)
     }
 
     function openUrl(url) {
         if (!url || !url.length)
             return
+        // Only ever hand http(s) URLs to the OS. Anything without a scheme
+        // gets https:// assumed; javascript:, file:, etc. are rejected.
         var u = url
-        if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0)
+        if (u.indexOf("://") < 0)
             u = "https://" + u
-        Qt.openUrlExternally(u)
+        if (u.indexOf("http://") === 0 || u.indexOf("https://") === 0)
+            Qt.openUrlExternally(u)
     }
 
     function openCreate() {
@@ -111,13 +120,6 @@ Page {
     }
 
     background: Rectangle { color: theme.background }
-
-    TextEdit {
-        id: clipHelper
-        visible: false
-        width: 1
-        height: 1
-    }
 
     VaultEntryDialog {
         id: editDialog
@@ -280,7 +282,22 @@ Page {
     Component {
         id: pinGateComponent
         Item {
+            id: pinGate
             anchors.fill: parent
+
+            property int lockoutSeconds: authController.pinLockoutSecondsRemaining()
+
+            function formatRemaining(sec) {
+                return Math.floor(sec / 60) + "m " + (sec % 60) + "s"
+            }
+
+            Timer {
+                interval: 500
+                repeat: true
+                running: true
+                onTriggered: pinGate.lockoutSeconds = authController.pinLockoutSecondsRemaining()
+            }
+
             ColumnLayout {
                 anchors.centerIn: parent
                 spacing: 16
@@ -296,8 +313,8 @@ Page {
                 }
                 Label {
                     text: authController.hashVaultPin()
-                          ? "Your vault is locked. Enter your PIN to unlock."
-                          : "Create a PIN to protect your vault."
+                          ? "The vault uses a PIN as an extra view lock. Enter your PIN to unlock this view."
+                          : "Create a PIN to add a view lock for the vault."
                     color: theme.textSecondary
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
@@ -311,6 +328,7 @@ Page {
                     echoMode: TextInput.Password
                     inputMethodHints: Qt.ImhDigitsOnly
                     maximumLength: 8
+                    enabled: pinGate.lockoutSeconds === 0
                     Layout.fillWidth: true
                     onAccepted: unlockButton.clicked()
                 }
@@ -320,6 +338,7 @@ Page {
                     echoMode: TextInput.Password
                     inputMethodHints: Qt.ImhDigitsOnly
                     maximumLength: 8
+                    enabled: pinGate.lockoutSeconds === 0
                     Layout.fillWidth: true
                     visible: !authController.hashVaultPin()
                     onAccepted: unlockButton.clicked()
@@ -333,9 +352,23 @@ Page {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                 }
+                Label {
+                    id: pinLockoutLabel
+                    text: "Too many failed attempts. Try again in "
+                          + pinGate.formatRemaining(pinGate.lockoutSeconds)
+                    color: theme.danger
+                    font.pixelSize: 12
+                    visible: pinGate.lockoutSeconds > 0
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
                 PrimaryButton {
                     id: unlockButton
-                    text: authController.hashVaultPin() ? "Unlock" : "Set PIN"
+                    text: pinGate.lockoutSeconds > 0
+                          ? "LOCKED"
+                          : (authController.hashVaultPin() ? "Unlock" : "Set PIN")
+                    enabled: pinGate.lockoutSeconds === 0
                     Layout.fillWidth: true
                     onClicked: {
                         pinErrorLabel.text = ""
@@ -653,7 +686,9 @@ Page {
                         height: 52
                         radius: theme.radiusSmall
                         color: hoverArea.containsMouse ? theme.surfaceAlt : "transparent"
-                        property bool revealed: false
+                        // One row revealed at a time; keyed by model id so the
+                        // state is correct even when delegate instances recycle.
+                        readonly property bool revealed: root.revealedId === modelData.id
 
                         RowLayout {
                             anchors.fill: parent
@@ -702,9 +737,12 @@ Page {
                                 spacing: 6
                                 Label {
                                     Layout.fillWidth: true
+                                    // Constant-length mask: reveals nothing about
+                                    // the real password length, and the "•" in
+                                    // an 8-digit PIN can't leak either.
                                     text: entryRow.revealed
                                           ? (modelData.password || "")
-                                          : "•".repeat(Math.min((modelData.password || "").length || 8, 12))
+                                          : "••••••••••"
                                     color: theme.textSecondary
                                     font.pixelSize: 13
                                     elide: Text.ElideRight
@@ -713,7 +751,8 @@ Page {
                                     iconName: entryRow.revealed ? "visibility_off" : "visibility"
                                     iconColor: theme.textMuted
                                     tooltip: entryRow.revealed ? "Hide password" : "Show password"
-                                    onClicked: entryRow.revealed = !entryRow.revealed
+                                    onClicked: root.revealedId =
+                                        (root.revealedId === modelData.id) ? null : modelData.id
                                 }
                             }
 
@@ -805,6 +844,7 @@ Page {
         function onLocked() {
             root.vaultUnlocked = false
             root.filterCategory = ""
+            root.revealedId = null
             mainLoader.sourceComponent = pinGateComponent
         }
     }

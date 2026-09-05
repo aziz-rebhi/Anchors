@@ -9,7 +9,7 @@
 #include <QUuid>
 #include <algorithm>
 
-VaultRepository::VaultRepository(const QByteArray &sessionKey)
+VaultRepository::VaultRepository(const SecureBuffer &sessionKey)
     : m_sessionKey(sessionKey)
 {
 }

@@ -19,7 +19,7 @@ QVariantList VaultController::entries() const
         return list;
     }
 
-    VaultRepository repo(Session::instance()->sessionKey());
+    VaultRepository repo(Session::instance()->secureKey());
     bool ok = false;
     const QVector<VaultEntry> all = repo.loadAll(&ok);
     if (!ok) {
@@ -51,7 +51,7 @@ bool VaultController::addEntry(const QString &title, const QString &username,
         return false;
     }
 
-    VaultRepository repo(Session::instance()->sessionKey());
+    VaultRepository repo(Session::instance()->secureKey());
     VaultEntry e;
     e.title = title;
     e.username = username;
@@ -77,7 +77,7 @@ bool VaultController::updateEntry(const QString &id, const QString &title,
         return false;
     }
 
-    VaultRepository repo(Session::instance()->sessionKey());
+    VaultRepository repo(Session::instance()->secureKey());
     VaultEntry e;
     e.id = id;
     e.title = title;
@@ -102,7 +102,7 @@ bool VaultController::deleteEntry(const QString &id)
         return false;
     }
 
-    VaultRepository repo(Session::instance()->sessionKey());
+    VaultRepository repo(Session::instance()->secureKey());
     const bool ok = repo.deleteEntry(id);
     if (ok) {
         emit entriesChanged();

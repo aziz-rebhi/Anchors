@@ -8,9 +8,20 @@ Page {
     Theme { id: theme }
 
     signal unlocked(string name)
-    signal emergencyOverrideRequested()
 
     property bool passwordVisible: false
+    property int lockoutSeconds: authController.lockoutSecondsRemaining()
+
+    function formatRemaining(sec) {
+        return Math.floor(sec / 60) + "m " + (sec % 60) + "s"
+    }
+
+    Timer {
+        interval: 500
+        repeat: true
+        running: true
+        onTriggered: root.lockoutSeconds = authController.lockoutSecondsRemaining()
+    }
 
     background: Rectangle { color: theme.background }
 
@@ -106,6 +117,7 @@ Page {
                 id: passwordField
                 placeholderText: "Enter passphrase"
                 echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
+                enabled: root.lockoutSeconds === 0
                 Layout.fillWidth: true
                 onAccepted: unlockButton.clicked()
             }
@@ -117,6 +129,7 @@ Page {
                 color: eyeMa.containsMouse ? theme.hoverFill : theme.surfaceAlt
                 border.color: theme.border
                 border.width: 1
+                enabled: root.lockoutSeconds === 0
 
                 Text {
                     anchors.centerIn: parent
@@ -147,9 +160,21 @@ Page {
             Layout.alignment: Qt.AlignHCenter
         }
 
+        Label {
+            id: lockoutLabel
+            text: "Too many failed attempts. Try again in "
+                  + root.formatRemaining(root.lockoutSeconds)
+            color: theme.danger
+            font.family: theme.bodyFont
+            font.pixelSize: 12
+            visible: root.lockoutSeconds > 0
+            Layout.alignment: Qt.AlignHCenter
+        }
+
         PrimaryButton {
             id: unlockButton
-            text: "UNLOCK  \u2192"
+            text: root.lockoutSeconds > 0 ? "LOCKED" : "UNLOCK  \u2192"
+            enabled: root.lockoutSeconds === 0
             Layout.fillWidth: true
             onClicked: {
                 errorLabel.visible = false
@@ -159,22 +184,6 @@ Page {
                     root.passwordVisible = false
                     root.unlocked(name)
                 }
-            }
-        }
-
-        Label {
-            text: "EMERGENCY OVERRIDE"
-            color: theme.textMuted
-            font.family: theme.labelFont
-            font.pixelSize: 10
-            font.letterSpacing: 1.5
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 8
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.emergencyOverrideRequested()
             }
         }
     }

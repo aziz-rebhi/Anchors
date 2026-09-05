@@ -4,7 +4,8 @@
 QString PasswordGenerator::generate(int length, bool useSymbols, bool useNumbers){
     if (length < 8) length = 8;
 
-    static const QString letters = "abcdefghijklmnopqrstuvwxyz";
+    static const QString letters = "abcdefghijklmnopqrstuvwxyz"
+                                   "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     static const QString numbers = "0123456789";
     static const QString symbols = "!@#$%^&*()-_=+[]{}";
 

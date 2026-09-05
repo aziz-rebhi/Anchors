@@ -4,13 +4,13 @@
 
 #include "../../models/taskentry.h"
 #include "../../models/projectentry.h"
-#include <QByteArray>
+#include "../../crypto/SecureBuffer.h"
 #include <QVector>
 
 class TaskRepository
 {
 public:
-    explicit TaskRepository(const QByteArray &sessionKey);
+    explicit TaskRepository(const SecureBuffer &sessionKey);
 
     // Full snapshot
     bool load(QVector<ProjectEntry> *projects, QVector<TaskEntry> *tasks) const;
@@ -31,7 +31,7 @@ public:
     bool deleteProject(const QString &id) const; // tasks → Inbox
 
 private:
-    QByteArray m_sessionKey;
+    const SecureBuffer &m_sessionKey;
 };
 
 #endif

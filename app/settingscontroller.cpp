@@ -1,9 +1,16 @@
 #include "settingscontroller.h"
 #include "session.h"
 
+#include "core/storage/notesdatabase.h"
+#include "core/storage/FilePaths.h"
+#include "core/storage/saltstore.h"
+#include "core/storage/encryptedfilestore.h"
+#include "core/crypto/cryptomanager.h"
+
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
@@ -14,9 +21,12 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QVersionNumber>
+#include <QSaveFile>
 #include <QTimer>
 #include <QGuiApplication>
 #include <QFont>
+#include <QVector>
+#include <sodium.h>
 
 static void applyAppFont(qreal scale, const QString &family)
 {
@@ -64,6 +74,9 @@ void SettingsController::load()
     QSettings s(QStringLiteral("Anchors"), QStringLiteral("Anchors"));
     m_autoLockMinutes = s.value(QStringLiteral("security/autoLockMinutes"), 5).toInt();
     m_clearClipboard = s.value(QStringLiteral("security/clearClipboard"), true).toBool();
+    m_clipboardClearSeconds = s.value(QStringLiteral("security/clipboardClearSeconds"), 15).toInt();
+    if (m_clipboardClearSeconds < 3)
+        m_clipboardClearSeconds = 3;
     m_lockOnMinimize = s.value(QStringLiteral("security/lockOnMinimize"), false).toBool();
     m_themeId = s.value(QStringLiteral("appearance/themeId"), QStringLiteral("dark")).toString();
     m_accentColor = s.value(QStringLiteral("appearance/accentColor"), QStringLiteral("#89b4fa")).toString();
@@ -82,6 +95,7 @@ void SettingsController::save()
     QSettings s(QStringLiteral("Anchors"), QStringLiteral("Anchors"));
     s.setValue(QStringLiteral("security/autoLockMinutes"), m_autoLockMinutes);
     s.setValue(QStringLiteral("security/clearClipboard"), m_clearClipboard);
+    s.setValue(QStringLiteral("security/clipboardClearSeconds"), m_clipboardClearSeconds);
     s.setValue(QStringLiteral("security/lockOnMinimize"), m_lockOnMinimize);
     s.setValue(QStringLiteral("appearance/themeId"), m_themeId);
     s.setValue(QStringLiteral("appearance/accentColor"), m_accentColor);
@@ -140,6 +154,19 @@ void SettingsController::setClearClipboard(bool v)
     m_clearClipboard = v;
     save();
     emit clearClipboardChanged();
+}
+
+void SettingsController::setClipboardClearSeconds(int v)
+{
+    if (v < 3)
+        v = 3;
+    if (v > 300)
+        v = 300;
+    if (m_clipboardClearSeconds == v)
+        return;
+    m_clipboardClearSeconds = v;
+    save();
+    emit clipboardClearSecondsChanged();
 }
 
 void SettingsController::setLockOnMinimize(bool v)
@@ -253,22 +280,35 @@ bool SettingsController::exportBackup(const QString &destPath)
         return false;
     }
 
-    const QStringList files = srcDir.entryList(QDir::Files);
-    if (files.isEmpty()) {
-        emit operationFailed(QStringLiteral("Data folder has no files to export."));
-        return false;
-    }
+    // Flush the SQLite journal/handle before snapshotting the folder so we
+    // never copy a half-written notes.db.
+    NotesDatabase::instance()->reset();
 
+    QDirIterator it(src, QDir::Files, QDirIterator::Subdirectories);
     int copied = 0;
-    for (const QString &f : files) {
-        const QString from = srcDir.filePath(f);
-        const QString to = QDir(dest).filePath(f);
+    while (it.hasNext()) {
+        it.next();
+        const QString from = it.filePath();
+        const QString rel = srcDir.relativeFilePath(from);
+        const QString to = QDir(dest).filePath(rel);
+
+        QFileInfo di(to);
+        if (!QDir().mkpath(di.absolutePath())) {
+            emit operationFailed(QStringLiteral("Could not create backup subfolder."));
+            return false;
+        }
+
         QFile::remove(to);
         if (!QFile::copy(from, to)) {
-            emit operationFailed(QStringLiteral("Failed to copy %1").arg(f));
+            emit operationFailed(QStringLiteral("Failed to copy %1").arg(rel));
             return false;
         }
         ++copied;
+    }
+
+    if (copied == 0) {
+        emit operationFailed(QStringLiteral("Data folder has no files to export."));
+        return false;
     }
 
     emit operationSucceeded(
@@ -330,17 +370,36 @@ bool SettingsController::importBackup(const QString &srcPath)
         return false;
     }
 
+    // Close the SQLite handle first: notes.db is about to be replaced on
+    // disk and a stale open handle would keep pointing at the old inode.
+    NotesDatabase::instance()->close();
+
     int copied = 0;
-    for (const QString &f : files) {
-        const QString from = srcDir.filePath(f);
-        const QString to = QDir(dest).filePath(f);
+    QDirIterator it(srcDir.absolutePath(), QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        const QString from = it.filePath();
+        const QString rel = srcDir.relativeFilePath(from);
+        const QString to = QDir(dest).filePath(rel);
+
+        QFileInfo di(to);
+        if (!QDir().mkpath(di.absolutePath())) {
+            emit operationFailed(QStringLiteral("Could not create data subfolder."));
+            NotesDatabase::instance()->reset();
+            return false;
+        }
+
         QFile::remove(to);
         if (!QFile::copy(from, to)) {
-            emit operationFailed(QStringLiteral("Failed to restore %1").arg(f));
+            emit operationFailed(QStringLiteral("Failed to restore %1").arg(rel));
+            NotesDatabase::instance()->reset();
             return false;
         }
         ++copied;
     }
+
+    // Re-open against the restored file so the running session stays usable.
+    NotesDatabase::instance()->reset();
 
     if (Session::instance())
         Session::instance()->lock();
@@ -359,12 +418,24 @@ bool SettingsController::wipeAllData()
     }
 
     const QString src = dataPath();
+
+    // Close the SQLite handle first so the file can actually be removed.
+    NotesDatabase::instance()->close();
+
     QDir dir(src);
-    if (dir.exists()) {
-        const QStringList files = dir.entryList(QDir::Files);
-        for (const QString &f : files)
-            QFile::remove(dir.filePath(f));
+    if (dir.exists() && !dir.removeRecursively()) {
+        NotesDatabase::instance()->reset();
+        emit operationFailed(QStringLiteral("Could not remove all data files."));
+        return false;
     }
+
+    if (!QDir().mkpath(src)) {
+        emit operationFailed(QStringLiteral("Could not recreate data folder."));
+        return false;
+    }
+
+    // Start fresh: an empty notes.db (tables recreated) + clean images dir.
+    NotesDatabase::instance()->reset();
 
     Session::instance()->lock();
     emit lockRequested();
@@ -372,12 +443,132 @@ bool SettingsController::wipeAllData()
     return true;
 }
 
+namespace {
+struct PasswordChangeFile
+{
+    QString path;
+    QByteArray ciphertext; // re-encrypted with the new key
+    QByteArray original;    // pre-change bytes, for rollback
+};
+
+bool writeFileAtomic(const QString &path, const QByteArray &data)
+{
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    if (file.write(data) != data.size()) {
+        file.cancelWriting();
+        return false;
+    }
+    return file.commit();
+}
+
+// Best-effort restoration of the pre-change ciphertexts after a partial
+// password change. Returns the supplied error message.
+QString rollbackChangePassword(const QVector<PasswordChangeFile> &pending,
+                               const QString &reason)
+{
+    for (const PasswordChangeFile &p : pending)
+        writeFileAtomic(p.path, p.original);
+    return reason;
+}
+}
+
 QString SettingsController::changeMasterPassword(const QString &currentPassword,
                                                  const QString &newPassword)
 {
-    Q_UNUSED(currentPassword);
-    Q_UNUSED(newPassword);
-    return QStringLiteral("Change password is not implemented yet.");
+    if (currentPassword.isEmpty() || newPassword.isEmpty())
+        return QStringLiteral("Passwords cannot be empty.");
+
+    if (!Session::instance() || !Session::instance()->isUnlocked())
+        return QStringLiteral("Session is locked.");
+
+    // 1. Verify the current password against the stored salt + verify.enc.
+    const QByteArray oldSalt = SaltStore::load();
+    if (oldSalt.isEmpty())
+        return QStringLiteral("Secure storage is uninitialized.");
+
+    const QByteArray oldKey = CryptoManager::deriveKey(currentPassword, oldSalt);
+    if (oldKey.isEmpty())
+        return QStringLiteral("Could not derive a key from the current password.");
+
+    bool verifyOk = false;
+    const QJsonDocument verifyDoc = EncryptedFileStore::load(
+        FilePaths::verifyFile(), oldKey, &verifyOk);
+    if (!verifyOk || !verifyDoc.isObject()
+        || verifyDoc.object().value(QLatin1String("v")).toString()
+               != QStringLiteral("ANCHORS_VERIFY_V1")) {
+        QByteArray wipedOldKey = oldKey;
+        sodium_memzero(wipedOldKey.data(), static_cast<size_t>(wipedOldKey.size()));
+        return QStringLiteral("Current password is incorrect.");
+    }
+    QByteArray wipedOldKey = oldKey;
+    sodium_memzero(wipedOldKey.data(), static_cast<size_t>(wipedOldKey.size()));
+
+    // 2. Derive the new key from a fresh salt. All stores are re-encrypted
+    //    in memory first, and only then written out — salt.bin is written
+    //    LAST so the keying material is always consistent with the files.
+    const QByteArray newSalt = CryptoManager::generateSalt();
+    const QByteArray newKey = CryptoManager::deriveKey(newPassword, newSalt);
+    if (newSalt.isEmpty() || newKey.isEmpty())
+        return QStringLiteral("Could not derive the new encryption key.");
+
+    const QStringList targets = {
+        FilePaths::verifyFile(),
+        FilePaths::profileFile(),
+        FilePaths::vaultFile(),
+        FilePaths::notesFile(),
+        FilePaths::tasksFile(),
+        FilePaths::calendarFile(),
+        FilePaths::pinFile(),
+        FilePaths::resumeFile(),
+    };
+
+    QVector<PasswordChangeFile> pending;
+    pending.reserve(targets.size());
+
+    for (const QString &path : targets) {
+        if (!QFile::exists(path))
+            continue;
+
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly))
+            return QStringLiteral("Could not read %1.").arg(path);
+        const QByteArray cipher = f.readAll();
+        f.close();
+
+        bool ok = false;
+        const QByteArray plain = CryptoManager::decrypt(cipher, oldKey, &ok);
+        if (!ok)
+            return QStringLiteral("Could not decrypt %1 with the current key.").arg(path);
+
+        const QByteArray re = CryptoManager::encrypt(plain, newKey);
+        if (re.isEmpty())
+            return QStringLiteral("Could not re-encrypt %1.").arg(path);
+
+        pending.append({path, re, cipher});
+    }
+
+    // 3. Write every store atomically. If any write fails, put the
+    //    originals back so the vault is never half-migrated.
+    for (const PasswordChangeFile &p : pending) {
+        if (!writeFileAtomic(p.path, p.ciphertext))
+            return rollbackChangePassword(pending,
+                QStringLiteral("Failed to write %1 — nothing was changed.").arg(p.path));
+    }
+
+    // 4. Persist the new salt last. Everything above is incompatible with
+    //    the old salt, so this commit point is the actual switch-over.
+    if (!SaltStore::save(newSalt))
+        return rollbackChangePassword(pending,
+            QStringLiteral("Failed to save the new salt — nothing was changed."));
+
+    QByteArray wipedNewKey = newKey;
+    sodium_memzero(wipedNewKey.data(), static_cast<size_t>(wipedNewKey.size()));
+
+    // 5. Re-key the live session so the app keeps working without a lockout.
+    Session::instance()->unlock(newKey);
+    return QString();
 }
 
 void SettingsController::checkForUpdates(bool quiet)

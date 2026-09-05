@@ -19,7 +19,7 @@ QVariantList CalendarController::entries() const
         return list;
     }
 
-    CalendarRepository repo(Session::instance()->sessionKey());
+    CalendarRepository repo(Session::instance()->secureKey());
     bool ok = false;
     const QVector<CalendarEntry> all = repo.loadAll(&ok);
     if (!ok) {
@@ -50,7 +50,7 @@ bool CalendarController::addEntry(const QString &title, const QString &descripti
         return false;
     }
 
-    CalendarRepository repo(Session::instance()->sessionKey());
+    CalendarRepository repo(Session::instance()->secureKey());
     CalendarEntry e;
     e.m_title = title;
     e.m_description = description;
@@ -77,7 +77,7 @@ bool CalendarController::updateEntry(const QString &id, const QString &title,
         return false;
     }
 
-    CalendarRepository repo(Session::instance()->sessionKey());
+    CalendarRepository repo(Session::instance()->secureKey());
     CalendarEntry e;
     e.m_id = id;
     e.m_title = title;
@@ -103,7 +103,7 @@ bool CalendarController::deleteEntry(const QString &id)
         return false;
     }
 
-    CalendarRepository repo(Session::instance()->sessionKey());
+    CalendarRepository repo(Session::instance()->secureKey());
     const bool ok = repo.deleteEntry(id);
     if (ok) {
         emit entriesChanged();

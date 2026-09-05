@@ -8,7 +8,7 @@
 #include <QUuid>
 #include <algorithm>
 
-CalendarRepository::CalendarRepository(const QByteArray &sessionKey)
+CalendarRepository::CalendarRepository(const SecureBuffer &sessionKey)
     : m_sessionKey(sessionKey)
 {
 }

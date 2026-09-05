@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QUuid>
+#include <QUrl>
 #include <QVariantList>
 #include <QAbstractItemModel>
 
@@ -74,6 +75,12 @@ public:
     Q_INVOKABLE void duplicateBlock(const QString& blockId);
     Q_INVOKABLE bool pasteImageFromClipboard();
 
+    // A2: encrypted image handling. Images are stored as *.png.enc on disk;
+    // QML must render through resolveImageSource() (which decrypts into a
+    // temp file) instead of passing the raw path to Image.
+    Q_INVOKABLE QString resolveImageSource(const QString& source) const;
+    Q_INVOKABLE QString importImageFromFile(const QUrl& fileUrl);
+
 
 
 signals:
@@ -89,6 +96,8 @@ signals:
 
 private:
     void bindDocumentSignals();
+    QString decryptImageToTemp(const QString& encPath) const;
+    static void cleanTempImages();
 
     Document* m_document = nullptr;
     NotesDatabase* m_db = nullptr;

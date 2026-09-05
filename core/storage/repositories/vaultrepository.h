@@ -4,13 +4,13 @@
 #pragma once
 
 #include "../../models/vaultentry.h"
-#include <QByteArray>
+#include "../../crypto/SecureBuffer.h"
 #include <QVector>
 
 class VaultRepository
 {
 public:
-    explicit VaultRepository(const QByteArray &sessionKey);
+    explicit VaultRepository(const SecureBuffer &sessionKey);
 
     QVector <VaultEntry> loadAll(bool *ok = nullptr ) const ;
 
@@ -21,7 +21,7 @@ public:
     bool deleteEntry(const QString &id) const;
 
 private:
-    QByteArray m_sessionKey;
+    const SecureBuffer &m_sessionKey;
 };
 
 #endif // VAULTREPOSITORY_H

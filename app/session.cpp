@@ -1,4 +1,5 @@
 #include "session.h"
+#include "../core/crypto/cryptomanager.h"
 #include <sodium.h>
 #include <QDebug>
 #include <algorithm>
@@ -70,4 +71,19 @@ QByteArray Session::sessionKey() const{
 
     return QByteArray(reinterpret_cast<const char *>(m_keyBuffer.data()),
                       static_cast<int>(m_keyBuffer.size()));
+}
+
+const SecureBuffer &Session::secureKey() const
+{
+    return m_keyBuffer;
+}
+
+QByteArray Session::encryptData(const QByteArray &plaintext) const
+{
+    return CryptoManager::encrypt(plaintext, secureKey());
+}
+
+QByteArray Session::decryptData(const QByteArray &ciphertext, bool *ok) const
+{
+    return CryptoManager::decrypt(ciphertext, secureKey(), ok);
 }

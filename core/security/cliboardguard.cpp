@@ -5,14 +5,22 @@
 #include <QTimer>
 
 
-void CliboardGuard::copyWithAutoClear(const QString &text, int seconds){
-    QClipboard *clipboard = QGuiApplication::clipboard();
-    clipboard -> setText(text);
+CliboardGuard::CliboardGuard(QObject *parent) : QObject(parent)
+{
+}
 
-    QTimer::singleShot(seconds * 1000, qApp, [text](){
+void CliboardGuard::copyWithAutoClear(const QString &text, int seconds)
+{
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    clipboard->setText(text);
+
+    if (seconds <= 0)
+        return;
+
+    QTimer::singleShot(seconds * 1000, this, [this, text]() {
         QClipboard *cb = QGuiApplication::clipboard();
-        if (cb -> text() == text){
-            cb -> clear();
+        if (cb->text() == text) {
+            cb->clear();
         }
     });
 }

@@ -30,6 +30,13 @@ public:
 
     QByteArray sessionKey() const;
 
+    // Direct access to the guarded key buffer — no heap copy. Prefer this
+    // (or encryptData/decryptData) over sessionKey() on hot paths.
+    const SecureBuffer &secureKey() const;
+
+    QByteArray encryptData(const QByteArray &plaintext) const;
+    QByteArray decryptData(const QByteArray &ciphertext, bool *ok = nullptr) const;
+
 signals:
     void unlocked();
     void locked();

@@ -12,6 +12,7 @@ class SettingsController : public QObject
     Q_OBJECT
     Q_PROPERTY(int autoLockMinutes READ autoLockMinutes WRITE setAutoLockMinutes NOTIFY autoLockMinutesChanged)
     Q_PROPERTY(bool clearClipboard READ clearClipboard WRITE setClearClipboard NOTIFY clearClipboardChanged)
+    Q_PROPERTY(int clipboardClearSeconds READ clipboardClearSeconds WRITE setClipboardClearSeconds NOTIFY clipboardClearSecondsChanged)
     Q_PROPERTY(bool lockOnMinimize READ lockOnMinimize WRITE setLockOnMinimize NOTIFY lockOnMinimizeChanged)
     Q_PROPERTY(QString themeId READ themeId WRITE setThemeId NOTIFY themeIdChanged)
     Q_PROPERTY(QString accentColor READ accentColor WRITE setAccentColor NOTIFY accentColorChanged)
@@ -35,6 +36,9 @@ public:
 
     bool clearClipboard() const { return m_clearClipboard; }
     void setClearClipboard(bool v);
+
+    int clipboardClearSeconds() const { return m_clipboardClearSeconds; }
+    void setClipboardClearSeconds(int v);
 
     bool lockOnMinimize() const { return m_lockOnMinimize; }
     void setLockOnMinimize(bool v);
@@ -85,6 +89,7 @@ public:
 signals:
     void autoLockMinutesChanged();
     void clearClipboardChanged();
+    void clipboardClearSecondsChanged();
     void lockOnMinimizeChanged();
     void themeIdChanged();
     void accentColorChanged();
@@ -108,6 +113,7 @@ private:
 
     int m_autoLockMinutes = 5;
     bool m_clearClipboard = true;
+    int m_clipboardClearSeconds = 15;
     bool m_lockOnMinimize = false;
     QString m_themeId = QStringLiteral("dark");
     QString m_accentColor = QStringLiteral("#89b4fa");

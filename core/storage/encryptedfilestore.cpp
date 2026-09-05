@@ -15,6 +15,40 @@ QJsonDocument EncryptedFileStore::load(const QString &filePath,
                                        const QByteArray &sessionKey,
                                        bool *ok)
 {
+    return loadWithKey(filePath,
+                       reinterpret_cast<const unsigned char *>(sessionKey.constData()),
+                       static_cast<size_t>(sessionKey.size()),
+                       ok);
+}
+
+bool EncryptedFileStore::save (const QString &filePath, const QJsonDocument &doc, const QByteArray &sessionKey)
+{
+    return saveWithKey(filePath, doc,
+                       reinterpret_cast<const unsigned char *>(sessionKey.constData()),
+                       static_cast<size_t>(sessionKey.size()));
+}
+
+QJsonDocument EncryptedFileStore::load(const QString &filePath,
+                                       const SecureBuffer &sessionKey,
+                                       bool *ok)
+{
+    if (!sessionKey.isValid())
+        return loadWithKey(filePath, nullptr, 0, ok);
+    return loadWithKey(filePath, sessionKey.data(), sessionKey.size(), ok);
+}
+
+bool EncryptedFileStore::save(const QString &filePath, const QJsonDocument &doc,
+                              const SecureBuffer &sessionKey)
+{
+    if (!sessionKey.isValid())
+        return saveWithKey(filePath, doc, nullptr, 0);
+    return saveWithKey(filePath, doc, sessionKey.data(), sessionKey.size());
+}
+
+QJsonDocument EncryptedFileStore::loadWithKey(const QString &filePath,
+                                              const unsigned char *keyData, size_t keySize,
+                                              bool *ok)
+{
     auto setOk = [ok](bool value) {
         if (ok) *ok = value;
     };
@@ -39,7 +73,11 @@ QJsonDocument EncryptedFileStore::load(const QString &filePath,
     file.close();
 
     bool decryptOk = false;
-    QByteArray plaintext = CryptoManager::decrypt(encrypted, sessionKey, &decryptOk);
+    // fromRawData wraps the caller's key memory without copying it — the
+    // CryptoManager call below only reads the bytes, never writes them.
+    const QByteArray keyView = QByteArray::fromRawData(
+        reinterpret_cast<const char *>(keyData), static_cast<int>(keySize));
+    QByteArray plaintext = CryptoManager::decrypt(encrypted, keyView, &decryptOk);
 
     if (!decryptOk) {
         // Wrong session key, or the file has been corrupted/tampered
@@ -65,10 +103,13 @@ QJsonDocument EncryptedFileStore::load(const QString &filePath,
     return doc;
 }
 
-bool EncryptedFileStore::save (const QString &filePath, const QJsonDocument &doc, const QByteArray &sessionKey)
+bool EncryptedFileStore::saveWithKey(const QString &filePath, const QJsonDocument &doc,
+                                     const unsigned char *keyData, size_t keySize)
 {
     QByteArray plaintext = doc.toJson(QJsonDocument::Compact);
-    QByteArray encrypted = CryptoManager::encrypt(plaintext, sessionKey);
+    const QByteArray keyView = QByteArray::fromRawData(
+        reinterpret_cast<const char *>(keyData), static_cast<int>(keySize));
+    QByteArray encrypted = CryptoManager::encrypt(plaintext, keyView);
 
     if (encrypted.isEmpty()) {
         qWarning() << "EncryptedFileStore::save: encryption failed for" << filePath;

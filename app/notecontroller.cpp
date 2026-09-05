@@ -18,7 +18,7 @@ QVariantList NoteController::entries() const
         return list;
     }
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok = false;
     const QVector<NoteEntry> all = repo.loadAll(&ok);
     if (!ok) {
@@ -46,7 +46,7 @@ bool NoteController::addEntry(const QString &title, const QString &content)
         return false;
     }
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     NoteEntry e;
     e.m_title = title;
     e.m_content = content;
@@ -67,7 +67,7 @@ bool NoteController::updateEntry(const QString &id, const QString &title, const 
         return false;
     }
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok;
     auto all = repo.loadAll(&ok);
     if (!ok) {
@@ -108,7 +108,7 @@ bool NoteController::deleteEntry(const QString &id)
         return false;
     }
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     const bool ok = repo.deleteEntry(id);
     if (ok) {
         emit entriesChanged();
@@ -122,7 +122,7 @@ bool NoteController::deleteEntry(const QString &id)
 QStringList NoteController::getFolders() const
 {
     if (!Session::instance()->isUnlocked()) return {};
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok; auto entries = repo.loadAll(&ok);
     if (!ok) return {};
     QStringList folders;
@@ -138,7 +138,7 @@ QVariantList NoteController::entriesForFolder(const QString &folder) const
 {
     QVariantList list;
     if (!Session::instance()->isUnlocked()) return list;
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return list;
     for (const auto &e : all) {
@@ -158,7 +158,7 @@ QVariantList NoteController::entriesForFolder(const QString &folder) const
 bool NoteController::moveNoteToFolder(const QString &noteId, const QString &folderName)
 {
     if (!Session::instance()->isUnlocked()) return false;
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
     for (auto &e : all) {
@@ -175,7 +175,7 @@ bool NoteController::renameFolder(const QString &oldName, const QString &newName
     if (oldName.isEmpty() || newName.isEmpty() || oldName == newName) return false;
     if (!Session::instance()->isUnlocked()) return false;
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
 
@@ -203,7 +203,7 @@ bool NoteController::deleteFolder(const QString &folderName)
     if (!Session::instance()->isUnlocked())
         return false;
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok = false;
     QVector<NoteEntry> all = repo.loadAll(&ok);
     if (!ok)
@@ -237,7 +237,7 @@ QString NoteController::addEntryInFolder(const QString &title, const QString &co
         return QString();
     }
 
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     NoteEntry e;
     e.m_title = title;
     e.m_content = content;
@@ -254,7 +254,7 @@ QString NoteController::addEntryInFolder(const QString &title, const QString &co
 bool NoteController::renameEntry(const QString &id, const QString &newTitle)
 {
     if (!Session::instance()->isUnlocked()) return false;
-    NoteRepository repo(Session::instance()->sessionKey());
+    NoteRepository repo(Session::instance()->secureKey());
     bool ok; auto all = repo.loadAll(&ok);
     if (!ok) return false;
     for (auto &e : all) {

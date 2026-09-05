@@ -48,13 +48,32 @@ public:
 
     Q_INVOKABLE bool hashVaultPin() const;
     Q_INVOKABLE bool setVaultPin(const QString &pin);
-    Q_INVOKABLE bool verifyVaultPin(const QString &pin) const;
+    Q_INVOKABLE bool verifyVaultPin(const QString &pin);
+
+    // Master-password throttling: after repeated wrong guesses the unlock
+    // path refuses to even run Argon2 until the lockout window lapses.
+    Q_INVOKABLE bool lockedOut() const;
+    Q_INVOKABLE int lockoutSecondsRemaining() const;
+
+    // Same idea, applied to PIN verification (independent counters).
+    Q_INVOKABLE bool pinLockedOut() const;
+    Q_INVOKABLE int pinLockoutSecondsRemaining() const;
 
 signals:
     void accountCreated();
     void accountCreationFailed(const QString &reason);
     void unlockSucceeded();
     void unlockFailed();
+    void lockStateChanged();
+    void pinLockStateChanged();
+
+private:
+    static qint64 lockoutDurationMs(int consecutiveFailures);
+
+    int m_failedAttempts = 0;
+    qint64 m_lockUntilMs = 0;
+    int m_pinFailedAttempts = 0;
+    qint64 m_pinLockUntilMs = 0;
 };
 
 #endif // AUTHCONTROLLER_H

@@ -17,6 +17,7 @@
 #include "core/editor/codehighlightbridge.h"
 #include "app/settingscontroller.h"
 #include "core/security/autolockmanager.h"
+#include "core/security/cliboardguard.h"
 #include "qwindow.h"
 
 int main(int argc, char *argv[])
@@ -51,6 +52,7 @@ int main(int argc, char *argv[])
 
     auto *settingsController = new SettingsController(&app);
     auto *autoLock = new Autolockmanager(&app);
+    auto *clipboardGuard = new CliboardGuard(&app);
 
     auto applySecuritySettings = [autoLock, settingsController]() {
         autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
@@ -77,6 +79,7 @@ int main(int argc, char *argv[])
                      autoLock, &Autolockmanager::stop);
 
     engine.rootContext()->setContextProperty(QStringLiteral("settingsController"), settingsController);
+    engine.rootContext()->setContextProperty(QStringLiteral("clipboardGuard"), clipboardGuard);
     engine.rootContext()->setContextProperty("authController", &authController);
     engine.rootContext()->setContextProperty("session", Session::instance());
     engine.rootContext()->setContextProperty("vaultController", &vaultController);
