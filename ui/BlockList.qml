@@ -9,28 +9,35 @@ ListView {
     spacing: 2
     clip: true
 
-    // ── Scroll restore on model reset ───────────────────────────
     property real savedContentY: 0
     property bool restoreScroll: false
 
-    // ── Drag-and-drop state ─────────────────────────────────────
     property string dragBlockId: ""
     property int dragFromIndex: -1
     property real dragHoverY: -1
-    property int dropIndex: -1
+    property int dropIndex: -1   // insert-before in [0 .. count]
+
+    Theme { id: theme }
+
+    // Past the midpoint of block i → insert after i.
+    // Past the midpoint of the last block → dropIndex === count (after last).
+    function computeDropIndex(contentYPos) {
+        if (count <= 0)
+            return 0
+        for (var i = 0; i < count; i++) {
+            var it = itemAtIndex(i)
+            if (!it)
+                continue
+            if (contentYPos < it.y + it.height * 0.5)
+                return i
+        }
+        return count
+    }
 
     onDragHoverYChanged: {
         if (dragFromIndex < 0)
             return
-        var y = dragHoverY + contentY
-        var idx = indexAt(10, y)
-        if (idx < 0) {
-            if (y < contentY + 8)
-                idx = 0
-            else
-                idx = count
-        }
-        dropIndex = idx
+        dropIndex = computeDropIndex(dragHoverY + contentY)
     }
 
     function finishDrag() {
@@ -38,14 +45,22 @@ ListView {
             cancelDrag()
             return
         }
-        var to = dropIndex
-        if (to < 0)
-            to = count
-        // When moving downward, account for the slot the item leaves
-        if (to > dragFromIndex)
-            to -= 1
-        if (to !== dragFromIndex && noteEditor)
-            noteEditor.moveBlock(dragBlockId, to)
+
+        var from = dragFromIndex
+        var insertBefore = dropIndex
+        if (insertBefore < 0)
+            insertBefore = from
+        if (insertBefore > count)
+            insertBefore = count
+
+        if (insertBefore === from || insertBefore === from + 1) {
+            cancelDrag()
+            return
+        }
+
+        if (noteEditor)
+            noteEditor.moveBlock(dragBlockId, insertBefore)
+
         cancelDrag()
     }
 
@@ -56,7 +71,6 @@ ListView {
         dropIndex = -1
     }
 
-    // Drop indicator line
     Rectangle {
         visible: root.dragFromIndex >= 0 && root.dropIndex >= 0
         width: parent.width - 24
@@ -64,7 +78,7 @@ ListView {
         x: 12
         z: 100
         radius: 1
-        color: "#4F9F4F"
+        color: theme.tertiary
         y: {
             if (root.dropIndex <= 0)
                 return 0
