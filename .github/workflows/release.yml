@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────
-  # Linux (portable binary)
+  # Linux
   # ─────────────────────────────────────────
   linux:
     runs-on: ubuntu-22.04
@@ -42,9 +42,7 @@ jobs:
       - name: Build
         run: |
           export PATH="${Qt6_DIR}/bin:${PATH}"
-          VER="${GITHUB_REF_NAME#v}"
-          echo "Building Linux VERSION=$VER"
-          qmake Anchors.pro CONFIG+=release VERSION="$VER"
+          qmake Anchors.pro CONFIG+=release
           make -j"$(nproc)"
 
       - name: Locate binary
@@ -60,10 +58,9 @@ jobs:
         with:
           name: linux-binary
           path: Anchors-linux-x86_64
-
-  # ─────────────────────────────────────────
+  # ------------------------------------
   # Flatpak
-  # ─────────────────────────────────────────
+  # ------------------------------------
   flatpak:
     name: Flatpak
     runs-on: ubuntu-22.04
@@ -86,9 +83,8 @@ jobs:
         with:
           name: flatpak-bundle
           path: Anchors.flatpak
-
   # ─────────────────────────────────────────
-  # Windows (MSVC) + Inno Setup
+  # Windows (MinGW)
   # ─────────────────────────────────────────
   windows:
     runs-on: windows-latest
@@ -96,54 +92,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Qt (MSVC)
+      - name: Install Qt (MinGW)
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.3'
           host: windows
           target: desktop
-          arch: win64_msvc2019_64
+          arch: win64_mingw
+          tools: 'tools_mingw1310'
           modules: 'qtshadertools'
           cache: true
 
-      - name: Install libsodium (vcpkg MSVC)
-        run: vcpkg install libsodium:x64-windows
-
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+      - name: Install libsodium (vcpkg mingw)
+        run: vcpkg install libsodium:x64-mingw-dynamic
 
       - name: Build
         shell: cmd
         run: |
-          set PATH=%Qt6_DIR%\bin;%PATH%
-          set INCLUDE=%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\include;%INCLUDE%
-          set LIB=%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\lib;%LIB%
-          set PATH=%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin;%PATH%
+          set PATH=%Qt6_DIR%\bin;%IQTA_TOOLS%\mingw1310_64\bin;%PATH%
+          set VCPKG_ROOT=%VCPKG_INSTALLATION_ROOT%
+          set INCLUDE=%VCPKG_ROOT%\installed\x64-mingw-dynamic\include;%INCLUDE%
+          set LIBRARY_PATH=%VCPKG_ROOT%\installed\x64-mingw-dynamic\lib;%LIBRARY_PATH%
+          set PATH=%VCPKG_ROOT%\installed\x64-mingw-dynamic\bin;%PATH%
 
-          set VER=%GITHUB_REF_NAME%
-          if "%VER:~0,1%"=="v" set VER=%VER:~1%
-          if "%VER%"=="" set VER=0.0.0
-          echo Building Windows VERSION=%VER%
-
+          where g++
+          where mingw32-make
           where qmake
-          where cl
-          where nmake
 
-          qmake Anchors.pro -spec win32-msvc CONFIG+=release VERSION=%VER%
+          qmake Anchors.pro CONFIG+=release
           if errorlevel 1 exit /b 1
-
-          if not exist Makefile (
-            echo Makefile missing after qmake
-            dir
-            exit /b 1
-          )
-
-          nmake
+          mingw32-make -j%NUMBER_OF_PROCESSORS%
           if errorlevel 1 exit /b 1
-
-          dir /s /b Anchors.exe
 
       - name: Stage deploy folder
         shell: pwsh
@@ -159,9 +138,25 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item $exe.FullName "$out\Anchors.exe"
 
-          $windeploy = Join-Path $env:Qt6_DIR "bin\windeployqt.exe"
-          if (-not (Test-Path $windeploy)) {
-            throw "windeployqt not found at $windeploy"
+          $windeploy = $null
+          if ($env:Qt6_DIR -and (Test-Path "$env:Qt6_DIR\bin\windeployqt.exe")) {
+            $windeploy = "$env:Qt6_DIR\bin\windeployqt.exe"
+          }
+          if (-not $windeploy) {
+            $qmakeCmd = Get-Command qmake -ErrorAction SilentlyContinue
+            if ($qmakeCmd) {
+              $candidate = Join-Path (Split-Path $qmakeCmd.Source) "windeployqt.exe"
+              if (Test-Path $candidate) { $windeploy = $candidate }
+            }
+          }
+          if (-not $windeploy) {
+            $windeploy = (
+              Get-ChildItem -Path "D:\a", "C:\a" -Recurse -Filter "windeployqt.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            ).FullName
+          }
+          if (-not $windeploy -or -not (Test-Path $windeploy)) {
+            throw "windeployqt.exe not found. Qt6_DIR='$($env:Qt6_DIR)'"
           }
           Write-Host "windeployqt: $windeploy"
           & $windeploy --release --qmldir ui "$out\Anchors.exe"
@@ -169,27 +164,18 @@ jobs:
 
           $vcpkg = $env:VCPKG_INSTALLATION_ROOT
           if ($vcpkg) {
-            Get-ChildItem "$vcpkg\installed\x64-windows\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
-              ForEach-Object { Copy-Item $_.FullName $out -Force }
-            Get-ChildItem "$vcpkg\installed\x64-windows\bin\libssl*.dll",
-                          "$vcpkg\installed\x64-windows\bin\libcrypto*.dll" -ErrorAction SilentlyContinue |
-              ForEach-Object { Copy-Item $_.FullName $out -Force }
+            Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
+              ForEach-Object { Copy-Item $_.FullName $out }
           }
 
-          $qtBin = Join-Path $env:Qt6_DIR "bin"
-          foreach ($dll in @(
-            "libssl-3-x64.dll", "libcrypto-3-x64.dll",
-            "libssl-1_1-x64.dll", "libcrypto-1_1-x64.dll"
-          )) {
-            $src = Join-Path $qtBin $dll
-            if (Test-Path $src) {
-              Copy-Item $src $out -Force
-              Write-Host "Copied OpenSSL: $dll"
+          $gpp = Get-Command g++ -ErrorAction SilentlyContinue
+          if ($gpp) {
+            $mingwBin = Split-Path $gpp.Source
+            foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
+              $src = Join-Path $mingwBin $dll
+              if (Test-Path $src) { Copy-Item $src $out }
             }
           }
-
-          Write-Host "Deploy folder:"
-          Get-ChildItem $out | Format-Table Name, Length
 
           Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
           Write-Host "Created Anchors-windows-x64.zip"
@@ -243,5 +229,12 @@ jobs:
             ### Downloads
             - **Windows installer:** `Anchors-Setup-*.exe` — full install, optional desktop shortcut
             - **Windows portable:** `Anchors-windows-x64.zip` — extract and run
-            - **Linux binary:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
-            - **Flatpak:** `Anchors.flatpak`
+            - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
+          files: |
+            artifacts/linux-binary/Anchors-linux-x86_64
+            artifacts/windows-zip/Anchors-windows-x64.zip
+            artifacts/windows-setup/Anchors-Setup-*.exe
+            artifacts/flatpak-bundle/Anchors.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
