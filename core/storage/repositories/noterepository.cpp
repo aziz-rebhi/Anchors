@@ -40,11 +40,10 @@ bool NoteRepository::saveAll(const QVector<NoteEntry> &entries) const
     return EncryptedFileStore::save(FilePaths::notesFile(), QJsonDocument(arr), m_sessionKey);
 }
 
-bool NoteRepository::addEntry(NoteEntry entry) const
+bool NoteRepository::addEntry(NoteEntry &entry) const
 {
-    if (entry.m_id.isEmpty()) {
+    if (entry.m_id.isEmpty())
         entry.m_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    }
     const qint64 now = QDateTime::currentSecsSinceEpoch();
     entry.m_createdAt = now;
     entry.m_updatedAt = now;

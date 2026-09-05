@@ -15,7 +15,7 @@ public:
     QVector<NoteEntry> loadAll(bool *ok = nullptr) const ;
     bool saveAll(const QVector<NoteEntry> &entries) const;
 
-    bool addEntry(NoteEntry entry) const ;
+    bool addEntry(NoteEntry &entry) const ;
     bool updateEntry(const NoteEntry &entry) const ;
     bool deleteEntry(const QString &id) const ;
 

@@ -230,11 +230,11 @@ bool NoteController::deleteFolder(const QString &folderName)
     return saved;
 }
 
-bool NoteController::addEntryInFolder(const QString &title, const QString &content, const QString &folderName)
+QString NoteController::addEntryInFolder(const QString &title, const QString &content, const QString &folderName)
 {
     if (!Session::instance()->isUnlocked()) {
         emit operationFailed(QStringLiteral("Notes are locked."));
-        return false;
+        return QString();
     }
 
     NoteRepository repo(Session::instance()->sessionKey());
@@ -243,13 +243,12 @@ bool NoteController::addEntryInFolder(const QString &title, const QString &conte
     e.m_content = content;
     e.m_folder = folderName;
 
-    const bool ok = repo.addEntry(e);
-    if (ok) {
-        emit entriesChanged();
-    } else {
+    if (!repo.addEntry(e)) {
         emit operationFailed(QStringLiteral("Could not save the note."));
+        return QString();
     }
-    return ok;
+    emit entriesChanged();
+    return e.m_id;  // id filled by repository
 }
 
 bool NoteController::renameEntry(const QString &id, const QString &newTitle)

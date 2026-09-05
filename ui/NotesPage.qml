@@ -115,6 +115,16 @@ Page {
         buildTree()
     }
 
+    function selectNoteById(noteId) {
+        if (!noteId || !noteId.length)
+            return
+        var note = root.allNotes.find(function (n) { return n.id === noteId })
+        if (!note)
+            return
+        root.selectNote(note)
+        root.scrollToNote(noteId)
+    }
+
     function createFolder(name) {
         if (!name || name.trim().length === 0) {
             isCreatingFolder = false
@@ -122,29 +132,32 @@ Page {
             return
         }
         var leaf = name.trim()
-        var folderPath = currentFolderPath.length > 0 ? (currentFolderPath + "/" + leaf) : leaf
-        if (noteController.addEntryInFolder("New note", "", folderPath)) {
-            currentFolderPath = folderPath
-            var ep = Object.assign({}, expandedPaths)
-            var parts = folderPath.split("/"), acc = ""
-            for (var i = 0; i < parts.length; i++) {
-                acc = i === 0 ? parts[i] : (acc + "/" + parts[i])
-                ep[acc] = true
-            }
-            expandedPaths = ep
-            Qt.callLater(function () {
-                root.refresh(false)
-                var newNote = root.allNotes.find(function (n) {
-                    return n.folder === folderPath && n.title === "New note"
-                })
-                if (newNote) {
-                    root.selectNote(newNote)
-                    root.scrollToNote(newNote.id)
-                }
-            })
-        }
+        var folderPath = currentFolderPath.length > 0
+            ? (currentFolderPath + "/" + leaf)
+            : leaf
+
+        // One empty note so the folder path exists in storage
+        var newId = noteController.addEntryInFolder("Untitled note", "", folderPath)
         isCreatingFolder = false
         newFolderName = ""
+        if (!newId || !newId.length)
+            return
+
+        currentFolderPath = folderPath
+        var ep = Object.assign({}, expandedPaths)
+        var parts = folderPath.split("/")
+        var acc = ""
+        for (var i = 0; i < parts.length; i++) {
+            acc = (i === 0) ? parts[i] : (acc + "/" + parts[i])
+            ep[acc] = true
+        }
+        expandedPaths = ep
+
+        // entriesChanged already refreshed; pick up the new note after tree rebuild
+        Qt.callLater(function () {
+            root.refresh(false)
+            root.selectNoteById(newId)
+        })
     }
 
     function refresh(preserveSelection) {
@@ -259,18 +272,13 @@ Page {
                         glyph: "✎"; tooltipText: "New note"
                         onClicked: {
                             var folder = root.currentFolderPath
-                            if (noteController.addEntryInFolder("Untitled note", "", folder)) {
-                                Qt.callLater(function () {
-                                    root.refresh(false)
-                                    var n = root.allNotes.find(function (x) {
-                                        return x.folder === folder && x.title === "Untitled note"
-                                    })
-                                    if (n) {
-                                        root.selectNote(n)
-                                        root.scrollToNote(n.id)
-                                    }
-                                })
-                            }
+                            var newId = noteController.addEntryInFolder("Untitled note", "", folder)
+                            if (!newId || !newId.length)
+                                return
+                            Qt.callLater(function () {
+                                root.refresh(false)
+                                root.selectNoteById(newId)
+                            })
                         }
                     }
                     SidebarIconButton {
@@ -519,7 +527,6 @@ Page {
             text: "Delete Folder"
             onTriggered: {
                 var folder = folderContextMenu.targetFolder
-                // If the open note is inside this folder, clear the editor
                 if (root.selectedId.length > 0) {
                     var open = root.allNotes.find(function (n) { return n.id === root.selectedId })
                     if (open) {
@@ -551,15 +558,13 @@ Page {
             text: "New Note Here"
             onTriggered: {
                 var folder = folderContextMenu.targetFolder
-                if (noteController.addEntryInFolder("Untitled note", "", folder)) {
-                    Qt.callLater(function () {
-                        root.refresh(false)
-                        var n = root.allNotes.find(function (x) {
-                            return x.folder === folder && x.title === "Untitled note"
-                        })
-                        if (n) { root.selectNote(n); root.scrollToNote(n.id) }
-                    })
-                }
+                var newId = noteController.addEntryInFolder("Untitled note", "", folder)
+                if (!newId || !newId.length)
+                    return
+                Qt.callLater(function () {
+                    root.refresh(false)
+                    root.selectNoteById(newId)
+                })
             }
         }
     }
