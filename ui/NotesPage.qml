@@ -14,6 +14,7 @@ Page {
     property bool sortByRecent: false
     property bool isCreatingFolder: false
     property string newFolderName: ""
+    property bool loadingNote: false
 
     ListModel { id: treeModel }
 
@@ -178,26 +179,36 @@ Page {
     }
 
     function saveCurrentNote() {
-        if (selectedId.length === 0 || !noteEditor || !noteEditor.model) return
-        noteController.updateEntry(selectedId, noteEditor.noteTitle, noteEditor.documentToJson())
-        allNotes = noteController.entries()
-        buildTree()
-    }
+            if (loadingNote) return
+            if (selectedId.length === 0 || !noteEditor || !noteEditor.model) return
+            noteController.updateEntry(selectedId, noteEditor.noteTitle, noteEditor.documentToJson())
+            allNotes = noteController.entries()
+            buildTree()
+        }
 
     function selectNote(note) {
-        if (!note) return
-        if (selectedId.length > 0 && noteEditor && noteEditor.model)
-            saveCurrentNote()
-        selectedId = note.id
-        titleField.loadingEditor = true
-        var content = note.content || ""
-        if (content.length === 0 || content === "{}") {
-            noteEditor.loadFromContent(note.title || "Untitled note", [""])
-        } else {
-            noteEditor.loadFromJson(note.title || "", content)
+            if (!note) return
+
+            saveTimer.stop()
+
+            if (selectedId.length > 0 && noteEditor && noteEditor.model)
+                saveCurrentNote()
+
+            selectedId = note.id
+            loadingNote = true
+            titleField.loadingEditor = true
+
+            var content = note.content || ""
+            if (content.length === 0 || content === "{}") {
+                noteEditor.loadFromContent(note.title || "Untitled note", [""])
+            } else {
+                noteEditor.loadFromJson(note.title || "", content)
+            }
+
+            titleField.loadingEditor = false
+            loadingNote = false
+            saveTimer.stop()   // load can emit documentModified
         }
-        titleField.loadingEditor = false
-    }
 
     function scrollToNote(noteId) {
         Qt.callLater(function () {
@@ -397,9 +408,13 @@ Page {
                 onTriggered: root.saveCurrentNote()
             }
             Connections {
-                target: noteEditor
-                function onDocumentModified() { saveTimer.restart() }
-            }
+                    target: noteEditor
+                    function onDocumentModified() {
+                        if (root.loadingNote || root.selectedId.length === 0)
+                            return
+                        saveTimer.restart()
+                    }
+                }
         }
 
         ColumnLayout {
