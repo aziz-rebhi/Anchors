@@ -83,6 +83,16 @@ Page {
         }).length
     }
 
+    function eventEndMs(e) {
+        if (!e) return 0
+        if (e.end) {
+            var endMs = new Date(e.end).getTime()
+            if (!isNaN(endMs)) return endMs
+        }
+        var s = new Date(e.start).getTime()
+        return isNaN(s) ? 0 : (s + 60 * 60 * 1000)
+    }
+
     function refreshEvents() {
         if (typeof calendarController === "undefined" || !calendarController) {
             upcomingEvents = []
@@ -90,16 +100,31 @@ Page {
             return
         }
         var all = calendarController.entries() || []
-        var nowSecs = Date.now() / 1000
+        var nowMs = Date.now()
+
         var upcoming = all.filter(function (e) {
             if (!e || e.start === undefined || e.start === null)
                 return false
-            return new Date(e.start).getTime() / 1000 >= nowSecs
+            var startMs = new Date(e.start).getTime()
+            if (isNaN(startMs))
+                return false
+
+            // All-day: keep until end of that calendar day
+            if (e.allDay) {
+                var day = startOfDay(new Date(e.start))
+                var dayEnd = new Date(day)
+                dayEnd.setHours(23, 59, 59, 999)
+                return dayEnd.getTime() >= nowMs
+            }
+
+            // Timed: keep while the event has not ended yet
+            return eventEndMs(e) >= nowMs
         })
+
         upcoming.sort(function (a, b) {
             return new Date(a.start) - new Date(b.start)
         })
-        upcomingEvents = upcoming.slice(0, 4)
+        upcomingEvents = upcoming.slice(0, 6)
         buildWeekStrip(all)
     }
 

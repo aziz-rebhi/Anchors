@@ -17,6 +17,7 @@ class CalendarEntry
     QDateTime m_end;
     bool m_allDay = false;
     QColor m_color = Qt::blue;
+    int m_reminderMinutes = 15; // 0 = off, 15 default
 
     friend class CalendarRepository;
     friend class CalendarPage;
@@ -36,6 +37,7 @@ public:
     QDateTime end() const { return m_end; }
     bool allDay() const { return m_allDay; }
     QColor color() const { return m_color; }
+    int reminderMinutes() const { return m_reminderMinutes; }
 };
 
 #endif // CALENDARENTRY_H

@@ -10,6 +10,7 @@ QJsonObject CalendarEntry::toJson() const
     obj["end"] = m_end.toString(Qt::ISODate);
     obj["allDay"] = m_allDay;
     obj["color"] = m_color.name();
+    obj["reminderMinutes"] = m_reminderMinutes;
     return obj;
 }
 
@@ -23,5 +24,6 @@ CalendarEntry CalendarEntry::fromJson(const QJsonObject &obj)
     e.m_end = QDateTime::fromString(obj.value("end").toString(), Qt::ISODate);
     e.m_allDay = obj.value("allDay").toBool();
     e.m_color = QColor(obj.value("color").toString());
+    e.m_reminderMinutes = obj.value(QStringLiteral("reminderMinutes")).toInt(15);
     return e;
 }

@@ -1,8 +1,9 @@
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QIcon>
 #include <QDebug>
+#include <QWindow>
 
 #include "app/session.h"
 #include "app/authcontroller.h"
@@ -18,13 +19,13 @@
 #include "app/settingscontroller.h"
 #include "core/security/autolockmanager.h"
 #include "core/security/cliboardguard.h"
-#include "qwindow.h"
+#include "core/security/remindermanager.h"
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    // QApplication (not QGuiApplication) so QSystemTrayIcon notifications work
+    QApplication app(argc, argv);
 
-    // Consistent QSettings + QStandardPaths on every OS
     QCoreApplication::setOrganizationName(QStringLiteral("Anchors"));
     QCoreApplication::setApplicationName(QStringLiteral("Anchors"));
     QGuiApplication::setDesktopFileName(QStringLiteral("Anchors"));
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
     auto *settingsController = new SettingsController(&app);
     auto *autoLock = new Autolockmanager(&app);
     auto *clipboardGuard = new CliboardGuard(&app);
+    auto *reminders = new ReminderManager(&app);
 
     auto applySecuritySettings = [autoLock, settingsController]() {
         autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
@@ -70,13 +72,23 @@ int main(int argc, char *argv[])
     QObject::connect(settingsController, &SettingsController::lockOnMinimizeChanged,
                      applySecuritySettings);
 
-    QObject::connect(Session::instance(), &Session::unlocked, autoLock, [autoLock, settingsController]() {
-        autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
-        autoLock->setLockOnMinimize(settingsController->lockOnMinimize());
-        autoLock->start();
-    });
+    // Auto-lock while unlocked
+    QObject::connect(Session::instance(), &Session::unlocked, autoLock,
+                     [autoLock, settingsController]() {
+                         autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
+                         autoLock->setLockOnMinimize(settingsController->lockOnMinimize());
+                         autoLock->start();
+                     });
     QObject::connect(Session::instance(), &Session::locked,
                      autoLock, &Autolockmanager::stop);
+
+    // Reminders only while vault/session is unlocked (needs encryption key)
+    QObject::connect(Session::instance(), &Session::unlocked,
+                     reminders, &ReminderManager::start);
+    QObject::connect(Session::instance(), &Session::locked,
+                     reminders, &ReminderManager::stop);
+    if (Session::instance()->isUnlocked())
+        reminders->start();
 
     engine.rootContext()->setContextProperty(QStringLiteral("settingsController"), settingsController);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboardGuard"), clipboardGuard);
@@ -93,8 +105,9 @@ int main(int argc, char *argv[])
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty())
         return -1;
-    if (QWindow *win = qobject_cast<QWindow *>(engine.rootObjects().constFirst())){
-        win -> setIcon(QIcon(QStringLiteral(":/qml/logo.png")));
+
+    if (QWindow *win = qobject_cast<QWindow *>(engine.rootObjects().constFirst())) {
+        win->setIcon(QIcon(QStringLiteral(":/qml/logo.png")));
     }
 
     return app.exec();

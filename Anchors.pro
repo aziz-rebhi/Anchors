@@ -2,7 +2,7 @@ QT += widgets core quick qml sql
 
 CONFIG += c++17
 
-VERSION = 1.0.34
+VERSION = 1.0.35
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 
 QT += network
@@ -39,6 +39,7 @@ SOURCES += \
     core/models/calendarentry.cpp \
     core/models/document.cpp \
     core/models/projectentry.cpp \
+    core/security/remindermanager.cpp \
     core/storage/notesdatabase.cpp \
     main.cpp \
     app/session.cpp \
@@ -89,6 +90,7 @@ HEADERS += \
     core/security/autolockmanager.h \
     core/security/cliboardguard.h \
     core/security/passwordgenerator.h \
+    core/security/remindermanager.h \
     core/storage/FilePaths.h \
     core/storage/encryptedfilestore.h \
     core/storage/notesdatabase.h \

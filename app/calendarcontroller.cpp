@@ -36,6 +36,7 @@ QVariantList CalendarController::entries() const
         m["end"] = e.end().toString(Qt::ISODate);
         m["allDay"] = e.allDay();
         m["color"] = e.color().name();
+        m["reminderMinutes"] = e.reminderMinutes();
         list.append(m);
     }
     return list;
