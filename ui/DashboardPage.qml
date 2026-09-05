@@ -17,16 +17,16 @@ Page {
     property string profileName: ""
     property string todoFocusFilter: ""
 
-    signal navigateRequested(string pageName, string filter)
+    signal navigateRequested(string pageName, string filter, var payload)
 
-    readonly property string greeting: {
+    property string greeting: "Good morning"
+    property string todayLabel: ""
+
+    function refreshClock() {
         var h = new Date().getHours()
-        if (h < 12) return "Good morning"
-        if (h < 18) return "Good afternoon"
-        return "Good evening"
+        greeting = h < 12 ? "Good morning" : (h < 18 ? "Good afternoon" : "Good evening")
+        todayLabel = Qt.formatDate(new Date(), "dddd, MMMM d")
     }
-
-    readonly property string todayLabel: Qt.formatDate(new Date(), "dddd, MMMM d")
 
     function tDue(t) {
         if (!t) return 0
@@ -94,7 +94,7 @@ Page {
         var upcoming = all.filter(function (e) {
             if (!e || e.start === undefined || e.start === null)
                 return false
-            return new Date(e.start).getTime() / 1000 >= nowSecs - 3600
+            return new Date(e.start).getTime() / 1000 >= nowSecs
         })
         upcoming.sort(function (a, b) {
             return new Date(a.start) - new Date(b.start)
@@ -124,7 +124,8 @@ Page {
                 label: Qt.formatDate(d, "ddd"),
                 dayNum: d.getDate(),
                 isToday: i === 0,
-                eventCount: count
+                eventCount: count,
+                firstDate: d
             })
         }
         weekDays = days
@@ -165,6 +166,7 @@ Page {
     }
 
     function refreshAll() {
+        refreshClock()
         refreshTasks()
         refreshEvents()
         refreshNotes()
@@ -174,11 +176,12 @@ Page {
 
     function goTodo(filter) {
         todoFocusFilter = filter || ""
-        navigateRequested("todo", todoFocusFilter)
+        navigateRequested("todo", todoFocusFilter, null)
     }
-    function goNotes()    { navigateRequested("notes", "") }
-    function goCalendar() { navigateRequested("calendar", "") }
-    function goVault()    { navigateRequested("vault", "") }
+    function goNotes()    { navigateRequested("notes", "", null) }
+    function goCalendar() { navigateRequested("calendar", "", null) }
+    function goCalendarDay(d) { navigateRequested("calendar", "", d) }
+    function goVault()    { navigateRequested("vault", "", null) }
 
     function quickAddTask() {
         if (typeof taskController === "undefined" || !taskController)
@@ -222,6 +225,26 @@ Page {
     Connections {
         target: typeof vaultController !== "undefined" ? vaultController : null
         function onEntriesChanged() { dashboardPage.refreshVault() }
+    }
+    Connections {
+        target: typeof session !== "undefined" ? session : null
+        function onLocked() {
+            scratchpadArea.persist()   // best-effort; meaningful when the
+                                        // HomePage outlives the key drop briefly
+            dashboardPage.refreshAll()
+        }
+    }
+
+    // Keep time-sensitive numbers honest while the page sits open: the
+    // overdue count flips the moment a task crosses its due time, "Next
+    // event" rolls forward, and the greeting/date refresh at midnight.
+    Timer {
+        interval: 60000
+        repeat: true
+        running: true
+        onTriggered: {
+            dashboardPage.refreshAll()
+        }
     }
 
     background: Rectangle { color: theme.background }
@@ -275,19 +298,6 @@ Page {
                         }
                     }
                     Item { Layout.fillWidth: true }
-                    RowLayout {
-                        spacing: 8
-                        Layout.alignment: Qt.AlignBottom
-                        Rectangle {
-                            width: 8; height: 8; radius: 4
-                            color: theme.tertiary
-                        }
-                        Label {
-                            text: "System Active"
-                            color: theme.textSecondary
-                            font.pixelSize: 12
-                        }
-                    }
                 }
 
                 // Week strip
@@ -341,7 +351,7 @@ Page {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: dashboardPage.goCalendar()
+                                    onClicked: dashboardPage.goCalendarDay(modelData.firstDate)
                                 }
                             }
                         }
@@ -821,11 +831,13 @@ Page {
                                 }
                                 property string noteId: ""
                                 property bool loading: true
+                                property string lastSaved: ""
                                 function load() {
                                     loading = true
                                     if (typeof noteController === "undefined" || !noteController) {
                                         noteId = ""
                                         text = ""
+                                        lastSaved = ""
                                         loading = false
                                         return
                                     }
@@ -834,29 +846,42 @@ Page {
                                         if (all[i].title === "Scratchpad") {
                                             noteId = all[i].id
                                             text = all[i].content || ""
+                                            lastSaved = text
                                             loading = false
                                             return
                                         }
                                     }
                                     noteId = ""
                                     text = ""
+                                    lastSaved = ""
                                     loading = false
                                 }
+                                // Flush immediately instead of waiting for the
+                                // debounce, so edits are never lost to a quick
+                                // navigation, focus click-away or app exit.
+                                function persist() {
+                                    if (typeof noteController === "undefined" || !noteController)
+                                        return
+                                    var t = scratchpadArea.text
+                                    if (t === scratchpadArea.lastSaved)
+                                        return
+                                    if (scratchpadArea.noteId.length > 0) {
+                                        if (noteController.updateEntry(
+                                                scratchpadArea.noteId, "Scratchpad", t))
+                                            scratchpadArea.lastSaved = t
+                                    } else if (t.trim().length > 0) {
+                                        noteController.addEntry("Scratchpad", t)
+                                        scratchpadArea.load()
+                                    }
+                                }
                                 Component.onCompleted: load()
+                                onActiveFocusChanged: if (!activeFocus && !loading) persist()
                                 onTextChanged: if (!loading) saveTimer.restart()
+                                Component.onDestruction: persist()
                                 Timer {
                                     id: saveTimer
                                     interval: 800
-                                    onTriggered: {
-                                        if (!noteController) return
-                                        if (scratchpadArea.noteId.length > 0)
-                                            noteController.updateEntry(
-                                                scratchpadArea.noteId, "Scratchpad", scratchpadArea.text)
-                                        else if (scratchpadArea.text.trim().length > 0) {
-                                            noteController.addEntry("Scratchpad", scratchpadArea.text)
-                                            scratchpadArea.load()
-                                        }
-                                    }
+                                    onTriggered: scratchpadArea.persist()
                                 }
                             }
 

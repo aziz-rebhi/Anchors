@@ -15,6 +15,7 @@ Page {
 
     property bool sidebarCollapsed: true
     property string pendingTodoFilter: ""
+    property date pendingCalendarDate: new Date()
 
     readonly property int sidebarExpandedWidth: 220
     readonly property int sidebarCollapsedWidth: 72
@@ -222,6 +223,10 @@ Page {
                             onClicked: {
                                 if (modelData.key !== "todo")
                                     root.pendingTodoFilter = ""
+                                // Direct calendar navigation opens on today
+                                // (the dashboard's day-jump sets this instead).
+                                if (modelData.key === "calendar")
+                                    root.pendingCalendarDate = new Date()
                                 root.activeKey = modelData.key
                             }
                         }
@@ -358,15 +363,17 @@ Page {
     Component {
         id: dashboardComponent
         DashboardPage {
-            onNavigateRequested: function (pageName, filter) {
+            onNavigateRequested: function (pageName, filter, payload) {
                 root.pendingTodoFilter = (pageName === "todo") ? (filter || "") : ""
+                if (pageName === "calendar" && payload instanceof Date)
+                    root.pendingCalendarDate = payload
                 root.activeKey = pageName
             }
         }
     }
     Component { id: vaultComponent; VaultPage {} }
     Component { id: notesComponent; NotesPage {} }
-    Component { id: calendarComponent; CalendarPage {} }
+    Component { id: calendarComponent; CalendarPage { viewDate: root.pendingCalendarDate; selectedDate: root.pendingCalendarDate } }
     Component {
         id: todoComponent
         TodoPage {

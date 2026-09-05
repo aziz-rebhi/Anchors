@@ -10,3 +10,4 @@ Tests/build/
 Tests/.qmake.stash
 Tests/Tests
 .qtcreator/*.user
+/Anchors
