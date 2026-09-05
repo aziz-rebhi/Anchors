@@ -47,7 +47,6 @@ Page {
 
     readonly property var currentTasks: tasksForProject(currentProjectId)
 
-    // Overdue view: all projects; otherwise current project only
     readonly property var openTasks: {
         var source = (focusFilter === "overdue") ? allTasks : currentTasks
         var list = source.filter(function (t) { return !t.done })
@@ -80,6 +79,15 @@ Page {
                 return allProjects[i]
         }
         return { name: "Inbox", emoji: "📥", color: theme.tertiary }
+    }
+
+    function addTaskFromField() {
+        var title = newTaskField.text.trim()
+        if (!title.length)
+            return
+        taskController.addEntry(title, 0, root.currentProjectId)
+        newTaskField.text = ""
+        newTaskField.forceActiveFocus()
     }
 
     background: Rectangle { color: theme.background }
@@ -324,7 +332,7 @@ Page {
                     id: newTaskField
                     Layout.fillWidth: true
                     placeholderText: "Add a task in " + (root.currentProjectMeta().name || "Inbox") + "..."
-                    onAccepted: addBtnMa.clicked()
+                    onAccepted: root.addTaskFromField()
                 }
 
                 Rectangle {
@@ -345,12 +353,7 @@ Page {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var title = newTaskField.text.trim()
-                            if (!title.length) return
-                            taskController.addEntry(title, 0, root.currentProjectId)
-                            newTaskField.text = ""
-                        }
+                        onClicked: root.addTaskFromField()
                     }
                     ToolTip.visible: addBtnMa.containsMouse
                     ToolTip.text: "Add task"

@@ -24,6 +24,8 @@ class SettingsController : public QObject
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
     Q_PROPERTY(bool checkingUpdate READ checkingUpdate NOTIFY checkingUpdateChanged)
     Q_PROPERTY(QStringList vaultCategories READ vaultCategories WRITE setVaultCategories NOTIFY vaultCategoriesChanged)
+    Q_PROPERTY(qreal fontScale READ fontScale WRITE setFontScale NOTIFY fontScaleChanged)
+    Q_PROPERTY(QString uiFontFamily READ uiFontFamily WRITE setUiFontFamily NOTIFY uiFontFamilyChanged)
 
 public:
     explicit SettingsController(QObject *parent = nullptr);
@@ -74,6 +76,12 @@ public:
     Q_INVOKABLE void addVaultCategory(const QString &name);
     Q_INVOKABLE void removeVaultCategory(const QString &name);
 
+    qreal fontScale() const { return m_fontScale; }
+    void setFontScale(qreal v);
+
+    QString uiFontFamily() const { return m_uiFontFamily; }
+    void setUiFontFamily(const QString &v);
+
 signals:
     void autoLockMinutesChanged();
     void clearClipboardChanged();
@@ -89,6 +97,8 @@ signals:
     void updateInfoChanged();
     void checkingUpdateChanged();
     void vaultCategoriesChanged();
+    void fontScaleChanged();
+    void uiFontFamilyChanged();
 
 private:
     void load();
@@ -110,6 +120,8 @@ private:
     bool m_updateAvailable = false;
     bool m_checkingUpdate = false;
     QStringList m_vaultCategories;
+    qreal m_fontScale = 1.0;
+    QString m_uiFontFamily;
 };
 
 #endif

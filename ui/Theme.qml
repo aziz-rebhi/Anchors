@@ -3,7 +3,6 @@ import QtQuick 2.15
 QtObject {
     id: root
 
-    // Prefer Qt 6 styleHints; fall back to dark if unavailable
     readonly property bool systemIsDark: {
         try {
             if (Qt.styleHints && Qt.styleHints.colorScheme !== undefined)
@@ -14,19 +13,46 @@ QtObject {
 
     // themeId: "dark" | "light" | "system"
     readonly property bool isDark: {
-        if (!settingsController)
+        if (typeof settingsController === "undefined" || !settingsController)
             return true
         var id = settingsController.themeId || "dark"
         if (id === "light")
             return false
         if (id === "dark")
             return true
-        // "system" (or anything else)
         return root.systemIsDark
     }
 
+    readonly property real fontScale: {
+        if (typeof settingsController !== "undefined" && settingsController)
+            return settingsController.fontScale
+        return 1.0
+    }
+
+    readonly property string bodyFont: {
+        if (typeof settingsController !== "undefined" && settingsController
+                && settingsController.uiFontFamily
+                && settingsController.uiFontFamily.length)
+            return settingsController.uiFontFamily
+        return "Inter, Segoe UI, sans-serif"
+    }
+    readonly property string headlineFont: bodyFont
+    readonly property string labelFont: bodyFont
+
+    // Scaled sizes — prefer these over hard-coded pixelSize
+    readonly property int fs10: Math.round(10 * fontScale)
+    readonly property int fs11: Math.round(11 * fontScale)
+    readonly property int fs12: Math.round(12 * fontScale)
+    readonly property int fs13: Math.round(13 * fontScale)
+    readonly property int fs14: Math.round(14 * fontScale)
+    readonly property int fs16: Math.round(16 * fontScale)
+    readonly property int fs18: Math.round(18 * fontScale)
+    readonly property int fs22: Math.round(22 * fontScale)
+    readonly property int fs28: Math.round(28 * fontScale)
+
     readonly property color accent:
-        (settingsController && settingsController.accentColor
+        (typeof settingsController !== "undefined" && settingsController
+         && settingsController.accentColor
          && settingsController.accentColor.length)
             ? settingsController.accentColor
             : (isDark ? "#89b4fa" : "#1d4ed8")
@@ -55,22 +81,16 @@ QtObject {
 
     readonly property color onAccent: isDark ? "#0A140A" : "#ffffff"
 
-    readonly property string headlineFont: "Inter, Segoe UI, sans-serif"
-    readonly property string bodyFont:     "Inter, Segoe UI, sans-serif"
-    readonly property string labelFont:    "Inter, Segoe UI, sans-serif"
-
     readonly property int radiusSmall:  6
     readonly property int radiusMedium: 10
     readonly property int radiusPill:   999
     readonly property int spacingLarge: 20
 
-    readonly property color hoverFill: isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,0,0,0.06)
+    readonly property color hoverFill: isDark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.06)
 
-    // Re-evaluate when OS theme changes (Qt 6)
     property var _schemeWatcher: Connections {
         target: (typeof Qt.styleHints !== "undefined") ? Qt.styleHints : null
         function onColorSchemeChanged() {
-            // touch a dependency so isDark bindings refresh
             root.systemIsDarkChanged()
         }
     }

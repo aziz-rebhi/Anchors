@@ -42,14 +42,12 @@ Page {
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-        // Content must report a real height so the page can scroll
         ColumnLayout {
             id: col
             width: Math.min(root.maxContentWidth, scroll.availableWidth - pageMargin * 2)
             x: Math.max(pageMargin, (scroll.availableWidth - width) / 2)
             spacing: 24
 
-            // top padding
             Item { Layout.preferredHeight: 12 }
 
             ColumnLayout {
@@ -58,14 +56,15 @@ Page {
                 Label {
                     text: "Settings"
                     color: theme.textPrimary
-                    font.pixelSize: 28
+                    font.pixelSize: theme.fs28
                     font.weight: Font.DemiBold
                     font.family: theme.headlineFont
                 }
                 Label {
                     text: "Preferences, security, and data"
                     color: theme.textMuted
-                    font.pixelSize: 13
+                    font.pixelSize: theme.fs13
+                    font.family: theme.bodyFont
                 }
             }
 
@@ -85,7 +84,7 @@ Page {
                             { t: "To-Do", v: "todo" }
                         ]
                         value: settingsController.startPage
-                        onValuePicked: settingsController.startPage = v
+                        onValuePicked: function (v) { settingsController.startPage = v }
                     }
                 }
                 GroupSeparator {}
@@ -98,7 +97,7 @@ Page {
                             { t: "Week", v: "week" }
                         ]
                         value: settingsController.calendarDefaultView
-                        onValuePicked: settingsController.calendarDefaultView = v
+                        onValuePicked: function (v) { settingsController.calendarDefaultView = v }
                     }
                 }
             }
@@ -119,7 +118,7 @@ Page {
                             { t: "Never", v: 0 }
                         ]
                         value: settingsController.autoLockMinutes
-                        onValuePicked: settingsController.autoLockMinutes = v
+                        onValuePicked: function (v) { settingsController.autoLockMinutes = v }
                     }
                 }
                 GroupSeparator {}
@@ -203,6 +202,41 @@ Page {
                         }
                     }
                 }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Text size"
+                    subtitle: Math.round(settingsController.fontScale * 100) + "%"
+                    trailing: Row {
+                        spacing: 8
+                        TahoeIconButton {
+                            symbol: "A−"
+                            onClicked: settingsController.fontScale =
+                                Math.max(0.85, settingsController.fontScale - 0.05)
+                        }
+                        TahoeIconButton {
+                            symbol: "A+"
+                            onClicked: settingsController.fontScale =
+                                Math.min(1.40, settingsController.fontScale + 0.05)
+                        }
+                    }
+                }
+                GroupSeparator {}
+                GroupRow {
+                    title: "Font"
+                    subtitle: "UI typeface"
+                    trailing: TahoeCombo {
+                        model: [
+                            { t: "System", v: "" },
+                            { t: "Inter", v: "Inter" },
+                            { t: "Segoe UI", v: "Segoe UI" },
+                            { t: "Roboto", v: "Roboto" },
+                            { t: "Noto Sans", v: "Noto Sans" },
+                            { t: "SF Pro", v: "SF Pro Text" }
+                        ]
+                        value: settingsController.uiFontFamily
+                        onValuePicked: function (v) { settingsController.uiFontFamily = v }
+                    }
+                }
             }
 
             GroupCard {
@@ -256,7 +290,8 @@ Page {
                     trailing: Label {
                         text: "v" + settingsController.appVersion
                         color: theme.textMuted
-                        font.pixelSize: 13
+                        font.pixelSize: theme.fs13
+                        font.family: theme.bodyFont
                     }
                 }
                 GroupSeparator {}
@@ -317,7 +352,8 @@ Page {
             id: toastLabel
             anchors.centerIn: parent
             color: theme.textPrimary
-            font.pixelSize: 12
+            font.pixelSize: theme.fs12
+            font.family: theme.bodyFont
         }
         Timer {
             id: toastTimer
@@ -363,6 +399,8 @@ Page {
                 wrapMode: Text.WordWrap
                 color: theme.textSecondary
                 Layout.preferredWidth: 280
+                font.pixelSize: theme.fs13
+                font.family: theme.bodyFont
             }
             RowLayout {
                 Layout.alignment: Qt.AlignRight
@@ -416,7 +454,8 @@ Page {
             Label {
                 id: passError
                 color: theme.danger
-                font.pixelSize: 12
+                font.pixelSize: theme.fs12
+                font.family: theme.bodyFont
                 visible: text.length > 0
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
@@ -463,8 +502,9 @@ Page {
         Label {
             text: card.title
             color: theme.textMuted
-            font.pixelSize: 12
+            font.pixelSize: theme.fs12
             font.weight: Font.DemiBold
+            font.family: theme.labelFont
             leftPadding: 4
         }
 
@@ -516,12 +556,14 @@ Page {
                 Label {
                     text: row.title
                     color: theme.textPrimary
-                    font.pixelSize: 14
+                    font.pixelSize: theme.fs14
+                    font.family: theme.bodyFont
                 }
                 Label {
                     text: row.subtitle
                     color: theme.textMuted
-                    font.pixelSize: 11
+                    font.pixelSize: theme.fs11
+                    font.family: theme.bodyFont
                     visible: row.subtitle.length > 0
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
@@ -554,7 +596,8 @@ Page {
         contentItem: Text {
             text: combo.displayText
             color: theme.textPrimary
-            font.pixelSize: 12
+            font.pixelSize: theme.fs12
+            font.family: theme.bodyFont
             verticalAlignment: Text.AlignVCenter
             leftPadding: 10
             rightPadding: 24
@@ -566,13 +609,15 @@ Page {
             for (var i = 0; i < model.length; i++) {
                 if (model[i].v === value) { currentIndex = i; return }
             }
+            if (value === "" || value === undefined)
+                currentIndex = 0
         }
         onActivated: valuePicked(model[currentIndex].v)
     }
 
     component ThemeModePicker: Rectangle {
         id: picker
-        property string mode: "dark"   // dark | system | light
+        property string mode: "dark"
         signal modePicked(string m)
 
         readonly property var modes: ["dark", "system", "light"]
@@ -610,7 +655,8 @@ Page {
                     width: picker.width / 3
                     height: picker.height
                     text: picker.labels[index]
-                    font.pixelSize: 10
+                    font.pixelSize: theme.fs10
+                    font.family: theme.bodyFont
                     font.weight: picker.idx === index ? Font.DemiBold : Font.Normal
                     color: picker.idx === index ? theme.textPrimary : theme.textMuted
                     horizontalAlignment: Text.AlignHCenter
@@ -678,7 +724,6 @@ Page {
             anchors.centerIn: parent
             text: parent.symbol
             font.pixelSize: 14
-            // Color emoji (Flatpak + Linux)
             font.family: "Noto Color Emoji"
         }
         MouseArea {

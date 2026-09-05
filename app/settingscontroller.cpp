@@ -15,11 +15,24 @@
 #include <QJsonObject>
 #include <QVersionNumber>
 #include <QTimer>
+#include <QGuiApplication>
+#include <QFont>
+
+static void applyAppFont(qreal scale, const QString &family)
+{
+    QFont f = QGuiApplication::font();
+    if (!family.isEmpty())
+        f.setFamily(family);
+    // Base ~10.5 pt, scaled by user preference
+    f.setPointSizeF(10.5 * scale);
+    QGuiApplication::setFont(f);
+}
 
 SettingsController::SettingsController(QObject *parent)
     : QObject(parent)
 {
     load();
+    applyAppFont(m_fontScale, m_uiFontFamily);
     QDir().mkpath(dataPath());
 
     if (m_checkUpdatesOnStartup) {
@@ -58,6 +71,10 @@ void SettingsController::load()
     m_calendarDefaultView = s.value(QStringLiteral("calendar/defaultView"), QStringLiteral("month")).toString();
     m_vaultCategories = s.value(QStringLiteral("vault/categories")).toStringList();
     m_checkUpdatesOnStartup = s.value(QStringLiteral("general/checkUpdatesOnStartup"), true).toBool();
+    m_fontScale = s.value(QStringLiteral("appearance/fontScale"), 1.0).toDouble();
+    if (m_fontScale < 0.8 || m_fontScale > 1.5)
+        m_fontScale = 1.0;
+    m_uiFontFamily = s.value(QStringLiteral("appearance/uiFontFamily")).toString();
 }
 
 void SettingsController::save()
@@ -72,19 +89,45 @@ void SettingsController::save()
     s.setValue(QStringLiteral("calendar/defaultView"), m_calendarDefaultView);
     s.setValue(QStringLiteral("vault/categories"), m_vaultCategories);
     s.setValue(QStringLiteral("general/checkUpdatesOnStartup"), m_checkUpdatesOnStartup);
+    s.setValue(QStringLiteral("appearance/fontScale"), m_fontScale);
+    s.setValue(QStringLiteral("appearance/uiFontFamily"), m_uiFontFamily);
 }
 
 void SettingsController::setCheckUpdatesOnStartup(bool v)
 {
-    if (m_checkUpdatesOnStartup == v) return;
+    if (m_checkUpdatesOnStartup == v)
+        return;
     m_checkUpdatesOnStartup = v;
     save();
     emit checkUpdatesOnStartupChanged();
 }
 
+void SettingsController::setFontScale(qreal v)
+{
+    v = qBound(0.85, v, 1.40);
+    v = qRound(v * 20.0) / 20.0; // 0.05 steps
+    if (qFuzzyCompare(m_fontScale, v))
+        return;
+    m_fontScale = v;
+    save();
+    applyAppFont(m_fontScale, m_uiFontFamily);
+    emit fontScaleChanged();
+}
+
+void SettingsController::setUiFontFamily(const QString &v)
+{
+    if (m_uiFontFamily == v)
+        return;
+    m_uiFontFamily = v;
+    save();
+    applyAppFont(m_fontScale, m_uiFontFamily);
+    emit uiFontFamilyChanged();
+}
+
 void SettingsController::setAutoLockMinutes(int v)
 {
-    if (m_autoLockMinutes == v) return;
+    if (m_autoLockMinutes == v)
+        return;
     m_autoLockMinutes = v;
     save();
     emit autoLockMinutesChanged();
@@ -92,7 +135,8 @@ void SettingsController::setAutoLockMinutes(int v)
 
 void SettingsController::setClearClipboard(bool v)
 {
-    if (m_clearClipboard == v) return;
+    if (m_clearClipboard == v)
+        return;
     m_clearClipboard = v;
     save();
     emit clearClipboardChanged();
@@ -100,7 +144,8 @@ void SettingsController::setClearClipboard(bool v)
 
 void SettingsController::setLockOnMinimize(bool v)
 {
-    if (m_lockOnMinimize == v) return;
+    if (m_lockOnMinimize == v)
+        return;
     m_lockOnMinimize = v;
     save();
     emit lockOnMinimizeChanged();
@@ -108,7 +153,8 @@ void SettingsController::setLockOnMinimize(bool v)
 
 void SettingsController::setThemeId(const QString &v)
 {
-    if (m_themeId == v) return;
+    if (m_themeId == v)
+        return;
     m_themeId = v;
     save();
     emit themeIdChanged();
@@ -116,7 +162,8 @@ void SettingsController::setThemeId(const QString &v)
 
 void SettingsController::setAccentColor(const QString &v)
 {
-    if (m_accentColor == v) return;
+    if (m_accentColor == v)
+        return;
     m_accentColor = v;
     save();
     emit accentColorChanged();
@@ -124,7 +171,8 @@ void SettingsController::setAccentColor(const QString &v)
 
 void SettingsController::setStartPage(const QString &v)
 {
-    if (m_startPage == v) return;
+    if (m_startPage == v)
+        return;
     m_startPage = v;
     save();
     emit startPageChanged();
@@ -132,7 +180,8 @@ void SettingsController::setStartPage(const QString &v)
 
 void SettingsController::setCalendarDefaultView(const QString &v)
 {
-    if (m_calendarDefaultView == v) return;
+    if (m_calendarDefaultView == v)
+        return;
     m_calendarDefaultView = v;
     save();
     emit calendarDefaultViewChanged();
@@ -378,7 +427,7 @@ void SettingsController::checkForUpdates(bool quiet)
 
         m_latestVersion = tag;
         const QVersionNumber current = QVersionNumber::fromString(appVersion());
-        const QVersionNumber latest  = QVersionNumber::fromString(tag);
+        const QVersionNumber latest = QVersionNumber::fromString(tag);
         m_updateAvailable = !latest.isNull() && !current.isNull() && latest > current;
         emit updateInfoChanged();
 

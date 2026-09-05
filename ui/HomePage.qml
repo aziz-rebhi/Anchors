@@ -34,6 +34,7 @@ Page {
         anchors.fill: parent
         spacing: 0
 
+        // ── Sidebar (not scaled) ─────────────────────────────────
         Rectangle {
             id: sidebar
             Layout.preferredWidth: root.sidebarCollapsed
@@ -254,18 +255,38 @@ Page {
             }
         }
 
-        Loader {
+        // ── Content scaled by fontScale ──────────────────────────
+        Item {
+            id: contentScaler
             Layout.fillWidth: true
             Layout.fillHeight: true
-            sourceComponent: {
-                switch (root.activeKey) {
-                case "dashboard": return dashboardComponent
-                case "vault":     return vaultComponent
-                case "notes":     return notesComponent
-                case "calendar":  return calendarComponent
-                case "todo":      return todoComponent
-                case "settings":  return settingsComponent
-                default:          return dashboardComponent
+
+            readonly property real s: {
+                if (typeof settingsController !== "undefined" && settingsController)
+                    return Math.max(0.85, Math.min(1.40, settingsController.fontScale))
+                return 1.0
+            }
+
+            Item {
+                id: scaledContent
+                width: contentScaler.width / contentScaler.s
+                height: contentScaler.height / contentScaler.s
+                transformOrigin: Item.TopLeft
+                scale: contentScaler.s
+
+                Loader {
+                    anchors.fill: parent
+                    sourceComponent: {
+                        switch (root.activeKey) {
+                        case "dashboard": return dashboardComponent
+                        case "vault":     return vaultComponent
+                        case "notes":     return notesComponent
+                        case "calendar":  return calendarComponent
+                        case "todo":      return todoComponent
+                        case "settings":  return settingsComponent
+                        default:          return dashboardComponent
+                        }
+                    }
                 }
             }
         }
