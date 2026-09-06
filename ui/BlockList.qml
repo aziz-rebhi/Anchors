@@ -9,18 +9,40 @@ ListView {
     spacing: 2
     clip: true
 
+    property var focusedTextEdit: null
+
     property real savedContentY: 0
     property bool restoreScroll: false
 
     property string dragBlockId: ""
     property int dragFromIndex: -1
     property real dragHoverY: -1
-    property int dropIndex: -1   // insert-before in [0 .. count]
+    property int dropIndex: -1
 
     Theme { id: theme }
 
-    // Past the midpoint of block i → insert after i.
-    // Past the midpoint of the last block → dropIndex === count (after last).
+    function clearEditSelection(edit) {
+        if (!edit)
+            return
+        try {
+            if (typeof edit.deselect === "function")
+                edit.deselect()
+        } catch (e) {}
+        try {
+            var c = edit.cursorPosition
+            if (typeof edit.select === "function")
+                edit.select(c, c)
+        } catch (e2) {}
+    }
+
+    function claimFocus(edit) {
+        if (!edit)
+            return
+        if (focusedTextEdit && focusedTextEdit !== edit)
+            clearEditSelection(focusedTextEdit)
+        focusedTextEdit = edit
+    }
+
     function computeDropIndex(contentYPos) {
         if (count <= 0)
             return 0
@@ -45,22 +67,18 @@ ListView {
             cancelDrag()
             return
         }
-
         var from = dragFromIndex
         var insertBefore = dropIndex
         if (insertBefore < 0)
             insertBefore = from
         if (insertBefore > count)
             insertBefore = count
-
         if (insertBefore === from || insertBefore === from + 1) {
             cancelDrag()
             return
         }
-
         if (noteEditor)
             noteEditor.moveBlock(dragBlockId, insertBefore)
-
         cancelDrag()
     }
 

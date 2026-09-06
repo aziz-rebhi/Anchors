@@ -33,6 +33,7 @@ SOURCES += \
     app/noteeditorcontroller.cpp \
     app/settingscontroller.cpp \
     core/editor/codesyntaxhighlighter.cpp \
+    core/editor/richtexthelper.cpp \
     core/models/block.cpp \
     core/models/blockcommands.cpp \
     core/models/blockmodel.cpp \
@@ -76,6 +77,7 @@ HEADERS += \
     core/crypto/cryptomanager.h \
     core/editor/codehighlightbridge.h \
     core/editor/codesyntaxhighlighter.h \
+    core/editor/richtexthelper.h \
     core/models/Calendarentry.h \
     core/models/block.h \
     core/models/blockcommands.h \

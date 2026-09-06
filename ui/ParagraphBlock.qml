@@ -10,7 +10,6 @@ Rectangle {
     property bool slashActive: false
 
     Theme { id: theme }
-
     signal contentChanged(string newText)
 
     width: parent ? parent.width : 0
@@ -21,11 +20,54 @@ Rectangle {
         textArea.forceActiveFocus()
         textArea.cursorPosition = atStart ? 0 : textArea.text.length
     }
+    function plainText() { return textArea.getText(0, textArea.length) }
+    function plainLength() { return plainText().length }
     function isOnFirstLine() {
-        return textArea.text.lastIndexOf("\n", textArea.cursorPosition - 1) < 0
+        return plainText().lastIndexOf("\n", textArea.cursorPosition - 1) < 0
     }
     function isOnLastLine() {
-        return textArea.text.indexOf("\n", textArea.cursorPosition) < 0
+        return plainText().indexOf("\n", textArea.cursorPosition) < 0
+    }
+    function registerFocus() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.claimFocus === "function") {
+                item.claimFocus(textArea)
+                break
+            }
+            item = item.parent
+        }
+        if (noteEditor)
+            noteEditor.setFocusedBlock(root.blockId)
+    }
+    function handleFormatKeys(event) {
+        if (!(event.modifiers & Qt.ControlModifier))
+            return false
+        if (typeof richTextHelper === "undefined")
+            return false
+        if (event.key === Qt.Key_B) { richTextHelper.toggleBold(textArea); event.accepted = true; return true }
+        if (event.key === Qt.Key_I) { richTextHelper.toggleItalic(textArea); event.accepted = true; return true }
+        if (event.key === Qt.Key_U) { richTextHelper.toggleUnderline(textArea); event.accepted = true; return true }
+        if (event.key === Qt.Key_S) { richTextHelper.toggleStrike(textArea); event.accepted = true; return true }
+        return false
+    }
+    function splitAndContinue(modifiers) {
+        var after = ""
+        if (typeof richTextHelper !== "undefined") {
+            var parts = richTextHelper.splitAtCursor(textArea)
+            after = parts.after || ""
+            root.contentChanged(textArea.text)
+        } else {
+            var plain = root.plainText()
+            var pos = Math.min(textArea.cursorPosition, plain.length)
+            after = plain.substring(pos)
+            textArea.text = plain.substring(0, pos)
+            root.contentChanged(textArea.text)
+        }
+        if (modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
+            noteEditor.exitContainer(root.blockId, 0, after)
+        else
+            noteEditor.insertBlockAfter(root.blockId, 0, after)
     }
 
     function openSlashMenu() {
@@ -41,7 +83,6 @@ Rectangle {
             slashMenu.cursorY = pos.y + 4
         slashMenu.open()
     }
-
     function closeSlashMenu() {
         root.slashActive = false
         if (slashMenu.visible)
@@ -52,10 +93,10 @@ Rectangle {
         id: slashMenu
         blockId: root.blockId
         parent: Overlay.overlay
-
         onBlockSelected: function (menuBlockId, typeCode) {
-            var slashPos = textArea.text.lastIndexOf("/")
-            var cleanText = slashPos >= 0 ? textArea.text.substring(0, slashPos) : textArea.text
+            var plain = root.plainText()
+            var slashPos = plain.lastIndexOf("/")
+            var cleanText = slashPos >= 0 ? plain.substring(0, slashPos) : plain
             root.closeSlashMenu()
             noteEditor.updateBlockContent(root.blockId, cleanText)
             if (typeCode !== 0)
@@ -75,45 +116,45 @@ Rectangle {
         color: theme.textPrimary
         placeholderTextColor: theme.textMuted
         background: Rectangle { color: "transparent"; border.width: 0 }
+        textFormat: TextEdit.RichText
+        persistentSelection: true
+        selectByMouse: true
 
         onTextChanged: {
             if (text === root.text)
                 return
+            var plain = root.plainText()
             if (!root.slashActive) {
-                if (text.length > 0 && text.charAt(text.length - 1) === "/")
+                if (plain.length > 0 && plain.charAt(plain.length - 1) === "/")
                     openSlashMenu()
             } else {
-                var slashIdx = text.lastIndexOf("/")
+                var slashIdx = plain.lastIndexOf("/")
                 if (slashIdx < 0) {
                     closeSlashMenu()
                 } else {
-                    var filter = text.substring(slashIdx + 1)
+                    var filter = plain.substring(slashIdx + 1)
                     if (filter.indexOf("\n") >= 0 || filter.indexOf(" ") >= 0)
                         closeSlashMenu()
                     else
                         slashMenu.filterText = filter
                 }
             }
-            root.contentChanged(text)
+            root.contentChanged(textArea.text)
         }
 
-        onActiveFocusChanged: {
-            if (activeFocus && noteEditor)
-                noteEditor.setFocusedBlock(root.blockId)
-        }
+        onActiveFocusChanged: if (activeFocus) root.registerFocus()
 
         Keys.onPressed: function (event) {
-            // Paste image from clipboard (Ctrl+V)
+            if (root.handleFormatKeys(event))
+                return
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
                 if (noteEditor && noteEditor.pasteImageFromClipboard()) {
                     event.accepted = true
                     return
                 }
-                // Not an image — let TextArea paste text
                 event.accepted = false
                 return
             }
-
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
                 if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
                 else noteEditor.undo()
@@ -132,13 +173,6 @@ Rectangle {
                 }
                 if (event.key === Qt.Key_Up) { slashMenu.moveUp(); event.accepted = true; return }
                 if (event.key === Qt.Key_Down) { slashMenu.moveDown(); event.accepted = true; return }
-                if (event.key === Qt.Key_Backspace) {
-                    var slashIdx = text.lastIndexOf("/")
-                    if (slashIdx >= 0 && textArea.cursorPosition <= slashIdx + 1)
-                        closeSlashMenu()
-                    event.accepted = false
-                    return
-                }
                 event.accepted = false
                 return
             }
@@ -153,20 +187,12 @@ Rectangle {
                 return
             }
             if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                var cursorPos = textArea.cursorPosition
-                var before = text.substring(0, cursorPos)
-                var after = text.substring(cursorPos)
-                textArea.text = before
-                root.contentChanged(textArea.text)
-                if (event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
-                    noteEditor.exitContainer(root.blockId, 0, after)
-                else
-                    noteEditor.insertBlockAfter(root.blockId, 0, after)
+                root.splitAndContinue(event.modifiers)
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
-                if (textArea.text.length === 0)
+                if (root.plainLength() === 0)
                     noteEditor.deleteBlock(root.blockId)
                 else
                     noteEditor.mergeWithPrevious(root.blockId)

@@ -15,8 +15,10 @@ Page {
     property bool isCreatingFolder: false
     property string newFolderName: ""
     property bool loadingNote: false
+    property var focusedTextEdit: null
 
     ListModel { id: treeModel }
+
 
     property var filteredNotes: {
         var list = allNotes.filter(function (n) {
@@ -31,6 +33,19 @@ Page {
         })
         list.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0) })
         return list
+    }
+
+    function registerFocus() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.claimFocus === "function") {
+                item.claimFocus(textArea)  // or input
+                break
+            }
+            item = item.parent
+        }
+        if (noteEditor)
+            noteEditor.setFocusedBlock(root.blockId)
     }
 
     function buildTree() {

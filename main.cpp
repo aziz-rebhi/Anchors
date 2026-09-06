@@ -20,6 +20,7 @@
 #include "core/security/autolockmanager.h"
 #include "core/security/cliboardguard.h"
 #include "core/security/remindermanager.h"
+#include "core/editor/richtexthelper.h"
 
 int main(int argc, char *argv[])
 {
@@ -55,6 +56,7 @@ int main(int argc, char *argv[])
     auto *autoLock = new Autolockmanager(&app);
     auto *clipboardGuard = new CliboardGuard(&app);
     auto *reminders = new ReminderManager(&app);
+    auto *richTextHelper = new RichTextHelper(&app);
 
     auto applySecuritySettings = [autoLock, settingsController]() {
         autoLock->setTimeoutMinutes(settingsController->autoLockMinutes());
@@ -99,6 +101,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("calendarController", &calendarController);
     engine.rootContext()->setContextProperty("taskController", &taskController);
     engine.rootContext()->setContextProperty("noteEditor", &noteEditorController);
+    engine.rootContext()->setContextProperty(QStringLiteral("richTextHelper"), richTextHelper);
 
     qmlRegisterType<CodeHighlightBridge>("Anchors", 1, 0, "CodeHighlightBridge");
 

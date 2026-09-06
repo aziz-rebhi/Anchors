@@ -18,11 +18,25 @@ Rectangle {
         textArea.forceActiveFocus()
         textArea.cursorPosition = atStart ? 0 : textArea.text.length
     }
+    function plainText() { return textArea.getText(0, textArea.length) }
+    function plainLength() { return plainText().length }
     function isOnFirstLine() {
-        return textArea.text.lastIndexOf("\n", textArea.cursorPosition - 1) < 0
+        return plainText().lastIndexOf("\n", textArea.cursorPosition - 1) < 0
     }
     function isOnLastLine() {
-        return textArea.text.indexOf("\n", textArea.cursorPosition) < 0
+        return plainText().indexOf("\n", textArea.cursorPosition) < 0
+    }
+    function registerFocus() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.claimFocus === "function") {
+                item.claimFocus(textArea)
+                break
+            }
+            item = item.parent
+        }
+        if (noteEditor)
+            noteEditor.setFocusedBlock(root.blockId)
     }
 
     Row {
@@ -65,11 +79,22 @@ Rectangle {
             color: root.checked ? theme.textMuted : theme.textPrimary
             placeholderTextColor: theme.textMuted
             background: Rectangle { color: "transparent" }
+            textFormat: TextEdit.RichText
+            persistentSelection: true
+            selectByMouse: true
 
             onTextChanged: if (text !== root.text) root.contentChanged(text)
-            onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
+            onActiveFocusChanged: if (activeFocus) root.registerFocus()
 
             Keys.onPressed: function (event) {
+                if (event.modifiers & Qt.ControlModifier) {
+                    if (typeof richTextHelper !== "undefined") {
+                        if (event.key === Qt.Key_B) { richTextHelper.toggleBold(textArea); event.accepted = true; return }
+                        if (event.key === Qt.Key_I) { richTextHelper.toggleItalic(textArea); event.accepted = true; return }
+                        if (event.key === Qt.Key_U) { richTextHelper.toggleUnderline(textArea); event.accepted = true; return }
+                        if (event.key === Qt.Key_S) { richTextHelper.toggleStrike(textArea); event.accepted = true; return }
+                    }
+                }
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
                     if (noteEditor && noteEditor.pasteImageFromClipboard()) {
                         event.accepted = true
@@ -90,10 +115,18 @@ Rectangle {
                     return
                 }
                 if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                    var pos = textArea.cursorPosition
-                    var after = text.substring(pos)
-                    textArea.text = text.substring(0, pos)
-                    root.contentChanged(textArea.text)
+                    var after = ""
+                    if (typeof richTextHelper !== "undefined") {
+                        var parts = richTextHelper.splitAtCursor(textArea)
+                        after = parts.after || ""
+                        root.contentChanged(textArea.text)
+                    } else {
+                        var plain = root.plainText()
+                        var pos = Math.min(textArea.cursorPosition, plain.length)
+                        after = plain.substring(pos)
+                        textArea.text = plain.substring(0, pos)
+                        root.contentChanged(textArea.text)
+                    }
                     if (event.modifiers & Qt.ControlModifier)
                         noteEditor.insertBlockAfter(root.blockId, 0, after)
                     else
@@ -102,7 +135,7 @@ Rectangle {
                     return
                 }
                 if (event.key === Qt.Key_Backspace && textArea.cursorPosition === 0) {
-                    if (textArea.text.length === 0)
+                    if (root.plainLength() === 0)
                         noteEditor.deleteBlock(root.blockId)
                     else
                         noteEditor.mergeWithPrevious(root.blockId)

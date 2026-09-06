@@ -22,11 +22,25 @@ Rectangle {
         input.forceActiveFocus()
         input.cursorPosition = atStart ? 0 : input.text.length
     }
+    function plainText() { return input.getText(0, input.length) }
+    function plainLength() { return plainText().length }
     function isOnFirstLine() {
-        return input.text.lastIndexOf("\n", input.cursorPosition - 1) < 0
+        return plainText().lastIndexOf("\n", input.cursorPosition - 1) < 0
     }
     function isOnLastLine() {
-        return input.text.indexOf("\n", input.cursorPosition) < 0
+        return plainText().indexOf("\n", input.cursorPosition) < 0
+    }
+    function registerFocus() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.claimFocus === "function") {
+                item.claimFocus(input)
+                break
+            }
+            item = item.parent
+        }
+        if (noteEditor)
+            noteEditor.setFocusedBlock(root.blockId)
     }
 
     RowLayout {
@@ -50,11 +64,22 @@ Rectangle {
             font.family: theme.bodyFont
             color: theme.textPrimary
             background: Item {}
+            textFormat: TextEdit.RichText
+            persistentSelection: true
+            selectByMouse: true
 
             onTextChanged: if (text !== root.text) root.contentChanged(text)
-            onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
+            onActiveFocusChanged: if (activeFocus) root.registerFocus()
 
             Keys.onPressed: function (event) {
+                if (event.modifiers & Qt.ControlModifier) {
+                    if (typeof richTextHelper !== "undefined") {
+                        if (event.key === Qt.Key_B) { richTextHelper.toggleBold(input); event.accepted = true; return }
+                        if (event.key === Qt.Key_I) { richTextHelper.toggleItalic(input); event.accepted = true; return }
+                        if (event.key === Qt.Key_U) { richTextHelper.toggleUnderline(input); event.accepted = true; return }
+                        if (event.key === Qt.Key_S) { richTextHelper.toggleStrike(input); event.accepted = true; return }
+                    }
+                }
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
                     if (event.modifiers & Qt.ShiftModifier) noteEditor.redo()
                     else noteEditor.undo()
@@ -62,10 +87,18 @@ Rectangle {
                     return
                 }
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    var pos = input.cursorPosition
-                    var after = text.substring(pos)
-                    input.text = text.substring(0, pos)
-                    root.contentChanged(input.text)
+                    var after = ""
+                    if (typeof richTextHelper !== "undefined") {
+                        var parts = richTextHelper.splitAtCursor(input)
+                        after = parts.after || ""
+                        root.contentChanged(input.text)
+                    } else {
+                        var plain = root.plainText()
+                        var pos = Math.min(input.cursorPosition, plain.length)
+                        after = plain.substring(pos)
+                        input.text = plain.substring(0, pos)
+                        root.contentChanged(input.text)
+                    }
                     if (event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))
                         noteEditor.exitContainer(root.blockId, 0, after)
                     else
@@ -74,7 +107,7 @@ Rectangle {
                     return
                 }
                 if (event.key === Qt.Key_Backspace && input.cursorPosition === 0) {
-                    if (text.length === 0)
+                    if (root.plainLength() === 0)
                         noteEditor.deleteBlock(root.blockId)
                     else
                         noteEditor.mergeWithPrevious(root.blockId)

@@ -12,6 +12,8 @@ Rectangle {
     signal insertType(int typeCode)
     signal changeType(int typeCode)
 
+
+
     function applyType(typeCode) {
         var id = root.currentBlockId
         if ((!id || !id.length) && noteEditor)
@@ -21,6 +23,14 @@ Rectangle {
         else
             root.insertType(typeCode)
     }
+
+    property var targetEdit: null   // set from NotesPage: blockList.focusedTextEdit
+
+    function formatBold()      { if (targetEdit) richTextHelper.toggleBold(targetEdit) }
+    function formatItalic()    { if (targetEdit) richTextHelper.toggleItalic(targetEdit) }
+    function formatUnderline() { if (targetEdit) richTextHelper.toggleUnderline(targetEdit) }
+    function formatStrike()    { if (targetEdit) richTextHelper.toggleStrike(targetEdit) }
+
 
     Flickable {
         anchors.fill: parent
@@ -41,6 +51,13 @@ Rectangle {
             ToolbarButton { label: "H2";  tooltip: "Heading 2";     onClicked: root.applyType(2) }
             ToolbarButton { label: "H3";  tooltip: "Heading 3";     onClicked: root.applyType(3) }
             ToolbarButton { label: "H4";  tooltip: "Heading 4";     onClicked: root.applyType(10) }
+
+            ToolSep {}
+
+            ToolbarButton { label: "B";  tooltip: "Bold (Ctrl+B)"; onClicked: root.formatBold() }
+            ToolbarButton { label: "I";  tooltip: "Italic (Ctrl+I)"; onClicked: root.formatItalic() }
+            ToolbarButton { label: "U";  tooltip: "Underline (Ctrl+U)"; onClicked: root.formatUnderline() }
+            ToolbarButton { label: "S";  tooltip: "Strikethrough"; onClicked: root.formatStrike() }
 
             ToolSep {}
 
@@ -85,6 +102,7 @@ Rectangle {
         color: theme.border
         anchors.verticalCenter: parent ? parent.verticalCenter : undefined
     }
+
 
     component ToolbarButton : Rectangle {
         id: btn

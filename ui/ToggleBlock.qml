@@ -18,11 +18,25 @@ Item {
         input.forceActiveFocus()
         input.cursorPosition = atStart ? 0 : input.text.length
     }
+    function plainText() { return input.getText(0, input.length) }
+    function plainLength() { return plainText().length }
     function isOnFirstLine() {
-        return input.text.lastIndexOf("\n", input.cursorPosition - 1) < 0
+        return plainText().lastIndexOf("\n", input.cursorPosition - 1) < 0
     }
     function isOnLastLine() {
-        return input.text.indexOf("\n", input.cursorPosition) < 0
+        return plainText().indexOf("\n", input.cursorPosition) < 0
+    }
+    function registerFocus() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.claimFocus === "function") {
+                item.claimFocus(input)
+                break
+            }
+            item = item.parent
+        }
+        if (noteEditor)
+            noteEditor.setFocusedBlock(root.blockId)
     }
 
     RowLayout {
@@ -51,16 +65,26 @@ Item {
             placeholderText: "Toggle heading..."
             wrapMode: Text.Wrap
             font.pixelSize: 14
-            font.bold: true
             font.family: theme.bodyFont
             color: theme.textPrimary
             placeholderTextColor: theme.textMuted
             background: Item {}
+            textFormat: TextEdit.RichText
+            persistentSelection: true
+            selectByMouse: true
 
             onTextChanged: if (text !== root.text) root.contentChanged(text)
-            onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)
+            onActiveFocusChanged: if (activeFocus) root.registerFocus()
 
             Keys.onPressed: function (e) {
+                if (e.modifiers & Qt.ControlModifier) {
+                    if (typeof richTextHelper !== "undefined") {
+                        if (e.key === Qt.Key_B) { richTextHelper.toggleBold(input); e.accepted = true; return }
+                        if (e.key === Qt.Key_I) { richTextHelper.toggleItalic(input); e.accepted = true; return }
+                        if (e.key === Qt.Key_U) { richTextHelper.toggleUnderline(input); e.accepted = true; return }
+                        if (e.key === Qt.Key_S) { richTextHelper.toggleStrike(input); e.accepted = true; return }
+                    }
+                }
                 if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
                     if (e.modifiers & Qt.ControlModifier)
                         noteEditor.insertBlockAfter(root.blockId, 0, "")
@@ -69,9 +93,11 @@ Item {
                     e.accepted = true
                     return
                 }
-                if (e.key === Qt.Key_Backspace && text.length === 0) {
-                    noteEditor.deleteBlock(root.blockId)
+                if (e.key === Qt.Key_Backspace && input.cursorPosition === 0) {
+                    if (root.plainLength() === 0)
+                        noteEditor.deleteBlock(root.blockId)
                     e.accepted = true
+                    return
                 }
                 if (e.key === Qt.Key_Up && isOnFirstLine()) {
                     noteEditor.focusAdjacent(root.blockId, false)
