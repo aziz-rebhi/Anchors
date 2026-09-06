@@ -6,13 +6,13 @@ Rectangle {
     height: 40
     color: "transparent"
     property string currentBlockId: ""
+    property var targetEdit: null
+    property var listRef: null   // NotesPage: listRef: blockList
 
     Theme { id: theme }
 
     signal insertType(int typeCode)
     signal changeType(int typeCode)
-
-
 
     function applyType(typeCode) {
         var id = root.currentBlockId
@@ -24,13 +24,30 @@ Rectangle {
             root.insertType(typeCode)
     }
 
-    property var targetEdit: null   // set from NotesPage: blockList.focusedTextEdit
-
-    function formatBold()      { if (targetEdit) richTextHelper.toggleBold(targetEdit) }
-    function formatItalic()    { if (targetEdit) richTextHelper.toggleItalic(targetEdit) }
-    function formatUnderline() { if (targetEdit) richTextHelper.toggleUnderline(targetEdit) }
-    function formatStrike()    { if (targetEdit) richTextHelper.toggleStrike(targetEdit) }
-
+    function formatBold() {
+        if (listRef && listRef.applyFormat)
+            listRef.applyFormat("bold")
+        else if (targetEdit && typeof richTextHelper !== "undefined")
+            richTextHelper.toggleBold(targetEdit)
+    }
+    function formatItalic() {
+        if (listRef && listRef.applyFormat)
+            listRef.applyFormat("italic")
+        else if (targetEdit && typeof richTextHelper !== "undefined")
+            richTextHelper.toggleItalic(targetEdit)
+    }
+    function formatUnderline() {
+        if (listRef && listRef.applyFormat)
+            listRef.applyFormat("underline")
+        else if (targetEdit && typeof richTextHelper !== "undefined")
+            richTextHelper.toggleUnderline(targetEdit)
+    }
+    function formatStrike() {
+        if (listRef && listRef.applyFormat)
+            listRef.applyFormat("strike")
+        else if (targetEdit && typeof richTextHelper !== "undefined")
+            richTextHelper.toggleStrike(targetEdit)
+    }
 
     Flickable {
         anchors.fill: parent
@@ -103,7 +120,6 @@ Rectangle {
         anchors.verticalCenter: parent ? parent.verticalCenter : undefined
     }
 
-
     component ToolbarButton : Rectangle {
         id: btn
         property string label: ""
@@ -132,7 +148,11 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: btn.clicked()
+            // Fire on press so format runs while remembered selection is still valid
+            onPressed: function (mouse) {
+                btn.clicked()
+                mouse.accepted = true
+            }
         }
 
         ToolTip.visible: btnArea.containsMouse && btn.tooltip.length > 0

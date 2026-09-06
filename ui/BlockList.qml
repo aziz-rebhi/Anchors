@@ -10,6 +10,8 @@ ListView {
     clip: true
 
     property var focusedTextEdit: null
+    property int lastSelStart: 0
+    property int lastSelEnd: 0
 
     property real savedContentY: 0
     property bool restoreScroll: false
@@ -41,6 +43,32 @@ ListView {
         if (focusedTextEdit && focusedTextEdit !== edit)
             clearEditSelection(focusedTextEdit)
         focusedTextEdit = edit
+    }
+
+    function rememberSelection(edit, start, end) {
+        if (!edit)
+            return
+        focusedTextEdit = edit
+        lastSelStart = start
+        lastSelEnd = end
+    }
+
+    function applyFormat(kind) {
+        if (!focusedTextEdit || typeof richTextHelper === "undefined")
+            return
+        var s = lastSelStart
+        var e = lastSelEnd
+        if (kind === "bold")
+            richTextHelper.toggleBold(focusedTextEdit, s, e)
+        else if (kind === "italic")
+            richTextHelper.toggleItalic(focusedTextEdit, s, e)
+        else if (kind === "underline")
+            richTextHelper.toggleUnderline(focusedTextEdit, s, e)
+        else if (kind === "strike")
+            richTextHelper.toggleStrike(focusedTextEdit, s, e)
+
+        if (noteEditor && noteEditor.focusedBlockId && focusedTextEdit.text !== undefined)
+            noteEditor.updateBlockContent(noteEditor.focusedBlockId, focusedTextEdit.text)
     }
 
     function computeDropIndex(contentYPos) {

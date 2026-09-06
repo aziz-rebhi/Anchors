@@ -38,6 +38,16 @@ Rectangle {
         if (noteEditor)
             noteEditor.setFocusedBlock(root.blockId)
     }
+    function reportSelection() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.rememberSelection === "function") {
+                item.rememberSelection(textArea, textArea.selectionStart, textArea.selectionEnd)
+                break
+            }
+            item = item.parent
+        }
+    }
 
     Row {
         anchors.fill: parent
@@ -85,6 +95,8 @@ Rectangle {
 
             onTextChanged: if (text !== root.text) root.contentChanged(text)
             onActiveFocusChanged: if (activeFocus) root.registerFocus()
+            onCursorPositionChanged: root.reportSelection()
+            onSelectedTextChanged: root.reportSelection()
 
             Keys.onPressed: function (event) {
                 if (event.modifiers & Qt.ControlModifier) {

@@ -40,6 +40,16 @@ Rectangle {
         if (noteEditor)
             noteEditor.setFocusedBlock(root.blockId)
     }
+    function reportSelection() {
+        var item = root.parent
+        while (item) {
+            if (typeof item.rememberSelection === "function") {
+                item.rememberSelection(textArea, textArea.selectionStart, textArea.selectionEnd)
+                break
+            }
+            item = item.parent
+        }
+    }
     function handleFormatKeys(event) {
         if (!(event.modifiers & Qt.ControlModifier))
             return false
@@ -69,7 +79,6 @@ Rectangle {
         else
             noteEditor.insertBlockAfter(root.blockId, 0, after)
     }
-
     function openSlashMenu() {
         root.slashActive = true
         slashMenu.filterText = ""
@@ -143,6 +152,8 @@ Rectangle {
         }
 
         onActiveFocusChanged: if (activeFocus) root.registerFocus()
+        onCursorPositionChanged: root.reportSelection()
+        onSelectedTextChanged: root.reportSelection()
 
         Keys.onPressed: function (event) {
             if (root.handleFormatKeys(event))

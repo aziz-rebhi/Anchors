@@ -396,6 +396,8 @@ Page {
                 Layout.bottomMargin: 4
 
                 currentBlockId: noteEditor ? (noteEditor.focusedBlockId || "") : ""
+                targetEdit: blockList.focusedTextEdit
+                listRef: blockList
 
                 onChangeType: function (t) {
                     if (noteEditor && noteEditor.focusedBlockId)
@@ -412,6 +414,7 @@ Page {
             }
 
             BlockList {
+                id: blockList
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.margins: 12
