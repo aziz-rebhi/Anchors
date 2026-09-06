@@ -1,6 +1,20 @@
 #include "block.h"
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTextDocument>
+
+static QString scrubEmptyHtml(const QString& s)
+{
+    if (s.isEmpty()) return s;
+    const QString t = s.trimmed();
+    if (!t.startsWith(QLatin1String("<!DOCTYPE")) && !t.startsWith(QLatin1String("<html")))
+        return s;
+    QTextDocument d;
+    d.setHtml(t);
+    if (d.toPlainText().trimmed().isEmpty())
+        return QString();
+    return s;
+}
 
 static QJsonObject blockDataToJson(const BlockData& data)
 {
@@ -80,11 +94,11 @@ static BlockData blockDataFromJson(const QJsonObject& obj)
 {
     QString type = obj["type"].toString();
     if (type == "paragraph") {
-        return ParagraphData{obj["text"].toString()};
+        return ParagraphData{scrubEmptyHtml(obj["text"].toString())};
     } else if (type == "heading") {
-        return HeadingData{obj["level"].toInt(1), obj["text"].toString()};
+        return HeadingData{obj["level"].toInt(1), scrubEmptyHtml(obj["text"].toString())};
     } else if (type == "code") {
-        return CodeData{obj["language"].toString(), obj["code"].toString()};
+        return CodeData{obj["language"].toString(), scrubEmptyHtml(obj["code"].toString())};
     } else if (type == "image") {
         return ImageData{obj["source"].toString(), obj["caption"].toString(),
                          obj["width"].toInt(), obj["height"].toInt()};
@@ -103,28 +117,28 @@ static BlockData blockDataFromJson(const QJsonObject& obj)
         }
         return td;
     } else if (type == "todo") {
-        return TodoData{obj["text"].toString(), obj["checked"].toBool()};
+        return TodoData{scrubEmptyHtml(obj["text"].toString()), obj["checked"].toBool()};
     } else if (type == "divider") {
         return DividerData{obj["orientation"].toInt(0)};
     } else if (type == "quote") {
-        return QuoteData{obj["text"].toString()};
+        return QuoteData{scrubEmptyHtml(obj["text"].toString())};
     } else if (type == "bullet") {
-        return BulletData{obj["text"].toString(), obj["indent"].toInt(0)};
+        return BulletData{scrubEmptyHtml(obj["text"].toString()), obj["indent"].toInt(0)};
     } else if (type == "callout") {
         return CalloutData{
-            obj["text"].toString(),
+            scrubEmptyHtml(obj["text"].toString()),
             obj.contains("emoji") ? obj["emoji"].toString() : QStringLiteral("💡")
         };
     } else if (type == "numbered") {
-        return NumberedData{obj["text"].toString(), obj["indent"].toInt(0)};
+        return NumberedData{scrubEmptyHtml(obj["text"].toString()), obj["indent"].toInt(0)};
     } else if (type == "equation") {
         return EquationData{
-            obj["latex"].toString(),
+            scrubEmptyHtml(obj["latex"].toString()),
             obj["displayMode"].toBool(true)
         };
     } else if (type == "toggle") {
         return ToggleData{
-            obj["text"].toString(),
+            scrubEmptyHtml(obj["text"].toString()),
             obj["collapsed"].toBool(false)
         };
     } else if (type == "columns") {

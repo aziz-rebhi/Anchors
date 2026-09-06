@@ -1,5 +1,7 @@
 #include "codesyntaxhighlighter.h"
 #include <QTextDocument>
+#include <QJsonDocument>
+#include <QJsonParseError>
 
 CodeSyntaxHighlighter::CodeSyntaxHighlighter(QTextDocument* parent)
     : QSyntaxHighlighter(parent)
@@ -34,6 +36,16 @@ void CodeSyntaxHighlighter::setLanguage(const QString& lang)
              || l == QLatin1String("linux") || l == QLatin1String("command")
              || l == QLatin1String("bash / linux"))
         l = QStringLiteral("bash");
+    else if (l == QLatin1String("c#") || l == QLatin1String("cs"))
+        l = QStringLiteral("csharp");
+    else if (l == QLatin1String("md"))
+        l = QStringLiteral("markdown");
+    else if (l == QLatin1String("yml"))
+        l = QStringLiteral("yaml");
+    else if (l == QLatin1String("golang"))
+        l = QStringLiteral("go");
+    else if (l == QLatin1String("rs"))
+        l = QStringLiteral("rust");
     else if (l == QLatin1String("auto"))
         l = QStringLiteral("text");
 
@@ -49,10 +61,11 @@ void CodeSyntaxHighlighter::setLanguage(const QString& lang)
     rehighlight();
 }
 
-void CodeSyntaxHighlighter::addRule(const QString& pattern, const QTextCharFormat& fmt)
+void CodeSyntaxHighlighter::addRule(const QString& pattern, const QTextCharFormat& fmt,
+                                    QRegularExpression::PatternOptions options)
 {
     Rule r;
-    r.pattern = QRegularExpression(pattern);
+    r.pattern = QRegularExpression(pattern, options);
     r.format = fmt;
     m_rules.append(r);
 }
@@ -165,6 +178,139 @@ void CodeSyntaxHighlighter::buildRules(const QString& lang)
         addRule(QStringLiteral(R"("([^"\\]|\\.)*")"), m_stringFmt);
         addRule(QStringLiteral(R"(/\*[\s\S]*?\*/)"), m_commentFmt);
     }
+    else if (lang == QLatin1String("sql")) {
+        const auto CIO = QRegularExpression::CaseInsensitiveOption;
+        addRule(QStringLiteral(
+                    R"(\b(select|insert\s+into|update|delete\s+from|drop|create|alter|truncate|)"
+                    R"(merge|replace|grant|revoke|with|explain|begin|commit|rollback|transaction|)"
+                    R"(declare|execute|call)\b)"),
+                m_keywordFmt, CIO);
+        addRule(QStringLiteral(
+                    R"(\b(from|where|join|left\s+join|right\s+join|inner\s+join|outer\s+join|)"
+                    R"(full\s+join|on|union|all|distinct|as|group\s+by|order\s+by|having|limit|)"
+                    R"(offset|values|into|set|and|or|not|in|exists|between|like|is\s+null|)"
+                    R"(is\s+not\s+null|top|asc|desc|case|when|then|else|end|primary\s+key|)"
+                    R"(foreign\s+key|references|constraint|default|cascade|index|table|view|)"
+                    R"(procedure|function|trigger)\b)"),
+                m_keywordFmt, CIO);
+        addRule(QStringLiteral(
+                    R"(\b(count|sum|avg|min|max|coalesce|ifnull|nullif|cast|convert|concat|)"
+                    R"(substring|now|current_date|current_timestamp)\s*\()"),
+                m_functionFmt, CIO);
+        addRule(QStringLiteral(R"("([^"\\]|\\.)*"|'([^'\\]|\\.)*')"), m_stringFmt);
+        addRule(QStringLiteral(R"(/\*[\s\S]*?\*/)"), m_commentFmt);
+        addRule(QStringLiteral(R"(--[^\n]*)"), m_commentFmt);
+    }
+    else if (lang == QLatin1String("markdown")) {
+        const auto MLO = QRegularExpression::MultilineOption;
+        addRule(QStringLiteral(R"(^#{1,6}\s.*$)"), m_keywordFmt, MLO);            // headings
+        addRule(QStringLiteral(R"(\*\*[^*\n]*\*\*|__[^*\n]*__)"), m_keywordFmt);  // bold
+        addRule(QStringLiteral(R"(\*[^*\n]*\*|_[^*\n]*_)"), m_commentFmt);        // italic
+        addRule(QStringLiteral(R"(`[^`\n]*`)"), m_stringFmt);                     // inline code
+        addRule(QStringLiteral(R"(^\s*(```|~~~)\S*)"), m_stringFmt, MLO);         // fences
+        addRule(QStringLiteral(R"(!?\[[^\]\n]*\]\([^)\n]*\))"), m_functionFmt);   // links / images
+        addRule(QStringLiteral(R"(^\s*>\s?)"), m_commentFmt, MLO);                // blockquote
+        addRule(QStringLiteral(R"(^\s*(\*\s|-{1,3}\s|\d+\.\s+))"), m_typeFmt, MLO); // list markers
+        addRule(QStringLiteral(R"((-{3,}|\*{3,})\s*$)"), m_commentFmt, MLO);      // horizontal rule
+    }
+    else if (lang == QLatin1String("yaml")) {
+        const auto MLO = QRegularExpression::MultilineOption;
+        const auto CIO = QRegularExpression::CaseInsensitiveOption;
+        addRule(QStringLiteral(R"(^[ \t]*[A-Za-z0-9_.-]+\s*:.*$)"), m_keywordFmt, MLO);                // key: value
+        addRule(QStringLiteral(R"(^[ \t]*-{1,3}\s+[A-Za-z0-9_.-]+\s*:.+$)"), m_keywordFmt, MLO);       // - item: value
+        addRule(QStringLiteral(R"("([^"\\]|\\.)*"|'([^'\\]|\\.)*')"), m_stringFmt);
+        addRule(QStringLiteral(R"(\b(true|false|null|yes|no|on|off|~)\b)"), m_typeFmt, CIO);
+        addRule(QStringLiteral(R"(!{1,2}[A-Za-z0-9_-]+|&[A-Za-z0-9_-]+|\*[A-Za-z0-9_-]+)"), m_functionFmt);
+        addRule(QStringLiteral(R"(#[^\n]*)"), m_commentFmt);
+    }
+    else if (lang == QLatin1String("xml")) {
+        addRule(QStringLiteral(R"(<\?[A-Za-z_]+\b[^>]*\?>|<!DOCTYPE[^>]*>)"), m_preprocessorFmt);
+        addRule(QStringLiteral(R"(</?[A-Za-z_][A-Za-z0-9_.-]*)"), m_keywordFmt);
+        addRule(QStringLiteral(R"(\b[A-Za-z_:][A-Za-z0-9_:.-]*(?=\s*=))"), m_typeFmt);
+        addRule(QStringLiteral(R"("([^"\\]|\\.)*"|'([^'\\]|\\.)*')"), m_stringFmt);
+        addRule(QStringLiteral(R"(<!--[\s\S]*?-->)"), m_commentFmt);
+    }
+    else if (lang == QLatin1String("java")) {
+        addRule(QStringLiteral(
+                    R"(\b(public|private|protected|static|final|abstract|native|synchronized|)"
+                    R"(volatile|transient|strictfp|void|class|interface|enum|extends|implements|)"
+                    R"(import|package|return|new|this|super|if|else|for|while|do|switch|case|)"
+                    R"(default|break|continue|try|catch|finally|throw|throws|instanceof|true|)"
+                    R"(false|null)\b)"),
+                m_keywordFmt);
+        addRule(QStringLiteral(
+                    R"(\b(String|Integer|Long|Double|Float|Boolean|Character|Byte|Short|Object|)"
+                    R"(List|ArrayList|LinkedList|HashMap|Map|Set|HashSet|TreeSet|Exception|)"
+                    R"(RuntimeException|Throwable|System|Math|Arrays|Collections|Optional)\b)"),
+                m_typeFmt);
+        addRule(QStringLiteral(R"(\b(class|interface|enum)\s+[A-Za-z_][A-Za-z0-9_]*)"), m_functionFmt);
+        addRule(QStringLiteral(R"(\bSystem\.(out|err)\b)"), m_typeFmt);
+        addRule(QStringLiteral(R"(@[A-Za-z_][A-Za-z0-9_]*)"), m_preprocessorFmt);
+        addRule(QStringLiteral(R"("([^"\\]|\\.)*"|'([^'\\]|\\.)*')"), m_stringFmt);
+        addRule(QStringLiteral(R"(//[^\n]*)"), m_commentFmt);
+        addRule(QStringLiteral(R"(/\*[\s\S]*?\*/)"), m_commentFmt);
+        addRule(QStringLiteral(R"(\b[A-Za-z_][A-Za-z0-9_]*(?=\s*\())"), m_functionFmt);
+    }
+    else if (lang == QLatin1String("csharp")) {
+        addRule(QStringLiteral(
+                    R"(\b(using|namespace|class|struct|interface|enum|public|private|protected|)"
+                    R"(internal|static|readonly|virtual|override|abstract|sealed|partial|event|)"
+                    R"(delegate|void|int|long|float|double|decimal|bool|char|string|var|if|else|)"
+                    R"(switch|case|for|foreach|while|do|return|new|this|base|try|catch|finally|)"
+                    R"(throw|get|set|value|in|out|ref|params|async|await|null|true|false)\b)"),
+                m_keywordFmt);
+        addRule(QStringLiteral(
+                    R"(\b(List|Dictionary|IEnumerable|IList|ICollection|Action|Func|Task|Console|)"
+                    R"(String|Object|Exception|Math|DateTime|StringBuilder|Random)\b)"),
+                m_typeFmt);
+        addRule(QStringLiteral(R"(\b(class|interface|struct|enum)\s+[A-Za-z_]\w*)"), m_functionFmt);
+        addRule(QStringLiteral(R"(\bConsole\.\w+)"), m_functionFmt);
+        addRule(QStringLiteral(R"(#(region|endregion|if|else|endif|define|pragma)\b[^\n]*)"), m_preprocessorFmt);
+        addRule(QStringLiteral(R"(@"[^"\n]*"|"([^"\\]|\\.)*"|'([^'\\]|\\.)*')"), m_stringFmt);
+        addRule(QStringLiteral(R"(//[^\n]*)"), m_commentFmt);
+        addRule(QStringLiteral(R"(/\*[\s\S]*?\*/)"), m_commentFmt);
+        addRule(QStringLiteral(R"(\b[A-Za-z_][A-Za-z0-9_]*(?=\s*\())"), m_functionFmt);
+    }
+    else if (lang == QLatin1String("go")) {
+        addRule(QStringLiteral(
+                    R"(\b(package|import|func|var|const|type|struct|interface|map|chan|go|defer|)"
+                    R"(return|if|else|for|range|switch|case|default|break|continue|goto|select|)"
+                    R"(fallthrough)\b)"),
+                m_keywordFmt);
+        addRule(QStringLiteral(
+                    R"(\b(string|int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|)"
+                    R"(uintptr|float32|float64|bool|byte|rune|error|any|comparable)\b)"),
+                m_typeFmt);
+        addRule(QStringLiteral(
+                    R"(\b(make|new|len|cap|append|copy|delete|panic|recover|close|complex|real|imag)\b)"),
+                m_keywordFmt);
+        addRule(QStringLiteral(R"(\b(fmt|log)\.(Print|Println|Printf|Sprintf|Errorf|Fprintf)\b)"), m_functionFmt);
+        addRule(QStringLiteral(R"(`[^`\n]*`|"[^"\\]*(?:\\.[^"\\]*)*"|'([^'\\]|\\.)*')"), m_stringFmt);
+        addRule(QStringLiteral(R"(//[^\n]*)"), m_commentFmt);
+        addRule(QStringLiteral(R"(/\*[\s\S]*?\*/)"), m_commentFmt);
+        addRule(QStringLiteral(R"(:=)"), m_typeFmt);
+        addRule(QStringLiteral(R"(\b[A-Za-z_][A-Za-z0-9_]*(?=\s*\())"), m_functionFmt);
+    }
+    else if (lang == QLatin1String("rust")) {
+        const auto MLO = QRegularExpression::MultilineOption;
+        addRule(QStringLiteral(
+                    R"(\b(fn|let|mut|pub|struct|enum|impl|trait|mod|use|match|if|else|for|while|)"
+                    R"(loop|return|break|continue|move|ref|static|const|unsafe|async|await|dyn|)"
+                    R"(where|as|in|type|crate|self|Self|super|extern|macro_rules)\b)"),
+                m_keywordFmt);
+        addRule(QStringLiteral(
+                    R"(\b(i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|f32|f64|bool|char|)"
+                    R"(str|String|Vec|Option|Result|Box|Rc|Arc|HashMap|BTreeMap|HashSet|VecDeque)\b)"),
+                m_typeFmt);
+        addRule(QStringLiteral(R"(\b[A-Za-z_][A-Za-z0-9_]*!\s*\()"), m_functionFmt);      // macros: println!(
+        addRule(QStringLiteral(R"(\B'[A-Za-z_]\w*)"), m_typeFmt);                          // lifetimes: &'a
+        addRule(QStringLiteral(R"('([^'\\]|\\.)*')"), m_stringFmt);                        // char literals
+        addRule(QStringLiteral(R"("[^"\\]*(?:\\.[^"\\]*)*")"), m_stringFmt);
+        addRule(QStringLiteral(R"(//[^\n]*)"), m_commentFmt);
+        addRule(QStringLiteral(R"(/\*[\s\S]*?\*/)"), m_commentFmt);
+        addRule(QStringLiteral(R"(^[ \t]*#!?\[[^\]]*\])"), m_preprocessorFmt, MLO);        // attributes
+        addRule(QStringLiteral(R"(\b[A-Za-z_][A-Za-z0-9_]*(?=\s*\())"), m_functionFmt);
+    }
     // "text" → numbers only (already added)
 }
 
@@ -181,89 +327,237 @@ void CodeSyntaxHighlighter::highlightBlock(const QString& text)
 
 QString CodeSyntaxHighlighter::detectLanguage(const QString& code)
 {
-    if (code.trimmed().isEmpty())
+    const QString s = code.trimmed();
+    if (s.isEmpty())
         return QStringLiteral("text");
 
-    const QString s = code.left(4000); // enough signal
-    int scoreCpp = 0, scorePy = 0, scoreJs = 0, scoreBash = 0;
-    int scoreQml = 0, scoreJson = 0, scoreHtml = 0, scoreCss = 0;
+    int cpp = 0, py = 0, js = 0, bash = 0, qml = 0, html = 0, css = 0, json = 0;
+    int sql = 0, md = 0, yaml = 0, xml = 0, java = 0, csharp = 0, go = 0, rust = 0;
 
-    auto bump = [](int& score, int n = 1) { score += n; };
+    const auto MLO  = QRegularExpression::MultilineOption;
+    const auto CIO  = QRegularExpression::CaseInsensitiveOption;
+    const auto MCIO = MLO | CIO;
 
-    // C / C++
-    if (s.contains(QStringLiteral("#include"))) bump(scoreCpp, 4);
-    if (s.contains(QStringLiteral("std::"))) bump(scoreCpp, 3);
-    if (s.contains(QStringLiteral("nullptr"))) bump(scoreCpp, 2);
-    if (s.contains(QStringLiteral("QString")) || s.contains(QStringLiteral("QObject"))) bump(scoreCpp, 3);
-    if (QRegularExpression(QStringLiteral(R"(\b(int|void|class|template)\b)")).match(s).hasMatch())
-        bump(scoreCpp, 1);
+    auto count = [&s](const QString& rx, QRegularExpression::PatternOptions opts) -> int {
+        int n = 0;
+        auto it = QRegularExpression(rx, opts).globalMatch(s);
+        while (it.hasNext()) { it.next(); ++n; }
+        return n;
+    };
 
-    // Python
-    if (QRegularExpression(QStringLiteral(R"(^\s*def\s+\w+\s*\()"), QRegularExpression::MultilineOption).match(s).hasMatch())
-        bump(scorePy, 4);
-    if (QRegularExpression(QStringLiteral(R"(^\s*import\s+\w+)"), QRegularExpression::MultilineOption).match(s).hasMatch())
-        bump(scorePy, 3);
-    if (s.contains(QStringLiteral("self."))) bump(scorePy, 2);
-    if (s.contains(QStringLiteral("elif "))) bump(scorePy, 2);
-
-    // JS / TS
-    if (s.contains(QStringLiteral("console.log"))) bump(scoreJs, 3);
-    if (s.contains(QStringLiteral("=>"))) bump(scoreJs, 2);
-    if (s.contains(QStringLiteral("const ")) || s.contains(QStringLiteral("let "))) bump(scoreJs, 1);
-    if (s.contains(QStringLiteral("function "))) bump(scoreJs, 1);
-    if (s.contains(QStringLiteral("export ")) || s.contains(QStringLiteral("import "))) bump(scoreJs, 1);
-
-    // Bash / Linux commands
-    if (QRegularExpression(QStringLiteral(R"(^\s*#!/(usr/)?bin/(env\s+)?(bash|sh|zsh))"),
-                           QRegularExpression::MultilineOption).match(s).hasMatch())
-        bump(scoreBash, 5);
-    if (QRegularExpression(QStringLiteral(R"(\b(sudo|apt|pacman|systemctl|journalctl|grep|chmod|chown)\b)")).match(s).hasMatch())
-        bump(scoreBash, 3);
-    if (QRegularExpression(QStringLiteral(R"(^\s*if\s*\[\s*)"), QRegularExpression::MultilineOption).match(s).hasMatch())
-        bump(scoreBash, 3);
-    if (s.contains(QStringLiteral("#!/bin/"))) bump(scoreBash, 3);
-    if (QRegularExpression(QStringLiteral(R"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)")).match(s).hasMatch())
-        bump(scoreBash, 1);
-
-    // QML
-    if (s.contains(QStringLiteral("import QtQuick"))) bump(scoreQml, 5);
-    if (QRegularExpression(QStringLiteral(R"(\b(Rectangle|Item|ColumnLayout|anchors\.)\b)")).match(s).hasMatch())
-        bump(scoreQml, 3);
-
-    // JSON
+    // JSON: an actual parse is the only infallible signal
     {
-        const QString t = s.trimmed();
-        if ((t.startsWith(QLatin1Char('{')) || t.startsWith(QLatin1Char('[')))
-            && t.contains(QStringLiteral("\":")))
-            bump(scoreJson, 4);
+        QJsonParseError pe;
+        const QJsonDocument d = QJsonDocument::fromJson(code.toUtf8(), &pe);
+        if (pe.error == QJsonParseError::NoError && (d.isArray() || d.isObject()))
+            json += 6;
     }
 
+    // C / C++
+    if (count(QStringLiteral(R"(^[ \t]*#\s*(include|define|ifdef|ifndef|pragma)\b)"), MLO))
+        cpp += 4;
+    if (s.contains(QLatin1String("std::")))
+        cpp += 3;
+    if (s.contains(QLatin1String("nullptr")) || s.contains(QLatin1String("constexpr")))
+        cpp += 2;
+    if (count(QStringLiteral(R"(\b(template\s*<|using\s+namespace\b|namespace\s+\w+\s*\{))"), QRegularExpression::NoPatternOption))
+        cpp += 2;
+    if (count(QStringLiteral(R"(\b(int|void|char|bool|long|unsigned|auto|static)\b)"), QRegularExpression::NoPatternOption))
+        cpp += 1;
+
+    // Python
+    if (count(QStringLiteral(R"(^\s*(async\s+)?def\s+\w+\s*\()"), MLO))
+        py += 4;
+    if (count(QStringLiteral(R"(^\s*from\s+\S+\s+import\b)"), MLO))
+        py += 3;
+    if (s.contains(QLatin1String("self.")))
+        py += 3;
+    if (count(QStringLiteral(R"(\b(elif|lambda|yield|None|True|False)\b)"), QRegularExpression::NoPatternOption))
+        py += 2;
+    if (count(QStringLiteral(R"(^\s+\w+\s*:\s*\w+\s*=)"), MLO)) // "name: Type = val" → Python
+        py += 1;
+
+    // JS / TS
+    if (count(QStringLiteral(R"(^\s*(const|let|var)\s+[\w$]+\s*=)"), MLO))
+        js += 4;
+    if (s.contains(QLatin1String("=>")))
+        js += 4;
+    if (count(QStringLiteral(R"(^\s*(import\s+.*\s+from\s+['"]|export\s+))"), MLO))
+        js += 3;
+    if (s.contains(QLatin1String("require(")) || s.contains(QLatin1String("module.exports")))
+        js += 2;
+    if (count(QStringLiteral(R"(\.map\(|\.forEach\(|\.filter\()"), QRegularExpression::NoPatternOption))
+        js += 1;
+
+    // Bash / shell
+    if (count(QStringLiteral(R"(^#!.*\b(bash|zsh|sh)\b)"), MLO))
+        bash += 5;
+    if (count(QStringLiteral(R"(\b(sudo|apt(-get)?|pacman|dnf|yum|systemctl|journalctl|chmod|chown|grep|find|xargs|rsync)\b)"), QRegularExpression::NoPatternOption))
+        bash += 3;
+    if (count(QStringLiteral(R"(^\s*(if\s*\[|for\s+\w+\s+in\b|export\s+\w+=|alias\s+\w+=)"), MLO))
+        bash += 3;
+    if (count(QStringLiteral(R"(\$[A-Za-z_]\w*|\$\{|\$\(\(|\$@|\$\?)"), QRegularExpression::NoPatternOption))
+        bash += 1;
+
+    // QML
+    if (s.contains(QLatin1String("import QtQuick")))
+        qml += 5;
+    if (count(QStringLiteral(R"(\b(Rectangle|Item|ColumnLayout|RowLayout|anchors\.)"), CIO))
+        qml += 3;
+    if (count(QStringLiteral(R"(^[ \t]*(property|signal|function)\s+\w+)"), MLO))
+        qml += 2;
+
     // HTML
-    if (QRegularExpression(QStringLiteral(R"(</?(html|div|span|body|head|script)\b)"),
-                           QRegularExpression::CaseInsensitiveOption).match(s).hasMatch())
-        bump(scoreHtml, 4);
+    if (count(QStringLiteral(R"(^<!DOCTYPE|<html|</html>|<head|<body\b)"), MCIO))
+        html += 4;
+    if (count(QStringLiteral(R"(<(div|span|p|a|img|ul|li|table|section|nav|button)(\s|>))"), CIO))
+        html += 3;
+    if (s.contains(QLatin1String("&nbsp;")) || s.contains(QLatin1String("&amp;")))
+        html += 2;
 
     // CSS
-    if (QRegularExpression(QStringLiteral(R"([.#][\w-]+\s*\{)")).match(s).hasMatch())
-        bump(scoreCss, 3);
-    if (s.contains(QStringLiteral("px;")) || s.contains(QStringLiteral("color:")))
-        bump(scoreCss, 1);
+    if (count(QStringLiteral(R"(^\s*[.#][\w-]+\s*\{)"), MLO))
+        css += 4;
+    if (count(QStringLiteral(R"(@(media|import|keyframes|font-face|supports)\b)"), QRegularExpression::NoPatternOption))
+        css += 3;
+    if (count(QStringLiteral(R"(::?(hover|focus|active|before|after|visited)\b)"), QRegularExpression::NoPatternOption))
+        css += 2;
+    if (s.contains(QLatin1String("!important")))
+        css += 1;
+
+    // SQL — a verb gates the clause count so stray "from/where" words can't score
+    {
+        const int verbs = count(QStringLiteral(
+            R"(^\s*(select|insert|update|delete|drop|create|alter|truncate|merge|replace|grant|with|explain)\b)"),
+            MCIO);
+        const int clauses = count(QStringLiteral(
+            R"(\b(from|where|join|on|group\s+by|order\s+by|having|limit|offset|union|values|into|set)\b)"),
+            CIO);
+        if (verbs)
+            sql += 4 + qMin(3, clauses);
+        else if (clauses >= 3)
+            sql += clauses;
+    }
+
+    // Markdown
+    if (count(QStringLiteral(R"(^#{1,6}\s+\S)"), MLO))
+        md += 4;
+    if (count(QStringLiteral(R"(^\s*(```|~~~))"), MLO))
+        md += 4;
+    if (count(QStringLiteral(R"(\*\*[^*\n]+\*\*|__[^*\n]+__)"), QRegularExpression::NoPatternOption))
+        md += 3;
+    if (count(QStringLiteral(R"(!?\[[^\]\n]*\]\([^)\n]*\))"), QRegularExpression::NoPatternOption))
+        md += 3;
+    if (count(QStringLiteral(R"(^\s*>\s)"), MLO))
+        md += 2;
+    if (count(QStringLiteral(R"(^\s*(\*\s+|\d+\.\s+))"), MLO))
+        md += 1;
+
+    // YAML
+    {
+        const int keys = count(QStringLiteral(R"(^[ \t]*[A-Za-z0-9_.-]+\s*:\s)"), MLO);
+        const bool docStart = count(QStringLiteral(R"(^---\s*$)"), MLO) > 0;
+        const bool listItems = count(QStringLiteral(R"(^\s*-\s+[\w"'.-]+\s*:)"), MLO) > 0;
+        const bool tagged = s.contains(QLatin1String("!!")) || s.contains(QLatin1String("&anchor"));
+        // "name: Type = value" blocks are Python type hints, not YAML keys
+        const bool annotAssign = count(QStringLiteral(R"(^\s+\w+\s*:\s*\w+\s*=)"), MLO) > 0;
+
+        if (docStart)       yaml += 4;
+        if (listItems)      yaml += 2;
+        if (tagged)         yaml += 1;
+        if (keys >= 2)      yaml += annotAssign ? 2 : (2 + qMin(keys, 3));
+    }
+
+    // XML
+    if (count(QStringLiteral(R"(<\?xml\b)"), CIO))
+        xml += 4;
+    if (count(QStringLiteral(R"(xmlns[:=])"), QRegularExpression::NoPatternOption))
+        xml += 3;
+    if (count(QStringLiteral(R"(^\s*<[\w.-]+[^>]*/>)"), MLO))
+        xml += 2;
+    if (count(QStringLiteral(R"(<(project|config|root|item|manifest|property|widget|beans)(\s|>))"), CIO))
+        xml += 1;
+
+    // Java
+    if (count(QStringLiteral(R"(\bpublic\s+(static\s+)?(class|void|int|String|boolean|main)\b)"), QRegularExpression::NoPatternOption))
+        java += 5;
+    if (s.contains(QLatin1String("System.out")) || s.contains(QLatin1String("System.err")))
+        java += 4;
+    if (count(QStringLiteral(R"(^\s*import\s+(java\.|javax\.|com\.|org\.|android\.|kotlin\.))"), MLO))
+        java += 3;
+    if (count(QStringLiteral(R"(@(Override|Test|Autowired|Resource|Inject|RequestMapping|SuppressWarnings|Deprecated)\b)"), QRegularExpression::NoPatternOption))
+        java += 2;
+    if (count(QStringLiteral(R"(^\s*(public|private|protected)\s+\S+\s+\w+\s*\()"), MLO))
+        java += 2;
+    if (count(QStringLiteral(R"(\bpublic\s+static\s+void\s+main\s*\(|String\[\]\s+\w+)"), QRegularExpression::NoPatternOption))
+        java += 2;
+
+    // C#
+    if (count(QStringLiteral(R"(^\s*using\s+(System|Microsoft|UnityEngine)[\w.]*;)"), MLO))
+        csharp += 5;
+    if (count(QStringLiteral(R"(\bConsole\.(Write|WriteLine|ReadLine|Error|Out)\b)"), QRegularExpression::NoPatternOption))
+        csharp += 4;
+    if (count(QStringLiteral(R"(\bstatic\s+(async\s+)?void\s+Main\s*\()"), QRegularExpression::NoPatternOption))
+        csharp += 4;
+    if (count(QStringLiteral(R"(^\s*namespace\s+\w+)"), MLO))
+        csharp += 2;
+    if (count(QStringLiteral(R"(\b(List<|Dictionary<|IEnumerable|foreach\s*\()"), QRegularExpression::NoPatternOption))
+        csharp += 2;
+    if (count(QStringLiteral(R"(\bpublic\s+(sealed\s+|static\s+)?class\s+\w+)"), QRegularExpression::NoPatternOption))
+        csharp += 2;
+
+    // Go
+    if (count(QStringLiteral(R"(^\s*package\s+main\b)"), MLO))
+        go += 5;
+    if (count(QStringLiteral(R"(\b(fmt|log)\.(Print|Println|Printf|Sprintf|Errorf|Fprintf)\s*\()"), QRegularExpression::NoPatternOption))
+        go += 4;
+    if (count(QStringLiteral(R"(\b:=)"), QRegularExpression::NoPatternOption))
+        go += 3;
+    if (count(QStringLiteral(R"(^\s*func\s+(\([^)]*\)\s+)?\w+\s*\()"), MLO))
+        go += 3;
+    if (count(QStringLiteral(R"(^\s*(import|var|const)\s*\(?)"), MLO))
+        go += 2;
+    if (count(QStringLiteral(R"(\b(defer|go\s+func|chan\s|map\[|error\b))"), QRegularExpression::NoPatternOption))
+        go += 1;
+
+    // Rust
+    if (count(QStringLiteral(R"(^\s*fn\s+main\s*\()"), MLO))
+        rust += 5;
+    if (count(QStringLiteral(R"(^\s*(pub\s+)?(fn|struct|enum|impl|trait|mod|use)\s+\w+)"), MLO))
+        rust += 4;
+    if (count(QStringLiteral(R"(\b(println|eprintln|format|vec|panic|unwrap|expect|dbg)!)"), QRegularExpression::NoPatternOption))
+        rust += 3;
+    if (s.contains(QLatin1String("let mut ")))
+        rust += 3;
+    if (count(QStringLiteral(R"(\b(crate::|self::|super::|match\s+\w+\s*\{))"), QRegularExpression::NoPatternOption))
+        rust += 2;
+    if (count(QStringLiteral(R"(\b(Result<|Option<|Vec<|Box<|Rc<|Arc<)"), QRegularExpression::NoPatternOption))
+        rust += 1;
 
     struct Pair { int score; const char* id; };
+    // Order = tie priority: with equal scores the earlier language wins.
     const Pair pairs[] = {
-                           { scoreCpp,  "cpp" },
-                           { scorePy,   "python" },
-                           { scoreJs,   "js" },
-                           { scoreBash, "bash" },
-                           { scoreQml,  "qml" },
-                           { scoreJson, "json" },
-                           { scoreHtml, "html" },
-                           { scoreCss,  "css" },
-                           };
+        { json,    "json"    },
+        { sql,     "sql"     },
+        { cpp,     "cpp"     },
+        { go,      "go"      },
+        { rust,    "rust"    },
+        { java,    "java"    },
+        { csharp,  "csharp"  },
+        { py,      "python"  },
+        { js,      "js"      },
+        { bash,    "bash"    },
+        { qml,     "qml"     },
+        { html,    "html"    },
+        { css,     "css"     },
+        { xml,     "xml"     },
+        { md,     "markdown"},
+        { yaml,    "yaml"    },
+    };
 
     int best = 0;
     const char* bestId = "text";
-    for (const auto& p : pairs) {
+    for (const Pair& p : pairs) {
         if (p.score > best) {
             best = p.score;
             bestId = p.id;

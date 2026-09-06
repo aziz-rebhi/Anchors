@@ -141,10 +141,17 @@ QVariantMap RichTextHelper::splitAtCursor(QObject *textEditObj)
     afterPlain.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
     cur.removeSelectedText();
 
+    // Preserve rich formatting by echoing the remaining text back into the
+    // editor. An empty document serializes to a long HTML scaffold
+    // ("<!DOCTYPE HTML ...><p ...><br /></p>") with no visible text — storing
+    // that would leak markup into plain-text consumers (e.g. code blocks).
+    // Write "" instead so an empty split persists as clean empty text.
+    const QString beforePlain = doc->toPlainText();
     const QString beforeHtml = doc->toHtml();
-    textEditObj->setProperty(QByteArrayLiteral("text"), beforeHtml);
+    textEditObj->setProperty(QByteArrayLiteral("text"),
+                             beforePlain.isEmpty() ? QString() : beforeHtml);
 
-    out.insert(QStringLiteral("before"), beforeHtml);
+    out.insert(QStringLiteral("before"), beforePlain.isEmpty() ? QString() : beforeHtml);
     out.insert(QStringLiteral("after"), afterPlain);
     return out;
 }

@@ -27,20 +27,28 @@ Rectangle {
         { label: "c / C++", value: "cpp" },
         { label: "Bash / Linux", value: "bash" },
         { label: "QML", value: "qml" },
+        { label: "JSON", value: "json" },
         { label: "HTML", value: "html" },
         { label: "CSS", value: "css" },
-        { label: "JSON", value: "json" },
-        { label: "SQL", value: "text" },
-        { label: "Markdown", value: "text" },
-        { label: "YAML", value: "text" },
-        { label: "XML", value: "text" },
-        { label: "Java", value: "text" },
-        { label: "C#", value: "text" },
-        { label: "Go", value: "text" },
-        { label: "Rust", value: "text" }
+        { label: "SQL", value: "sql" },
+        { label: "Markdown", value: "markdown" },
+        { label: "YAML", value: "yaml" },
+        { label: "XML", value: "xml" },
+        { label: "Java", value: "java" },
+        { label: "C#", value: "csharp" },
+        { label: "Go", value: "go" },
+        { label: "Rust", value: "rust" }
     ]
 
-    property string detectedLabel: ""
+    property string detectedId: ""
+
+    onLanguageChanged: {
+        if (root.language && root.language !== "auto" && langCombo) {
+            var lbl = root.labelForValue(root.language)
+            var i = langCombo.model.indexOf(lbl)
+            if (i >= 0) langCombo.currentIndex = i
+        }
+    }
 
     function focusInput() {
         codeArea.forceActiveFocus()
@@ -75,8 +83,14 @@ Rectangle {
     function refreshDetected() {
         if (!bridge || !codeArea) return
         var id = bridge.detectCode ? bridge.detectCode(codeArea.text) : ""
-        root.detectedLabel = (root.language === "auto" || root.language === "")
-                           ? labelForValue(id) : ""
+        root.detectedId = id
+        if ((root.language === "auto" || root.language === "")
+                && id && id.length && id !== "text") {
+            var lbl = root.labelForValue(id)
+            var idx = langCombo.model.indexOf(lbl)
+            if (idx >= 0)
+                langCombo.currentIndex = idx
+        }
         if (bridge.redetect) bridge.redetect()
     }
 
@@ -107,9 +121,13 @@ Rectangle {
             }
             font.pixelSize: 11
             font.family: "monospace"
-            displayText: root.labelForValue(root.language)
             implicitWidth: 130
             implicitHeight: 24
+
+            ToolTip.visible: langCombo.hovered
+            ToolTip.text: (root.language === "auto" || root.language === "")
+                          ? "Auto-detecting — pick a language to pin it"
+                          : "Code language"
 
             background: Rectangle {
                 color: theme.codeHeader
@@ -133,9 +151,9 @@ Rectangle {
         }
 
         Text {
-            visible: root.detectedLabel.length > 0
-                     && (root.language === "auto" || root.language === "")
-            text: "· " + root.detectedLabel
+            visible: (root.language === "auto" || root.language === "")
+                     && root.detectedId && root.detectedId !== "text"
+            text: "· auto"
             font.pixelSize: 10
             color: theme.codeMuted
         }

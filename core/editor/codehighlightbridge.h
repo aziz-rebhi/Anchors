@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QQuickTextDocument>
-#include <QDebug>
 #include "codesyntaxhighlighter.h"
 
 class CodeHighlightBridge : public QObject {
@@ -35,10 +34,7 @@ public:
         delete m_highlighter;
         m_highlighter = new CodeSyntaxHighlighter(doc);
 
-        qDebug() << "attach doc" << doc << "text" << doc->toPlainText().left(60);
         apply();
-        qDebug() << "after attach, highlighter lang rules for"
-                 << CodeSyntaxHighlighter::detectLanguage(doc->toPlainText());
     }
 
     Q_INVOKABLE void redetect() {
@@ -49,7 +45,6 @@ public:
             return;
         }
         const QString detected = CodeSyntaxHighlighter::detectLanguage(m_doc->toPlainText());
-        qDebug() << "redetect text=" << m_doc->toPlainText().left(60) << "->" << detected;
         m_highlighter->setLanguage(detected); // ends with rehighlight()
     }
 

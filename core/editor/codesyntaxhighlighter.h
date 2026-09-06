@@ -15,7 +15,9 @@ public:
     void setLanguage(const QString& lang);   // "auto","cpp","python","js","bash",...
     QString language() const { return m_language; }
 
-    // Heuristic detect; returns canonical id: cpp, python, js, bash, qml, json, html, css, text
+    // Heuristic detect; returns canonical id:
+    // cpp, python, js, bash, qml, json, html, css, sql, markdown, yaml, xml,
+    // java, csharp, go, rust — or "text" when nothing is confident.
     static QString detectLanguage(const QString& code);
 
 protected:
@@ -28,7 +30,8 @@ private:
     };
 
     void buildRules(const QString& lang);
-    void addRule(const QString& pattern, const QTextCharFormat& fmt);
+    void addRule(const QString& pattern, const QTextCharFormat& fmt,
+                 QRegularExpression::PatternOptions options = QRegularExpression::NoPatternOption);
 
     QString m_language = QStringLiteral("text");
     QVector<Rule> m_rules;

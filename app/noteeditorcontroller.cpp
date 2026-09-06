@@ -24,6 +24,20 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QDateTime>
+#include <QTextDocument>
+
+static QString scrubEmptyHtml(const QString& s)
+{
+    if (s.isEmpty()) return s;
+    const QString t = s.trimmed();
+    if (!t.startsWith(QLatin1String("<!DOCTYPE")) && !t.startsWith(QLatin1String("<html")))
+        return s;
+    QTextDocument d;
+    d.setHtml(t);
+    if (d.toPlainText().trimmed().isEmpty())
+        return QString();
+    return s;
+}
 
 NoteEditorController::NoteEditorController(QObject* parent)
     : QObject(parent)
@@ -212,7 +226,7 @@ void NoteEditorController::insertBlock(const QString& parentId, int row, int typ
     case 2: data = HeadingData{2, content}; break;
     case 3: data = HeadingData{3, content}; break;
     case 4: data = TodoData{content, false}; break;
-    case 5: data = CodeData{"", content}; break;
+    case 5: data = CodeData{"", scrubEmptyHtml(content)}; break;
     case 6: data = ImageData{QString(), QString(), 0, 0}; break;
     case 7: {
         QVector<QVector<QString>> initCells(1, QVector<QString>(1, ""));
@@ -469,7 +483,7 @@ void NoteEditorController::changeBlockType(const QString& blockId, int newType)
     case 2: newData = HeadingData{2, currentText}; break;
     case 3: newData = HeadingData{3, currentText}; break;
     case 4: newData = TodoData{currentText, isChecked}; break;
-    case 5: newData = CodeData{"", currentText}; break;
+    case 5: newData = CodeData{"", scrubEmptyHtml(currentText)}; break;
     case 6: newData = ImageData{"", "", 0, 0}; break;
     case 7: {
         QVector<QVector<QString>> initCells(1, QVector<QString>(1, ""));
@@ -949,7 +963,7 @@ void NoteEditorController::insertInColumn(const QString& columnsId, int columnIn
     case 2:  data = HeadingData{2, content}; break;
     case 3:  data = HeadingData{3, content}; break;
     case 4:  data = TodoData{content, false}; break;
-    case 5:  data = CodeData{"", content}; break;
+    case 5:  data = CodeData{"", scrubEmptyHtml(content)}; break;
     case 9:  data = QuoteData{content}; break;
     case 10: data = HeadingData{4, content}; break;
     case 11: data = BulletData{content, 0}; break;
