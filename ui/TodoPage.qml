@@ -446,7 +446,8 @@ Page {
         title: isEdit ? "Edit project" : "New project"
         modal: true
         anchors.centerIn: parent
-        width: 340
+        width: 360
+        padding:20
 
         background: Rectangle {
             color: theme.surfaceAlt
