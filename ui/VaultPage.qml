@@ -61,8 +61,8 @@ Page {
         }).length
     }
 
-    function copyPassword(pw) {
-        if (!pw || !pw.length)
+    function copyText(text) {
+        if (!text || !text.length)
             return
         if (typeof clipboardGuard === "undefined" || !clipboardGuard)
             return
@@ -70,14 +70,16 @@ Page {
         if (typeof settingsController !== "undefined" && settingsController)
             secs = settingsController.clearClipboard
                    ? settingsController.clipboardClearSeconds : 0
-        clipboardGuard.copyWithAutoClear(pw, secs)
+        clipboardGuard.copyWithAutoClear(text, secs)
+    }
+
+    function copyPassword(pw) {
+        copyText(pw)
     }
 
     function openUrl(url) {
         if (!url || !url.length)
             return
-        // Only ever hand http(s) URLs to the OS. Anything without a scheme
-        // gets https:// assumed; javascript:, file:, etc. are rejected.
         var u = url
         if (u.indexOf("://") < 0)
             u = "https://" + u
@@ -485,7 +487,6 @@ Page {
                                         Layout.fillWidth: true
                                     }
 
-                                    // Count when category has entries
                                     Label {
                                         text: "" + root.categoryCount(modelData)
                                         color: theme.textMuted
@@ -494,7 +495,6 @@ Page {
                                         visible: root.categoryCount(modelData) > 0
                                     }
 
-                                    // Delete only when empty (no overlap with count)
                                     Rectangle {
                                         visible: root.categoryCount(modelData) === 0
                                         width: 22
@@ -686,8 +686,6 @@ Page {
                         height: 52
                         radius: theme.radiusSmall
                         color: hoverArea.containsMouse ? theme.surfaceAlt : "transparent"
-                        // One row revealed at a time; keyed by model id so the
-                        // state is correct even when delegate instances recycle.
                         readonly property bool revealed: root.revealedId === modelData.id
 
                         RowLayout {
@@ -696,7 +694,7 @@ Page {
                             anchors.rightMargin: 12
                             spacing: 16
 
-                            // SERVICE — text only, no icon
+                            // SERVICE
                             Label {
                                 text: modelData.title || ""
                                 Layout.preferredWidth: root.colService
@@ -706,15 +704,74 @@ Page {
                                 elide: Text.ElideRight
                             }
 
-                            Label {
+                            // USERNAME — selectable, no extra button
+                            // Drag to select, double-click = select all, Ctrl+C to copy
+                            TextInput {
+                                id: userField
                                 text: modelData.username || ""
+                                readOnly: true
+                                selectByMouse: true
+                                persistentSelection: false
                                 Layout.preferredWidth: root.colUser
                                 Layout.maximumWidth: root.colUser
                                 color: theme.textSecondary
                                 font.pixelSize: 13
-                                elide: Text.ElideRight
+                                clip: true
+                                cursorVisible: activeFocus
+                                selectedTextColor: theme.onAccent
+                                selectionColor: theme.tertiary
+
+                                // Double-click: select all + copy (no button needed)
+                                onActiveFocusChanged: {
+                                    if (activeFocus ) {
+                                        selectAll()
+                                    } else {
+                                        deselect()
+                                    }
+                                }
+
+                                Keys.onPressed: function (event) {
+                                    if (event.matches(StandardKey.Copy) && selectedText.length) {
+                                        root.copyText(selectedText)
+                                        event.accepted = true
+                                    } else if (event.matches(StandardKey.Copy) && text.length) {
+                                        root.copyText(text)
+                                        event.accepted = true
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton
+                                    cursorShape: Qt.IBeamCursor
+                                    // Pass through so TextInput can still select by mouse
+                                    propagateComposedEvents: true
+                                    onPressed: function (mouse) {
+                                        userField.forceActiveFocus()
+                                        mouse.accepted = false
+                                    }
+                                    onDoubleClicked: function (mouse) {
+                                        userField.selectAll()
+                                        if (userField.text.length)
+                                            root.copyText(userField.text)
+                                        mouse.accepted = true
+                                    }
+                                }
+
+                                ToolTip.visible: userHover.containsMouse && text.length > 0
+                                ToolTip.text: "Select + Ctrl+C · double-click to copy all"
+                                ToolTip.delay: 450
+
+                                MouseArea {
+                                    id: userHover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    acceptedButtons: Qt.NoButton
+                                    z: -1
+                                }
                             }
 
+                            // URL
                             Label {
                                 text: (modelData.url && modelData.url.length) ? modelData.url : "—"
                                 Layout.preferredWidth: root.colUrl
@@ -731,15 +788,13 @@ Page {
                                 }
                             }
 
+                            // PASSWORD
                             RowLayout {
                                 Layout.fillWidth: true
                                 Layout.minimumWidth: root.colPassword
                                 spacing: 6
                                 Label {
                                     Layout.fillWidth: true
-                                    // Constant-length mask: reveals nothing about
-                                    // the real password length, and the "•" in
-                                    // an 8-digit PIN can't leak either.
                                     text: entryRow.revealed
                                           ? (modelData.password || "")
                                           : "••••••••••"
@@ -756,6 +811,7 @@ Page {
                                 }
                             }
 
+                            // ACTIONS
                             RowLayout {
                                 Layout.preferredWidth: root.colActions
                                 Layout.maximumWidth: root.colActions
