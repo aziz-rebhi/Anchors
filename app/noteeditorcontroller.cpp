@@ -43,9 +43,12 @@ NoteEditorController::NoteEditorController(QObject* parent)
     : QObject(parent)
     , m_db(NotesDatabase::instance())
 {
-    // When the app (and therefore the session) locks, evict every decrypted
-    // image we spilled into the temp folder so the plaintext bytes don't
-    // outlive the unlocked session.
+    m_contentDebounce = new QTimer(this);
+    m_contentDebounce->setSingleShot(true);
+    m_contentDebounce->setInterval(450);
+    connect(m_contentDebounce, &QTimer::timeout,
+            this, &NoteEditorController::flushPendingContentEdit);
+
     connect(Session::instance(), &Session::locked,
             this, &NoteEditorController::cleanTempImages);
 }
@@ -137,6 +140,9 @@ void NoteEditorController::createNewNote(const QString& title)
 
 void NoteEditorController::loadNote(const QString& id)
 {
+    if (m_contentDebounce)
+        m_contentDebounce->stop();
+    flushPendingContentEdit();
     QUuid docId = QUuid::fromString(id);
     if (docId.isNull()) return;
 
@@ -163,6 +169,9 @@ void NoteEditorController::loadNote(const QString& id)
 
 void NoteEditorController::saveNote()
 {
+    if (m_contentDebounce)
+        m_contentDebounce->stop();
+    flushPendingContentEdit();
     if (!m_document || !m_db) return;
     if (!m_db->saveDocument(*m_document, Session::instance()->secureKey()))
         emit errorOccurred(QStringLiteral("Failed to save note"));
@@ -296,6 +305,9 @@ void NoteEditorController::insertBlockAfter(const QString& blockId, int type, co
 
 void NoteEditorController::deleteBlock(const QString& blockId)
 {
+    if (m_contentDebounce)
+        m_contentDebounce->stop();
+    flushPendingContentEdit();
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
@@ -328,17 +340,58 @@ void NoteEditorController::deleteBlock(const QString& blockId)
     emit canRedoChanged();
 }
 
+void NoteEditorController::applyContentDirect(const QUuid& id, const QString& content)
+{
+    if (!m_document) return;
+    Block* block = m_document->findBlock(id);
+    if (!block) return;
+
+    BlockData newData = std::visit([&](auto&& arg) -> BlockData {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, ParagraphData>) return ParagraphData{content};
+        else if constexpr (std::is_same_v<T, HeadingData>) return HeadingData{arg.level, content};
+        else if constexpr (std::is_same_v<T, TodoData>) return TodoData{content, arg.checked};
+        else if constexpr (std::is_same_v<T, QuoteData>) return QuoteData{content};
+        else if constexpr (std::is_same_v<T, CodeData>) return CodeData{arg.language, scrubEmptyHtml(content)};
+        else if constexpr (std::is_same_v<T, BulletData>) return BulletData{content, arg.indent};
+        else if constexpr (std::is_same_v<T, CalloutData>) return CalloutData{content, arg.emoji};
+        else if constexpr (std::is_same_v<T, NumberedData>) return NumberedData{content, arg.indent};
+        else if constexpr (std::is_same_v<T, ToggleData>) return ToggleData{content, arg.collapsed};
+        else if constexpr (std::is_same_v<T, EquationData>) return EquationData{content, arg.displayMode};
+        else return arg;
+    }, block->data());
+
+    // Live update — no undo entry per keystroke
+    m_document->updateBlockData(id, newData);
+}
+
+void NoteEditorController::flushPendingContentEdit()
+{
+    if (m_pendingContentId.isNull() || !m_document)
+        return;
+    // Content already applied via applyContentDirect; just clear pending
+    m_pendingContentId = QUuid();
+    m_pendingContent.clear();
+    emit documentModified();
+    emit canUndoChanged();
+    emit canRedoChanged();
+}
+
 void NoteEditorController::updateBlockContent(const QString& blockId, const QString& content)
 {
     if (!m_document) return;
     QUuid id = QUuid::fromString(blockId);
     if (id.isNull()) return;
 
-    auto* cmd = new EditTextCommand(m_document, id, content);
-    m_document->undoStack()->push(cmd);
+    applyContentDirect(id, content);
+
+    m_pendingContentId = id;
+    m_pendingContent = content;
+    if (m_contentDebounce)
+        m_contentDebounce->start();
+
+    // Light signal so UI stays in sync; NotesPage still debounces disk save
     emit documentModified();
-    emit canUndoChanged();
-    emit canRedoChanged();
 }
 
 void NoteEditorController::updateBlockCodeLanguage(const QString& blockId, const QString& language)
@@ -626,6 +679,9 @@ QVariantList NoteEditorController::getDocuments() const
 
 void NoteEditorController::loadFromContent(const QString& title, const QStringList& paragraphs)
 {
+    if (m_contentDebounce)
+        m_contentDebounce->stop();
+    flushPendingContentEdit();
     if (m_document) {
         delete m_document;
         m_document = nullptr;
@@ -657,15 +713,26 @@ QString NoteEditorController::documentToJson() const
 
 void NoteEditorController::loadFromJson(const QString& title, const QString& jsonContent)
 {
+    if (m_contentDebounce)
+        m_contentDebounce->stop();
+    m_pendingContentId = QUuid();
+    m_pendingContent.clear();
+
     if (m_document) {
         delete m_document;
         m_document = nullptr;
     }
 
-    if (jsonContent.trimmed().isEmpty() || jsonContent.trimmed() == QStringLiteral("{}")){
+    m_focusedBlockId.clear();
+    emit focusedBlockIdChanged(m_focusedBlockId);
+
+    const QString trimmed = jsonContent.trimmed();
+    if (trimmed.isEmpty() || trimmed == QLatin1String("{}")) {
         emit documentChanged();
         emit noteTitleChanged(QString());
         emit modelChanged();
+        emit canUndoChanged();
+        emit canRedoChanged();
         return;
     }
 
@@ -678,6 +745,8 @@ void NoteEditorController::loadFromJson(const QString& title, const QString& jso
             if (m_document) {
                 m_document->setParent(this);
                 bindDocumentSignals();
+                if (!title.isEmpty() && m_document->title().isEmpty())
+                    m_document->setTitle(title);
                 emit documentChanged();
                 emit noteTitleChanged(m_document->title().isEmpty() ? title : m_document->title());
                 emit modelChanged();
@@ -1082,7 +1151,6 @@ void NoteEditorController::duplicateBlock(const QString& blockId)
     Block* block = m_document->findBlock(id);
     if (!block) return;
 
-    const int type = 0;
     QString text;
     std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
@@ -1098,7 +1166,6 @@ void NoteEditorController::duplicateBlock(const QString& blockId)
         else if constexpr (std::is_same_v<T, EquationData>) text = arg.latex;
     }, block->data());
 
-    // typeCodeOf already exists in your .cpp — reuse it
     insertBlockAfter(blockId, typeCodeOf(block->data()), text);
 }
 

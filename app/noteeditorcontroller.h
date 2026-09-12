@@ -6,6 +6,7 @@
 #include <QUrl>
 #include <QVariantList>
 #include <QAbstractItemModel>
+#include <QTimer>
 
 class Document;
 class NotesDatabase;
@@ -39,7 +40,6 @@ public:
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
 
-    // type: 0=Paragraph, 1=H1, 2=H2, 3=H3, 4=Todo, 5=Code, 6=Image, 7=Table, 8=Divider, 9=Quote
     Q_INVOKABLE void insertBlock(const QString& parentId, int row, int type, const QString& content = "");
     Q_INVOKABLE void insertBlockAfter(const QString& blockId, int type, const QString& content = "");
     Q_INVOKABLE void deleteBlock(const QString& blockId);
@@ -75,13 +75,8 @@ public:
     Q_INVOKABLE void duplicateBlock(const QString& blockId);
     Q_INVOKABLE bool pasteImageFromClipboard();
 
-    // A2: encrypted image handling. Images are stored as *.png.enc on disk;
-    // QML must render through resolveImageSource() (which decrypts into a
-    // temp file) instead of passing the raw path to Image.
     Q_INVOKABLE QString resolveImageSource(const QString& source) const;
     Q_INVOKABLE QString importImageFromFile(const QUrl& fileUrl);
-
-
 
 signals:
     void modelChanged();
@@ -96,6 +91,8 @@ signals:
 
 private:
     void bindDocumentSignals();
+    void flushPendingContentEdit();
+    void applyContentDirect(const QUuid& id, const QString& content);
     QString decryptImageToTemp(const QString& encPath) const;
     static void cleanTempImages();
 
@@ -103,6 +100,9 @@ private:
     NotesDatabase* m_db = nullptr;
     QString m_pendingFocusId;
     QString m_focusedBlockId;
+    QTimer* m_contentDebounce = nullptr;
+    QUuid m_pendingContentId;
+    QString m_pendingContent;
 };
 
 #endif // NOTEEDITORCONTROLLER_H

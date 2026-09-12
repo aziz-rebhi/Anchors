@@ -19,7 +19,6 @@ Page {
 
     ListModel { id: treeModel }
 
-
     property var filteredNotes: {
         var list = allNotes.filter(function (n) {
             if (n.title && n.title.startsWith("_")) return false
@@ -33,19 +32,6 @@ Page {
         })
         list.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0) })
         return list
-    }
-
-    function registerFocus() {
-        var item = root.parent
-        while (item) {
-            if (typeof item.claimFocus === "function") {
-                item.claimFocus(textArea)  // or input
-                break
-            }
-            item = item.parent
-        }
-        if (noteEditor)
-            noteEditor.setFocusedBlock(root.blockId)
     }
 
     function buildTree() {
@@ -152,7 +138,6 @@ Page {
             ? (currentFolderPath + "/" + leaf)
             : leaf
 
-        // One empty note so the folder path exists in storage
         var newId = noteController.addEntryInFolder("Untitled note", "", folderPath)
         isCreatingFolder = false
         newFolderName = ""
@@ -169,7 +154,6 @@ Page {
         }
         expandedPaths = ep
 
-        // entriesChanged already refreshed; pick up the new note after tree rebuild
         Qt.callLater(function () {
             root.refresh(false)
             root.selectNoteById(newId)
@@ -186,7 +170,9 @@ Page {
             }
             if (!found) {
                 selectedId = ""
+                loadingNote = true
                 if (noteEditor) noteEditor.loadFromJson("", "")
+                Qt.callLater(function () { root.loadingNote = false })
             }
         }
         isCreatingFolder = false
@@ -194,36 +180,65 @@ Page {
     }
 
     function saveCurrentNote() {
-            if (loadingNote) return
-            if (selectedId.length === 0 || !noteEditor || !noteEditor.model) return
-            noteController.updateEntry(selectedId, noteEditor.noteTitle, noteEditor.documentToJson())
-            allNotes = noteController.entries()
-            buildTree()
+        if (loadingNote)
+            return
+        if (selectedId.length === 0 || !noteEditor || !noteEditor.model)
+            return
+
+        var title = noteEditor.noteTitle
+        var json = noteEditor.documentToJson()
+        if (!noteController.updateEntry(selectedId, title, json))
+            return
+
+        // Soft-update local cache (avoid stale sidebar content)
+        var next = []
+        for (var i = 0; i < allNotes.length; i++) {
+            if (allNotes[i].id === selectedId) {
+                var copy = Object.assign({}, allNotes[i])
+                copy.title = title
+                copy.content = json
+                copy.updatedAt = Math.floor(Date.now() / 1000)
+                next.push(copy)
+            } else {
+                next.push(allNotes[i])
+            }
         }
+        allNotes = next
+        buildTree()
+    }
 
     function selectNote(note) {
-            if (!note) return
+        if (!note)
+            return
 
+        // Re-clicking the same note must not reload (would risk mirror / focus loss)
+        if (note.id === selectedId && noteEditor && noteEditor.model)
+            return
+
+        saveTimer.stop()
+        loadingNote = true
+
+        // Flush previous note to disk before switching
+        if (selectedId.length > 0 && selectedId !== note.id && noteEditor && noteEditor.model)
+            saveCurrentNote()
+
+        selectedId = note.id
+        titleField.loadingEditor = true
+
+        var content = note.content || ""
+        if (content.length === 0 || content === "{}")
+            noteEditor.loadFromContent(note.title || "Untitled note", [""])
+        else
+            noteEditor.loadFromJson(note.title || "", content)
+
+        titleField.loadingEditor = false
+
+        // Keep loadingNote true until after load-side documentModified settles
+        Qt.callLater(function () {
+            root.loadingNote = false
             saveTimer.stop()
-
-            if (selectedId.length > 0 && noteEditor && noteEditor.model)
-                saveCurrentNote()
-
-            selectedId = note.id
-            loadingNote = true
-            titleField.loadingEditor = true
-
-            var content = note.content || ""
-            if (content.length === 0 || content === "{}") {
-                noteEditor.loadFromContent(note.title || "Untitled note", [""])
-            } else {
-                noteEditor.loadFromJson(note.title || "", content)
-            }
-
-            titleField.loadingEditor = false
-            loadingNote = false
-            saveTimer.stop()   // load can emit documentModified
-        }
+        })
+    }
 
     function scrollToNote(noteId) {
         Qt.callLater(function () {
@@ -238,10 +253,14 @@ Page {
     }
 
     function clearSelection() {
-        if (selectedId.length > 0 && noteEditor && noteEditor.model)
+        saveTimer.stop()
+        if (selectedId.length > 0 && noteEditor && noteEditor.model && !loadingNote)
             saveCurrentNote()
         selectedId = ""
-        if (noteEditor) noteEditor.loadFromJson("", "")
+        loadingNote = true
+        if (noteEditor)
+            noteEditor.loadFromJson("", "")
+        Qt.callLater(function () { root.loadingNote = false })
     }
 
     background: Rectangle { color: theme.background }
@@ -250,7 +269,6 @@ Page {
         anchors.fill: parent
         spacing: 0
 
-        // ── Sidebar ─────────────────────────────────────────────
         Rectangle {
             Layout.preferredWidth: 280
             Layout.fillHeight: true
@@ -360,7 +378,6 @@ Page {
             }
         }
 
-        // ── Editor ──────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -380,7 +397,7 @@ Page {
                 background: null
                 text: noteEditor ? noteEditor.noteTitle : ""
                 onTextChanged: {
-                    if (!loadingEditor && noteEditor) {
+                    if (!loadingEditor && !root.loadingNote && noteEditor) {
                         noteEditor.noteTitle = text
                         saveTimer.restart()
                     }
@@ -394,11 +411,8 @@ Page {
                 Layout.rightMargin: 12
                 Layout.topMargin: 4
                 Layout.bottomMargin: 4
-
-                currentBlockId: noteEditor ? (noteEditor.focusedBlockId || "") : ""
-                targetEdit: blockList.focusedTextEdit
                 listRef: blockList
-
+                currentBlockId: noteEditor ? (noteEditor.focusedBlockId || "") : ""
                 onChangeType: function (t) {
                     if (noteEditor && noteEditor.focusedBlockId)
                         noteEditor.changeBlockType(noteEditor.focusedBlockId, t)
@@ -422,17 +436,17 @@ Page {
 
             Timer {
                 id: saveTimer
-                interval: 800
+                interval: 900
                 onTriggered: root.saveCurrentNote()
             }
             Connections {
-                    target: noteEditor
-                    function onDocumentModified() {
-                        if (root.loadingNote || root.selectedId.length === 0)
-                            return
-                        saveTimer.restart()
-                    }
+                target: noteEditor
+                function onDocumentModified() {
+                    if (root.loadingNote || root.selectedId.length === 0)
+                        return
+                    saveTimer.restart()
                 }
+            }
         }
 
         ColumnLayout {
@@ -564,11 +578,8 @@ Page {
                     var open = root.allNotes.find(function (n) { return n.id === root.selectedId })
                     if (open) {
                         var f = open.folder || ""
-                        if (f === folder || f.indexOf(folder + "/") === 0) {
-                            root.selectedId = ""
-                            if (noteEditor)
-                                noteEditor.loadFromJson("", "")
-                        }
+                        if (f === folder || f.indexOf(folder + "/") === 0)
+                            root.clearSelection()
                     }
                 }
                 if (noteController.deleteFolder(folder)) {
@@ -619,10 +630,8 @@ Page {
             text: "Delete"
             onTriggered: {
                 if (noteController.deleteEntry(noteContextMenu.targetId)) {
-                    if (root.selectedId === noteContextMenu.targetId) {
-                        root.selectedId = ""
-                        if (noteEditor) noteEditor.loadFromJson("", "")
-                    }
+                    if (root.selectedId === noteContextMenu.targetId)
+                        root.clearSelection()
                     root.refresh(false)
                 }
             }
