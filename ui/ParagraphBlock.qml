@@ -55,10 +55,34 @@ Rectangle {
             return false
         if (typeof richTextHelper === "undefined")
             return false
-        if (event.key === Qt.Key_B) { richTextHelper.toggleBold(textArea); event.accepted = true; return true }
-        if (event.key === Qt.Key_I) { richTextHelper.toggleItalic(textArea); event.accepted = true; return true }
-        if (event.key === Qt.Key_U) { richTextHelper.toggleUnderline(textArea); event.accepted = true; return true }
-        if (event.key === Qt.Key_S) { richTextHelper.toggleStrike(textArea); event.accepted = true; return true }
+        if (event.key === Qt.Key_B) {
+            richTextHelper.toggleBold(textArea)
+            root.contentChanged(textArea.text)
+            root.reportSelection()
+            event.accepted = true
+            return true
+        }
+        if (event.key === Qt.Key_I) {
+            richTextHelper.toggleItalic(textArea)
+            root.contentChanged(textArea.text)
+            root.reportSelection()
+            event.accepted = true
+            return true
+        }
+        if (event.key === Qt.Key_U) {
+            richTextHelper.toggleUnderline(textArea)
+            root.contentChanged(textArea.text)
+            root.reportSelection()
+            event.accepted = true
+            return true
+        }
+        if (event.key === Qt.Key_S) {
+            richTextHelper.toggleStrike(textArea)
+            root.contentChanged(textArea.text)
+            root.reportSelection()
+            event.accepted = true
+            return true
+        }
         return false
     }
     function splitAndContinue(modifiers) {
@@ -126,7 +150,7 @@ Rectangle {
         placeholderTextColor: theme.textMuted
         background: Rectangle { color: "transparent"; border.width: 0 }
         textFormat: TextEdit.RichText
-        persistentSelection: true
+        persistentSelection: false
         selectByMouse: true
 
         onTextChanged: {
@@ -151,7 +175,12 @@ Rectangle {
             root.contentChanged(textArea.text)
         }
 
-        onActiveFocusChanged: if (activeFocus) root.registerFocus()
+        onActiveFocusChanged: {
+            if (activeFocus)
+                root.registerFocus()
+            else
+                deselect()
+        }
         onCursorPositionChanged: root.reportSelection()
         onSelectedTextChanged: root.reportSelection()
 

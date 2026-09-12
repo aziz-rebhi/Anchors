@@ -9,11 +9,13 @@ Rectangle {
     property bool displayMode: true
     signal contentChanged(string newLatex)
 
+    Theme { id: theme }
+
     width: parent ? parent.width : 0
     height: col.implicitHeight + 16
     radius: 8
-    color: "#1a1a24"
-    border.color: "#3a3a4a"
+    color: theme.surfaceAlt
+    border.color: theme.border
     border.width: 1
 
     function focusInput() {
@@ -29,17 +31,16 @@ Rectangle {
 
         Text {
             text: "∑ Equation"
-            color: "#888"
+            color: theme.textMuted
             font.pixelSize: 11
         }
 
-        // Lightweight preview (raw LaTeX styled) — no Chromium
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.max(40, previewText.implicitHeight + 16)
             radius: 6
-            color: "#12121a"
-            border.color: "#333"
+            color: theme.surface
+            border.color: theme.border
             border.width: 1
 
             Text {
@@ -49,7 +50,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.margins: 10
                 text: root.latex.length ? root.latex : "…"
-                color: "#c4b5fd"
+                color: theme.tertiary
                 font.pixelSize: 18
                 font.family: "serif"
                 wrapMode: Text.Wrap
@@ -66,11 +67,12 @@ Rectangle {
             wrapMode: Text.Wrap
             font.pixelSize: 13
             font.family: "monospace"
-            color: "#ddd"
+            color: theme.textPrimary
+            placeholderTextColor: theme.textMuted
             background: Rectangle {
-                color: "#12121a"
+                color: theme.surface
                 radius: 4
-                border.color: "#333"
+                border.color: theme.border
             }
             onTextChanged: if (text !== root.latex) root.contentChanged(text)
             onActiveFocusChanged: if (activeFocus && noteEditor) noteEditor.setFocusedBlock(root.blockId)

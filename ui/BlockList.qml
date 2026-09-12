@@ -56,8 +56,19 @@ ListView {
     function applyFormat(kind) {
         if (!focusedTextEdit || typeof richTextHelper === "undefined")
             return
+
         var s = lastSelStart
         var e = lastSelEnd
+
+        try {
+            if (focusedTextEdit.activeFocus) {
+                s = focusedTextEdit.selectionStart
+                e = focusedTextEdit.selectionEnd
+                lastSelStart = s
+                lastSelEnd = e
+            }
+        } catch (err) {}
+
         if (kind === "bold")
             richTextHelper.toggleBold(focusedTextEdit, s, e)
         else if (kind === "italic")
@@ -67,8 +78,15 @@ ListView {
         else if (kind === "strike")
             richTextHelper.toggleStrike(focusedTextEdit, s, e)
 
-        if (noteEditor && noteEditor.focusedBlockId && focusedTextEdit.text !== undefined)
-            noteEditor.updateBlockContent(noteEditor.focusedBlockId, focusedTextEdit.text)
+        if (noteEditor && noteEditor.focusedBlockId && focusedTextEdit.text !== undefined) {
+            if (s !== e)
+                noteEditor.updateBlockContent(noteEditor.focusedBlockId, focusedTextEdit.text)
+        }
+
+        try {
+            lastSelStart = focusedTextEdit.selectionStart
+            lastSelEnd = focusedTextEdit.selectionEnd
+        } catch (err2) {}
     }
 
     function computeDropIndex(contentYPos) {

@@ -4,6 +4,8 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
+    Theme { id: theme }
+
     property string blockId: ""
     property int columnCount: 2
     property int activeColumn: 0
@@ -16,8 +18,8 @@ Rectangle {
     width: parent ? parent.width : 0
     height: mainCol.implicitHeight + 12
     radius: 8
-    color: "#1a1a22"
-    border.color: "#3a3a4a"
+    color: theme.surfaceAlt
+    border.color: theme.border
     border.width: 1
 
     HoverHandler { onHoveredChanged: root.rootHovered = hovered }
@@ -244,8 +246,8 @@ Rectangle {
                     implicitHeight: Math.max(56, colContent.implicitHeight + 12)
                     Layout.preferredHeight: implicitHeight
                     radius: 6
-                    color: "#12121a"
-                    border.color: root.activeColumn === colIndex ? "#5a5a8a" : "#333"
+                    color: theme.surface
+                    border.color: root.activeColumn === colIndex ? theme.tertiary : theme.border
                     border.width: 1
 
                     Column {
@@ -277,12 +279,12 @@ Rectangle {
                                         anchors.topMargin: 4
                                         radius: 4
                                         color: "transparent"
-                                        border.color: model.checked ? "#88c0d0" : "#888"
+                                        border.color: model.checked ? theme.secondary : theme.textMuted
                                         border.width: 2
                                         Text {
                                             anchors.centerIn: parent
                                             text: "✓"
-                                            color: "#88c0d0"
+                                            color: theme.secondary
                                             visible: model.checked === true
                                             font.pixelSize: 12
                                         }
@@ -296,7 +298,7 @@ Rectangle {
                                     Text {
                                         id: prefix
                                         text: root.prefixForType(model.type || 0, model.id, colBox.colIndex)
-                                        color: "#a6adc8"
+                                        color: theme.textSecondary
                                         font.pixelSize: root.fontSizeForType(model.type || 0)
                                         font.bold: (model.type >= 1 && model.type <= 3) || model.type === 10
                                         visible: text.length > 0 && (model.type || 0) !== 4
@@ -313,7 +315,7 @@ Rectangle {
                                                - ((model.type || 0) === 4 ? 24 : 0)
                                         text: model.text || ""
                                         wrapMode: Text.Wrap
-                                        color: model.checked ? "#888" : "#ddd"
+                                        color: model.checked ? theme.textMuted : theme.textPrimary
                                         font.pixelSize: root.fontSizeForType(blockType)
                                         font.bold: (blockType >= 1 && blockType <= 3) || blockType === 10
                                         font.italic: blockType === 9
@@ -414,7 +416,7 @@ Rectangle {
                                 return n === 0
                             }
                             text: "Empty"
-                            color: "#555"
+                            color: theme.textMuted
                             font.pixelSize: 12
                             padding: 8
                             MouseArea {

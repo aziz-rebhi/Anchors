@@ -57,21 +57,50 @@ Rectangle {
         placeholderTextColor: theme.textMuted
         background: Rectangle { color: "transparent" }
         textFormat: TextEdit.RichText
-        persistentSelection: true
+        persistentSelection: false
         selectByMouse: true
 
         onTextChanged: if (text !== root.text) root.contentChanged(text)
-        onActiveFocusChanged: if (activeFocus) root.registerFocus()
+        onActiveFocusChanged: {
+            if (activeFocus)
+                root.registerFocus()
+            else
+                deselect()
+        }
         onCursorPositionChanged: root.reportSelection()
         onSelectedTextChanged: root.reportSelection()
 
         Keys.onPressed: function (event) {
             if (event.modifiers & Qt.ControlModifier) {
                 if (typeof richTextHelper !== "undefined") {
-                    if (event.key === Qt.Key_B) { richTextHelper.toggleBold(textArea); event.accepted = true; return }
-                    if (event.key === Qt.Key_I) { richTextHelper.toggleItalic(textArea); event.accepted = true; return }
-                    if (event.key === Qt.Key_U) { richTextHelper.toggleUnderline(textArea); event.accepted = true; return }
-                    if (event.key === Qt.Key_S) { richTextHelper.toggleStrike(textArea); event.accepted = true; return }
+                    if (event.key === Qt.Key_B) {
+                        richTextHelper.toggleBold(textArea)
+                        root.contentChanged(textArea.text)
+                        root.reportSelection()
+                        event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_I) {
+                        richTextHelper.toggleItalic(textArea)
+                        root.contentChanged(textArea.text)
+                        root.reportSelection()
+                        event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_U) {
+                        richTextHelper.toggleUnderline(textArea)
+                        root.contentChanged(textArea.text)
+                        root.reportSelection()
+                        event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_S) {
+                        richTextHelper.toggleStrike(textArea)
+                        root.contentChanged(textArea.text)
+                        root.reportSelection()
+                        event.accepted = true
+                        return
+                    }
                 }
             }
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
