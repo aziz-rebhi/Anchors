@@ -9,6 +9,7 @@
         <file>VaultPage.qml</file>
         <file>VaultEntryDialog.qml</file>
         <file>NotesPage.qml</file>
+        <file>NotesPageEditor.qml</file>
         <file>CalendarPage.qml</file>
         <file>CalendarEventDialog.qml</file>
         <file>TodoPage.qml</file>

@@ -1,0 +1,421 @@
+/* Notion-flavoured shell around BlockNote.
+ *
+ * Two constraints shape everything below.
+ *
+ * 1. Palette stays in the Anchors hue family - cool, blue-leaning greys that
+ *    sit next to the Qt Theme.qml chrome - while adopting Notion's neutral
+ *    ramp: a flat page with no card, hairline borders at Notion's low alpha,
+ *    and genuinely quiet muted text. Notion's own browns would read as a
+ *    different application sitting next to the Qt sidebar.
+ *
+ * 2. BlockNote writes every `--bn-*` variable as an INLINE style on `.bn-root`
+ *    (`BlockNoteTheme.ts` -> `editorDOM.style.setProperty`). An ordinary author
+ *    rule loses to that, so the variable overrides here are `!important` by
+ *    necessity rather than sloppiness. They are scoped to `.bn-root` because
+ *    that is the class BlockNote puts on the editor container *and* on every
+ *    portal root it mounts, so the slash menu, formatting toolbar and tooltips
+ *    are themed by the same block.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Notion's measure: a 900px line length is what makes long-form prose
+   * comfortable, and BlockNote adds its own 54px gutter on each side. The
+   * shell width below adds that gutter back so the body and the title share
+   * one left edge. */
+  --anchors-measure: 900px;
+
+  --anchors-bg: #17171b;
+  /* Menus and popovers sit *above* the page, so they need their own step. */
+  --anchors-overlay: #202027;
+  --anchors-text: #ececee;
+  --anchors-muted: #8b8b96;
+  --anchors-faint: #62626c;
+  /* Notion draws hairlines at a low alpha rather than as a solid grey. */
+  --anchors-border: rgba(255, 255, 255, 0.094);
+  --anchors-accent: #89b4fa;
+  --anchors-warn: #fab387;
+  --anchors-selection: rgba(137, 180, 250, 0.28);
+  --anchors-hover: rgba(255, 255, 255, 0.055);
+
+  --anchors-font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --anchors-mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, monospace;
+}
+
+:root[data-anchors-theme="light"] {
+  --anchors-bg: #ffffff;
+  --anchors-overlay: #ffffff;
+  --anchors-text: #1c1c1e;
+  --anchors-muted: #75757e;
+  --anchors-faint: #a8a8b0;
+  --anchors-border: rgba(0, 0, 0, 0.09);
+  --anchors-accent: #1d4ed8;
+  --anchors-warn: #d97706;
+  --anchors-selection: rgba(29, 78, 216, 0.16);
+  --anchors-hover: rgba(0, 0, 0, 0.045);
+}
+
+body {
+  background: var(--anchors-bg);
+  color: var(--anchors-text);
+  font-family: var(--anchors-font);
+  /* The WebEngineView sits inside a Qt scroll area; nothing here should bounce. */
+  overflow: hidden;
+}
+
+.anchors-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Title, status and canvas all sit on the same measure so their left edges
+ * line up the way they do in Notion, where the title and body are one column. */
+.anchors-title,
+.anchors-status {
+  width: min(100%, calc(var(--anchors-measure) + 108px));
+  margin-inline: auto;
+}
+
+.anchors-title {
+  flex: 0 0 auto;
+  margin-block: 40px 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--anchors-text);
+  font-family: inherit;
+  /* Notion's page title. */
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  outline: none;
+}
+
+.anchors-title::placeholder {
+  color: var(--anchors-faint);
+}
+
+.anchors-status {
+  flex: 0 0 auto;
+  margin-block: 8px 0;
+  color: var(--anchors-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.anchors-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Notion's page is full-bleed. No card, no border, no radius. */
+  margin: 16px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--anchors-bg);
+  overflow: auto;
+}
+
+/* Let BlockNote use the full height of the canvas instead of auto-sizing. */
+.anchors-canvas .bn-container,
+.anchors-canvas .bn-editor {
+  min-height: 100%;
+}
+
+/* Centre the prose column. BlockNote pads `.bn-editor` by 54px per side, so the
+ * container is widened by the same amount to keep a true 900px measure. */
+.anchors-canvas .bn-container {
+  max-width: calc(var(--anchors-measure) + 108px);
+  margin-inline: auto;
+}
+
+/* ---------------------------------------------------------------------------
+ * BlockNote theming bridge
+ * ------------------------------------------------------------------------ */
+
+.bn-root {
+  --bn-font-family: var(--anchors-font) !important;
+  --bn-colors-editor-text: var(--anchors-text) !important;
+  --bn-colors-editor-background: var(--anchors-bg) !important;
+  --bn-colors-menu-text: var(--anchors-text) !important;
+  --bn-colors-menu-background: var(--anchors-overlay) !important;
+  --bn-colors-hovered-text: var(--anchors-text) !important;
+  --bn-colors-hovered-background: var(--anchors-hover) !important;
+  --bn-colors-selected-text: var(--anchors-text) !important;
+  --bn-colors-selected-background: var(--anchors-selection) !important;
+  --bn-colors-tooltip-text: var(--anchors-text) !important;
+  --bn-colors-tooltip-background: var(--anchors-overlay) !important;
+  --bn-colors-disabled-text: var(--anchors-faint) !important;
+  --bn-colors-disabled-background: var(--anchors-bg) !important;
+  --bn-colors-border: var(--anchors-border) !important;
+  --bn-colors-side-menu: var(--anchors-faint) !important;
+  /* Notion's page has square corners; BlockNote rounds the editor canvas. */
+  --bn-border-radius-large: 0px !important;
+  --bn-border-radius-medium: 4px !important;
+  --bn-border-radius-small: 3px !important;
+  --bn-shadow-medium: 0 0 0 1px var(--anchors-border), 0 4px 12px rgba(0, 0, 0, 0.16) !important;
+}
+
+.bn-root[data-color-scheme="light"] {
+  --bn-shadow-medium: 0 0 0 1px var(--anchors-border), 0 2px 6px rgba(15, 15, 15, 0.1), 0 2px 1px rgba(15, 15, 15, 0.06) !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * Type scale
+ *
+ * BlockNote derives heading size from an `em`-based `--level` on the block and
+ * sets `font-weight: bold`. Notion's scale is 30/24/19 at weight 600, so both
+ * the size tokens and the weight need overriding rather than just one.
+ * ------------------------------------------------------------------------ */
+
+.anchors-canvas .bn-block-outer {
+  line-height: 1.6;
+  /* Notion's paragraph rhythm: blocks sit close together, and the breathing
+   * room comes from the line height instead. */
+  margin-block: 1px;
+}
+
+/* Base size only on the editor. Deliberately NOT on `.bn-block-content`:
+ * BlockNote sets `font-size: var(--level)` there for headings at the same
+ * specificity, so an unqualified rule here would win on source order and
+ * flatten every heading to body size. */
+.anchors-canvas .bn-editor {
+  font-size: 16px;
+}
+
+/* Level 1 is the implicit default, so BlockNote gives it NO data-level
+ * attribute and styles it from the bare selector below. An override that only
+ * covers [data-level="N"] silently leaves H1 at BlockNote's 3em = 48px. */
+.anchors-canvas [data-content-type="heading"] {
+  --level: 1.875em;
+  --prev-level: 1.875em;
+  /* BlockNote pads every heading by 18px to make it a comfortable click
+   * target. Notion's rhythm is tighter, and the gap below the heading is
+   * handled separately. */
+  padding-top: 12px;
+}
+.anchors-canvas [data-content-type="heading"][data-level="2"] {
+  --level: 1.5em;
+  --prev-level: 1.5em;
+}
+.anchors-canvas [data-content-type="heading"][data-level="3"] {
+  --level: 1.1875em;
+  --prev-level: 1.1875em;
+}
+.anchors-canvas [data-content-type="heading"][data-level="4"] {
+  --level: 1em;
+  --prev-level: 1em;
+}
+.anchors-canvas [data-content-type="heading"][data-level="5"] {
+  --level: 0.875em;
+  --prev-level: 0.875em;
+}
+.anchors-canvas [data-content-type="heading"][data-level="6"] {
+  --level: 0.8em;
+  --prev-level: 0.8em;
+}
+
+/* BlockNote applies heading weight through
+ *   .bn-block-outer:not([data-prev-type]) > .bn-block
+ *     > .bn-block-content[data-content-type="heading"]
+ * which is specificity (0,5,0). A plain descendant rule is (0,3,0) and simply
+ * loses, leaving every heading at 700. The selector shape is reproduced here
+ * with `.anchors-canvas` prefixed so it wins on specificity, and the
+ * `[data-prev-type]` variant covers a heading that directly follows another. */
+.anchors-canvas .bn-block-outer:not([data-prev-type])
+  > .bn-block
+  > .bn-block-content[data-content-type="heading"],
+.anchors-canvas .bn-block-outer[data-prev-type]
+  > .bn-block
+  > .bn-block-content[data-content-type="heading"] {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Notion gives a heading a clear gap before whatever follows it. */
+.anchors-canvas .bn-block-outer[data-prev-type="heading"] {
+  margin-top: 0.4em;
+}
+
+/* ---------------------------------------------------------------------------
+ * Columns
+ *
+ * Notion's column gutter is 1rem. Columns are laid out by these two classes,
+ * which the block specs put on the node itself (see src/columns.ts) rather than
+ * relying on BlockNote's own `.bn-block-column*` names - those are styled in
+ * core's stylesheet for DOM that the unpublished multi-column package used to
+ * produce, and nothing in core emits them.
+ *
+ * `flex: 1 1 0` with `min-width: 0` is what makes the columns equal width
+ * *and* lets them shrink. `min-width: 0` is the part that is easy to forget:
+ * flex items default to `min-width: auto`, so a wide table or a long unbroken
+ * string inside a column would push it wider than its share and the row would
+ * overflow the measure instead of the column scrolling internally.
+ * ------------------------------------------------------------------------ */
+
+.anchors-canvas .anchors-col-list {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.anchors-canvas .anchors-col {
+  flex: 1 1 0;
+  min-width: 0;
+  /* BlockNote overflows a column horizontally when a table or image is wider
+   * than the column, matching how it handles the top-level container. */
+  overflow-x: auto;
+}
+
+/* Notion's columns share a left edge with the page text, so the gutter belongs
+ * between the columns only - not as padding outside the first and last one. */
+.anchors-canvas .anchors-col > .bn-block-outer:first-child {
+  margin-top: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Inline details
+ * ------------------------------------------------------------------------ */
+
+.anchors-canvas ::selection {
+  background: var(--anchors-selection);
+}
+
+/* BlockNote paints node selection as a translucent blue box. Reuse the same
+ * token so it tracks the palette instead of hard-coding rgba(100,160,255). */
+.anchors-canvas .bn-block-content.ProseMirror-selectednode > *::after,
+.anchors-canvas .ProseMirror-selectednode > .bn-block-content > *::after,
+.anchors-canvas .bn-block-content .ProseMirror-selectednode::after,
+.anchors-canvas .bn-inline-content .ProseMirror-selectednode::after {
+  background-color: var(--anchors-selection);
+  box-shadow: none;
+  border-radius: 3px;
+}
+
+.anchors-canvas .bn-inline-content code,
+.anchors-canvas [data-content-type="code"] {
+  font-family: var(--anchors-mono);
+  font-size: 0.875em;
+}
+
+.anchors-canvas [data-content-type="code"] {
+  background: var(--anchors-hover);
+  border: 1px solid var(--anchors-border);
+  border-radius: var(--anchors-border-radius-medium);
+  color: var(--anchors-text);
+}
+
+.anchors-canvas [data-content-type="code"] code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.anchors-canvas [data-content-type="code"] pre {
+  padding: 14px 16px;
+}
+
+/* Notion's quote is a grey bar with body-coloured text, not dimmed text. */
+.anchors-canvas [data-content-type="quote"] blockquote {
+  border-left: 3px solid var(--anchors-muted);
+  color: var(--anchors-text);
+  padding-left: 0.9em;
+}
+
+.anchors-canvas [data-content-type="table"] th {
+  background: var(--anchors-hover);
+}
+
+.anchors-canvas [data-content-type="table"] th,
+.anchors-canvas [data-content-type="table"] td {
+  border-color: var(--anchors-border);
+}
+
+/* ---------------------------------------------------------------------------
+ * Block handles
+ *
+ * Notion keeps the "+" and drag handle hidden until you approach a block. The
+ * opacity transition is what sells that; without it the handles sit there as
+ * permanent furniture and the page stops reading as Notion.
+ * ------------------------------------------------------------------------ */
+
+.anchors-canvas .bn-side-menu {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.anchors-canvas .bn-block-outer:hover .bn-side-menu,
+.anchors-canvas .bn-block-outer:focus-within .bn-side-menu,
+.anchors-canvas .bn-side-menu:hover,
+.anchors-canvas .bn-side-menu:focus-within {
+  opacity: 1;
+}
+
+.anchors-canvas .bn-side-menu .mantine-UnstyledButton-root:not(.mantine-Menu-item) svg {
+  color: var(--anchors-faint);
+  transition: color 120ms ease;
+}
+
+.anchors-canvas .bn-side-menu .mantine-UnstyledButton-root:hover svg {
+  color: var(--anchors-muted);
+}
+
+/* ---------------------------------------------------------------------------
+ * Floating UI: slash menu, formatting toolbar, link toolbar, panels
+ * ------------------------------------------------------------------------ */
+
+/* Portalled menus are mounted on `.bn-root.bn-mantine` elements outside the
+ * React tree, so this must not be scoped to `.anchors-canvas`. */
+.bn-mantine .mantine-Menu-dropdown,
+.bn-mantine .bn-menu-dropdown {
+  font-family: var(--anchors-font);
+  font-size: 14px;
+  padding: 4px;
+  box-shadow: var(--bn-shadow-medium);
+}
+
+.bn-mantine .mantine-Menu-item {
+  border-radius: var(--bn-border-radius-small);
+  min-height: 30px;
+  font-size: 14px;
+}
+
+.bn-mantine .mantine-Menu-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--anchors-faint);
+}
+
+.bn-mantine .bn-panel {
+  padding: 0;
+}
+
+.bn-mantine .mantine-TextInput-input,
+.bn-mantine .mantine-Select-input,
+.bn-mantine .mantine-FileInput-input {
+  background: var(--anchors-bg);
+  border-color: var(--anchors-border);
+  font-size: 14px;
+}
+
+.bn-mantine .mantine-TextInput-input:focus,
+.bn-mantine .mantine-Select-input:focus {
+  border-color: var(--anchors-accent);
+}

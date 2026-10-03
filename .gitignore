@@ -11,3 +11,5 @@ Tests/.qmake.stash
 Tests/Tests
 .qtcreator/*.user
 /Anchors
+notes-editor/node_modules/
+notes-editor/dist/

@@ -17,6 +17,14 @@ Page {
     property bool loadingNote: false
     property var focusedTextEdit: null
 
+    // Title as the web editor last reported it. Kept so a title-only edit still
+    // persists even when the body never changes.
+    property string editorTitle: ""
+
+    // Body as the web editor last reported it. Retained so renaming a note can
+    // re-send the content: updateEntry overwrites title *and* content together.
+    property string currentContent: ""
+
     ListModel { id: treeModel }
 
     property var filteredNotes: {
@@ -171,7 +179,8 @@ Page {
             if (!found) {
                 selectedId = ""
                 loadingNote = true
-                if (noteEditor) noteEditor.loadFromJson("", "")
+                root.editorTitle = ""
+                embeddedEditor.loadNote("", "")
                 Qt.callLater(function () { root.loadingNote = false })
             }
         }
@@ -179,14 +188,11 @@ Page {
         newFolderName = ""
     }
 
-    function saveCurrentNote() {
-        if (loadingNote)
+    // Persist a note straight into the existing controller. Shared by the
+    // web editor's save signal and by title renames.
+    function persistNote(title, json) {
+        if (loadingNote || selectedId.length === 0)
             return
-        if (selectedId.length === 0 || !noteEditor || !noteEditor.model)
-            return
-
-        var title = noteEditor.noteTitle
-        var json = noteEditor.documentToJson()
         if (!noteController.updateEntry(selectedId, title, json))
             return
 
@@ -211,33 +217,33 @@ Page {
         if (!note)
             return
 
-        // Re-clicking the same note must not reload (would risk mirror / focus loss)
-        if (note.id === selectedId && noteEditor && noteEditor.model)
+        // Re-clicking the same note must not reload (would blow away the cursor
+        // position and scroll offset inside the editor).
+        if (note.id === selectedId)
             return
 
-        saveTimer.stop()
+        // Any edit still debouncing inside the web editor belongs to the note we
+        // are leaving, so let it land before selectedId moves on. Otherwise
+        // applyEditorContent() would write it into the note being opened.
+        // The page cancels its own pending save on loadNote(), so this is a no-op
+        // unless there really is something in flight.
+        flushEditorSave()
+
         loadingNote = true
-
-        // Flush previous note to disk before switching
-        if (selectedId.length > 0 && selectedId !== note.id && noteEditor && noteEditor.model)
-            saveCurrentNote()
-
         selectedId = note.id
-        titleField.loadingEditor = true
+        editorTitle = note.title || "Untitled"
+        currentContent = note.content || ""
+        embeddedEditor.loadNote(note.title || "", note.content || "")
 
-        var content = note.content || ""
-        if (content.length === 0 || content === "{}")
-            noteEditor.loadFromContent(note.title || "Untitled note", [""])
-        else
-            noteEditor.loadFromJson(note.title || "", content)
+        // The page echoes the load back asynchronously; hold the guard until
+        // after that echo so a save caused by loading cannot overwrite the note.
+        Qt.callLater(function () { root.loadingNote = false })
+    }
 
-        titleField.loadingEditor = false
-
-        // Keep loadingNote true until after load-side documentModified settles
-        Qt.callLater(function () {
-            root.loadingNote = false
-            saveTimer.stop()
-        })
+    // Asks the web editor to push any pending edit immediately.
+    function flushEditorSave() {
+        if (embeddedEditor)
+            embeddedEditor.flushSave()
     }
 
     function scrollToNote(noteId) {
@@ -253,14 +259,36 @@ Page {
     }
 
     function clearSelection() {
-        saveTimer.stop()
-        if (selectedId.length > 0 && noteEditor && noteEditor.model && !loadingNote)
-            saveCurrentNote()
         selectedId = ""
+        editorTitle = ""
         loadingNote = true
-        if (noteEditor)
-            noteEditor.loadFromJson("", "")
+        embeddedEditor.loadNote("", "")
         Qt.callLater(function () { root.loadingNote = false })
+    }
+
+    // Title typed inside the web editor. updateEntry rewrites title *and* content
+    // together, so a rename has to re-send the body or it would wipe the note.
+    function applyEditorTitle(title) {
+        if (loadingNote || selectedId.length === 0)
+            return
+        var t = title.trim()
+        if (t.length === 0 || t === editorTitle)
+            return
+        editorTitle = t
+        persistNote(t, currentContent)
+    }
+
+    // Body typed inside the web editor. Always carries the current title so a
+    // save that lands before the title change is not lost either.
+    function applyEditorContent(title, json) {
+        if (loadingNote || selectedId.length === 0)
+            return
+        var t = (title || "").trim()
+        if (t.length === 0)
+            t = editorTitle
+        editorTitle = t
+        currentContent = json
+        persistNote(t, json)
     }
 
     background: Rectangle { color: theme.background }
@@ -381,70 +409,21 @@ Page {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.selectedId.length > 0 && noteEditor && noteEditor.model !== null
+            visible: root.selectedId.length > 0
 
-            TextField {
-                id: titleField
-                property bool loadingEditor: false
-                Layout.fillWidth: true
-                Layout.leftMargin: 24
-                Layout.rightMargin: 24
-                placeholderText: "Title"
-                color: theme.textPrimary
-                font.family: theme.headlineFont
-                font.pixelSize: 26
-                font.bold: true
-                background: null
-                text: noteEditor ? noteEditor.noteTitle : ""
-                onTextChanged: {
-                    if (!loadingEditor && !root.loadingNote && noteEditor) {
-                        noteEditor.noteTitle = text
-                        saveTimer.restart()
-                    }
-                }
-            }
-
-            EditorToolbar {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                Layout.topMargin: 4
-                Layout.bottomMargin: 4
-                listRef: blockList
-                currentBlockId: noteEditor ? (noteEditor.focusedBlockId || "") : ""
-                onChangeType: function (t) {
-                    if (noteEditor && noteEditor.focusedBlockId)
-                        noteEditor.changeBlockType(noteEditor.focusedBlockId, t)
-                }
-                onInsertType: function (t) {
-                    if (!noteEditor) return
-                    var id = noteEditor.focusedBlockId
-                    if (id && id.length)
-                        noteEditor.insertBlockAfter(id, t, "")
-                    else
-                        noteEditor.insertBlock("", 0, t, "")
-                }
-            }
-
-            BlockList {
-                id: blockList
+            NotesPageEditor {
+                id: embeddedEditor
+                objectName: "notesPageEditor"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: 12
-            }
+                host: typeof notesEditorHost !== "undefined" ? notesEditorHost : null
+                themeMode: theme.isDark ? "dark" : "light"
 
-            Timer {
-                id: saveTimer
-                interval: 900
-                onTriggered: root.saveCurrentNote()
-            }
-            Connections {
-                target: noteEditor
-                function onDocumentModified() {
-                    if (root.loadingNote || root.selectedId.length === 0)
-                        return
-                    saveTimer.restart()
+                onSaveRequested: function (title, json) {
+                    root.applyEditorContent(title, json)
+                }
+                onTitleEdited: function (title) {
+                    root.applyEditorTitle(title)
                 }
             }
         }
@@ -717,8 +696,10 @@ Page {
                     onClicked: {
                         var t = renameNoteField.text.trim()
                         if (t.length > 0 && noteController.renameEntry(renameNoteDialog.noteId, t)) {
-                            if (root.selectedId === renameNoteDialog.noteId && noteEditor)
-                                noteEditor.noteTitle = t
+                            // Keep the editor's copy in sync so its next save
+                            // does not write the old title back over the rename.
+                            if (root.selectedId === renameNoteDialog.noteId)
+                                root.editorTitle = t
                             root.refresh(true)
                             renameNoteDialog.close()
                         }

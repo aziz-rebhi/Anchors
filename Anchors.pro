@@ -1,4 +1,23 @@
+# Notes editor assets live in notes-editor/dist/ and are compiled into the
+# binary via notes_editor.qrc, so a released build needs no Node/Vite/server.
+# That qrc is GENERATED - run `npm run build` in notes-editor/ to refresh it.
+# Regenerated rather than hand-maintained because Vite content-hashes its
+# filenames; a hand-edited list would go stale silently, and rcc failing on a
+# missing file is the failure mode we want (at build time, loudly) rather than a
+# blank editor in a shipped release.
+exists(notes-editor/notes_editor.qrc) {
+    message("Anchors: packaging notes editor from notes-editor/notes_editor.qrc")
+} else {
+    warning("notes-editor/notes_editor.qrc is missing - run 'npm run build' in notes-editor/ first. The notes canvas will have no bundle to load.")
+}
+
 QT += widgets core quick qml sql
+
+# Notes editor canvas is an embedded web app (notes-editor/) hosted in a
+# WebEngineView. WebChannel carries the page -> host calls.
+# webchannelquick is what provides QQmlWebChannel - WebEngineView's `webChannel`
+# property is typed as that, not as the plain QWebChannel from `webchannel`.
+QT += webenginequick webchannel webchannelquick
 
 CONFIG += c++17
 
@@ -31,6 +50,7 @@ unix {
 SOURCES += \
     app/calendarcontroller.cpp \
     app/noteeditorcontroller.cpp \
+    app/NotesEditorHost.cpp \
     app/settingscontroller.cpp \
     core/editor/codesyntaxhighlighter.cpp \
     core/editor/richtexthelper.cpp \
@@ -68,6 +88,7 @@ HEADERS += \
     app/authcontroller.h \
     app/calendarcontroller.h \
     app/noteeditorcontroller.h \
+    app/NotesEditorHost.h \
     app/session.h \
     app/settingscontroller.h \
     app/vaultcontroller.h \
@@ -105,4 +126,5 @@ HEADERS += \
 
 RESOURCES += \
     ui/icons.qrc \
-    ui/qml.qrc
+    ui/qml.qrc \
+    notes-editor/notes_editor.qrc

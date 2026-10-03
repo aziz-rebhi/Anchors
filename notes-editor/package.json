@@ -1,0 +1,31 @@
+{
+  "name": "anchors-notes-editor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BlockNote editor canvas embedded in Anchors via QtWebEngineView",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "build": "tsc --noEmit && vite build && npm run build:qrc",
+    "build:qrc": "node scripts/emit-qrc.mjs",
+    "preview": "vite preview --port 5173 --strictPort",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@blocknote/core": "^0.55.0",
+    "@blocknote/mantine": "^0.55.0",
+    "@blocknote/react": "^0.55.0",
+    "@mantine/core": "^9.6.3",
+    "@mantine/hooks": "^9.6.3",
+    "@mantine/utils": "^6.0.22",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.2"
+  }
+}
