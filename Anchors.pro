@@ -32,7 +32,14 @@ QT += network
 # project root when building in release.
 CONFIG(release, debug|release) {
     win32 {
-        DESTDIR = $$PWD
+        # Only fall back to the project root when nobody asked for a specific
+        # output directory. An unconditional DESTDIR here silently wins over a
+        # `qmake ... DESTDIR=...` on the command line, which made the CI
+        # `DESTDIR=%GITHUB_WORKSPACE%\build-win` a no-op: nmake produced
+        # Anchors.exe in the repo root while the workflow waited in build-win.
+        isEmpty(DESTDIR) {
+            DESTDIR = $$PWD
+        }
         TARGET = Anchors
     }
 }

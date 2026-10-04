@@ -147,56 +147,47 @@ jobs:
           set PATH=%VCPKG_ROOT%\installed\x64-windows\bin;%PATH%
 
           where cl
+          if errorlevel 1 exit /b 1
           where nmake
+          if errorlevel 1 exit /b 1
           where qmake
+          if errorlevel 1 exit /b 1
 
-          cd notes-editor && npm ci && npm run build && cd ..
+          cd notes-editor
+          call npm ci
+          if errorlevel 1 exit /b 1
+          call npm run build
+          if errorlevel 1 exit /b 1
+          cd "%GITHUB_WORKSPACE%"
 
-          qmake Anchors.pro CONFIG+=release DESTDIR=%GITHUB_WORKSPACE%\build-win
+          if exist "%GITHUB_WORKSPACE%\build-win" rmdir /s /q "%GITHUB_WORKSPACE%\build-win"
+          qmake Anchors.pro -spec win32-msvc CONFIG+=release DESTDIR=%GITHUB_WORKSPACE%\build-win
           if errorlevel 1 exit /b 1
           nmake /NOLOGO
           if errorlevel 1 exit /b 1
 
-          echo "=== All EXEs after build ==="
-          dir /s /b *.exe 2>nul
-          echo "=== Check build-win ==="
           if not exist "%GITHUB_WORKSPACE%\build-win\Anchors.exe" (
-            if not exist "%GITHUB_WORKSPACE%\build-win\Anchors" (
-              echo Anchors.exe or Anchors not found in build-win
-              dir /s /b *.exe 2>&1 | head -50
-              dir /s /b Anchors* 2>&1 | head -50
-              exit /b 1
-            )
+            echo === FATAL: build-win\Anchors.exe missing ===
+            echo === All EXEs in workspace ===
+            dir /s /b *.exe 2>&1
+            exit /b 1
           )
-          echo Found output in build-win
+          echo OK: Anchors.exe built
 
       - name: Stage deploy folder
         shell: pwsh
         run: |
-          $exe = $null
-          $candidates = @(
-            "$env:GITHUB_WORKSPACE\build-win\Anchors.exe",
-            "$env:GITHUB_WORKSPACE\build-win\Anchors",
-            "release\Anchors.exe",
-            "release\Anchors",
-            "Anchors.exe",
-            "Anchors"
-          )
-          foreach ($c in $candidates) {
-            if (Test-Path $c) { $exe = (Get-Item $c); break }
-          }
-          if (-not $exe) {
-            Write-Error "Anchors executable not found after build. Files in workspace:"
-            Get-ChildItem -Recurse -Filter "Anchors*" -ErrorAction SilentlyContinue |
-              ForEach-Object { Write-Host "  $($_.FullName)" }
+          $exe = "$env:GITHUB_WORKSPACE\build-win\Anchors.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Anchors.exe not found at $exe despite a green Build step."
             exit 1
           }
-          Write-Host "Found Anchors.exe: $($exe.FullName)"
+          Write-Host "Found Anchors.exe: $exe"
 
           $out = "dist-windows"
           if (Test-Path $out) { Remove-Item -Recurse -Force $out }
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Copy-Item $exe.FullName "$out\Anchors.exe"
+          Copy-Item $exe "$out\Anchors.exe"
 
           $windeploy = $null
           if ($env:Qt6_DIR -and (Test-Path "$env:Qt6_DIR\bin\windeployqt.exe")) {
