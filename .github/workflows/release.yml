@@ -173,18 +173,21 @@ jobs:
       - name: Stage deploy folder
         shell: pwsh
         run: |
-          # Prefer explicit DESTDIR first
+          $exe = $null
           $candidates = @(
             "$env:GITHUB_WORKSPACE\build-win\Anchors.exe",
+            "$env:GITHUB_WORKSPACE\build-win\Anchors",
             "release\Anchors.exe",
-            "Anchors.exe"
+            "release\Anchors",
+            "Anchors.exe",
+            "Anchors"
           )
           foreach ($c in $candidates) {
             if (Test-Path $c) { $exe = (Get-Item $c); break }
           }
           if (-not $exe) {
-            Write-Error "Anchors.exe not found after build. Workspace EXEs:"
-            Get-ChildItem -Recurse -Filter *.exe -ErrorAction SilentlyContinue |
+            Write-Error "Anchors executable not found after build. Files in workspace:"
+            Get-ChildItem -Recurse -Filter "Anchors*" -ErrorAction SilentlyContinue |
               ForEach-Object { Write-Host "  $($_.FullName)" }
             exit 1
           }
