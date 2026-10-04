@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -70,14 +70,29 @@ jobs:
       options: --privileged
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      # notes-editor/dist/ is gitignored (Vite content-hashes its filenames), so
+      # there is no way to have the bundle inside the flatpak build without
+      # either committing dist/ or building it here. Building it here keeps the
+      # gitignore intact: a flatpak-builder `dir` source is a plain recursive
+      # copy of the working tree - it does not consult .gitignore - so whatever
+      # `npm run build` leaves in notes-editor/dist/ is exactly what the anchors
+      # module sees, and the sandbox needs no Node at all.
+      - name: Build notes editor bundle
+        run: |
+          cd notes-editor
+          npm ci
+          npm run build
+          test -f dist/index.html
+          test -f notes_editor.qrc
 
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: Anchors.flatpak
           manifest-path: flatpak/org.anchors.Anchors.yml
-          cache-key: flatpak-${{ runner.os }}-${{ hashFiles('flatpak/**', 'Anchors.pro', 'app/**', 'core/**', 'ui/**') }}
+          cache-key: flatpak-${{ runner.os }}-${{ hashFiles('flatpak/**', 'Anchors.pro', 'app/**', 'core/**', 'ui/**', 'notes-editor/package.json', 'notes-editor/package-lock.json', 'notes-editor/index.html', 'notes-editor/vite.config.ts', 'notes-editor/src/**', 'notes-editor/scripts/**') }}
 
       - name: Upload Flatpak
         uses: actions/upload-artifact@v4
@@ -85,45 +100,61 @@ jobs:
           name: flatpak-bundle
           path: Anchors.flatpak
   # ─────────────────────────────────────────
-  # Windows (MinGW)
+  # Windows (MSVC - see the note on the Qt step below)
   # ─────────────────────────────────────────
   windows:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Qt (MinGW)
+      # QtWebEngine is not published for win64_mingw: on the 6.7.3 branch the
+      # MinGW kit offers qtpositioning / qtshadertools / qtwebchannel but no
+      # qtwebengine at all, so install-qt-action could never satisfy
+      # `QT += webenginequick` with that arch. Only the MSVC kits carry
+      # QtWebEngine on Windows.
+      #
+      # There is no win64_msvc2022_64 package on 6.7.3 either - win64_msvc2019_64
+      # is the only x64 MSVC kit on that branch. It is built with the v142
+      # toolset and links fine from the v143 (VS2022) toolset windows-latest
+      # ships; Qt ships one msvc2019 kit for both IDE generations on purpose.
+      - name: Install Qt (MSVC)
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.3'
           host: windows
           target: desktop
-          arch: win64_mingw
+          arch: win64_msvc2019_64
           modules: 'qtshadertools qtwebengine qtpositioning qtwebchannel'
           cache: true
 
-      - name: Install libsodium (vcpkg mingw)
-        run: vcpkg install libsodium:x64-mingw-dynamic
+      - name: Enable MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install libsodium (vcpkg msvc)
+        run: vcpkg install libsodium:x64-windows
 
       - name: Build
         shell: cmd
         run: |
-          set PATH=%Qt6_DIR%\bin;%IQTA_TOOLS%\mingw1310_64\bin;%PATH%
+          set PATH=%Qt6_DIR%\bin;%PATH%
           set VCPKG_ROOT=%VCPKG_INSTALLATION_ROOT%
-          set INCLUDE=%VCPKG_ROOT%\installed\x64-mingw-dynamic\include;%INCLUDE%
-          set LIBRARY_PATH=%VCPKG_ROOT%\installed\x64-mingw-dynamic\lib;%LIBRARY_PATH%
-          set PATH=%VCPKG_ROOT%\installed\x64-mingw-dynamic\bin;%PATH%
+          set INCLUDE=%VCPKG_ROOT%\installed\x64-windows\include;%INCLUDE%
+          set LIB=%VCPKG_ROOT%\installed\x64-windows\lib;%LIB%
+          set LIBPATH=%VCPKG_ROOT%\installed\x64-windows\lib;%LIBPATH%
+          set PATH=%VCPKG_ROOT%\installed\x64-windows\bin;%PATH%
 
-          where g++
-          where mingw32-make
+          where cl
+          where nmake
           where qmake
 
           cd notes-editor && npm ci && npm run build && cd ..
 
           qmake Anchors.pro CONFIG+=release
           if errorlevel 1 exit /b 1
-          mingw32-make -j%NUMBER_OF_PROCESSORS%
+          nmake /NOLOGO
           if errorlevel 1 exit /b 1
 
       - name: Stage deploy folder
@@ -166,18 +197,13 @@ jobs:
 
           $vcpkg = $env:VCPKG_INSTALLATION_ROOT
           if ($vcpkg) {
-            Get-ChildItem "$vcpkg\installed\x64-mingw-dynamic\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
+            Get-ChildItem "$vcpkg\installed\x64-windows\bin\*sodium*.dll" -ErrorAction SilentlyContinue |
               ForEach-Object { Copy-Item $_.FullName $out }
           }
 
-          $gpp = Get-Command g++ -ErrorAction SilentlyContinue
-          if ($gpp) {
-            $mingwBin = Split-Path $gpp.Source
-            foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
-              $src = Join-Path $mingwBin $dll
-              if (Test-Path $src) { Copy-Item $src $out }
-            }
-          }
+          # No MinGW runtime DLLs to add by hand: this is an MSVC build, and
+          # windeployqt already copies the VC redistributables (vcruntime140,
+          # msvcp140, concrt140) alongside QtWebEngineProcess.exe.
 
           Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
           Write-Host "Created Anchors-windows-x64.zip"

@@ -2,6 +2,12 @@ app-id: org.anchors.Anchors
 runtime: org.kde.Platform
 runtime-version: '6.7'
 sdk: org.kde.Sdk
+# org.kde.Platform/SDK do not ship QtWebEngine at all - it is distributed
+# separately as a base app pinned to the same runtime branch, so the Qt that
+# QtWebEngine was built against is the Qt this runtime ships. Without this the
+# qmake step dies with "Unknown module(s) in QT: webenginequick".
+base: io.qt.qtwebengine.BaseApp
+base-version: '6.7'
 command: Anchors
 
 finish-args:
@@ -10,6 +16,15 @@ finish-args:
   - --socket=fallback-x11
   - --socket=wayland
   - --device=dri
+  # The base app puts QtWebEngineProcess in its own /app/bin, which is not on the
+  # runtime's PATH. Without this the renderer process is never spawned and the
+  # notes canvas stays blank.
+  - --env=QTWEBENGINEPROCESS_PATH=/app/bin/QtWebEngineProcess
+  # 6.7 predates the runtime shipping QML under /app/lib/qml, so the base app's
+  # WebEngine QML plugins land in /app/qml instead. QML_IMPORT_PATH is additive
+  # (per Qt's own docs), so this adds the base app's path without shadowing the
+  # runtime's, and `import QtWebEngine` in NotesPageEditor.qml resolves.
+  - --env=QML_IMPORT_PATH=/app/qml
 
 cleanup:
   - /include
@@ -17,6 +32,12 @@ cleanup:
   - /share/man
   - '*.a'
   - '*.la'
+
+# Strips the base app's build-time files (headers, mkspecs, cmake/pkgconfig).
+# Runs after every module has been built, so the anchors module above can still
+# compile against QtWebEngine.
+cleanup-commands:
+  - /app/cleanup-BaseApp.sh
 
 modules:
   - name: libsodium
@@ -48,6 +69,10 @@ modules:
         LD_LIBRARY_PATH: /app/lib
         CPLUS_INCLUDE_PATH: /app/include
         C_INCLUDE_PATH: /app/include
+        # qmake finds Qt's per-module mkspecs/modules/*.pri through QMAKEPATH.
+        # The base app keeps its own in /app, which is not a default search
+        # location, so without this `QT += webenginequick` cannot be resolved.
+        QMAKEPATH: /app
     build-commands:
       - |
         export LDFLAGS="-L/app/lib ${LDFLAGS:-}"
@@ -69,3 +94,9 @@ modules:
     sources:
       - type: dir
         path: ..
+        # A `dir` source is a verbatim recursive copy - it ignores .gitignore,
+        # which is how notes-editor/dist/ gets in without committing it, but it
+        # also means .git and node_modules would be copied too.
+        skip:
+          - .git
+          - notes-editor/node_modules

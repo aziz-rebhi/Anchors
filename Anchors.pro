@@ -26,6 +26,9 @@ QT += network
 
 
 
+# libsodium comes from vcpkg. The triplet has to match the compiler: x64-mingw-dynamic
+# for the MinGW kit, x64-windows for the MSVC one (which is what Qt WebEngine forces
+# on Windows - Qt ships no QtWebEngine binaries for MinGW).
 win32-g++ {
     VCPKG_ROOT = $$(VCPKG_ROOT)
     isEmpty(VCPKG_ROOT) {
@@ -34,6 +37,17 @@ win32-g++ {
     !isEmpty(VCPKG_ROOT) {
         INCLUDEPATH += $$VCPKG_ROOT/installed/x64-mingw-dynamic/include
         LIBS += -L$$VCPKG_ROOT/installed/x64-mingw-dynamic/lib -lsodium
+    }
+}
+
+win32-msvc* {
+    VCPKG_ROOT = $$(VCPKG_ROOT)
+    isEmpty(VCPKG_ROOT) {
+        VCPKG_ROOT = $$(VCPKG_INSTALLATION_ROOT)
+    }
+    !isEmpty(VCPKG_ROOT) {
+        INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
+        LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib -lsodium
     }
 }
 
