@@ -162,6 +162,7 @@ jobs:
           echo "=== Check build-win ==="
           if not exist "%GITHUB_WORKSPACE%\build-win\Anchors.exe" (
             echo Anchors.exe NOT found in build-win
+            dir /s /b *.exe 2>&1 | head -50
             exit /b 1
           )
           echo Found: %GITHUB_WORKSPACE%\build-win\Anchors.exe
