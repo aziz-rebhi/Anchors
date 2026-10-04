@@ -26,6 +26,19 @@ QT += network
 
 
 
+# MSVC produces debug/release subdirs with DESTDIR not set by default, whereas
+# MinGW puts the target next to the Makefile. To make the Windows deploy step
+# resilient regardless of generator/path, always emit the binary into the
+# project root when building in release.
+CONFIG(release, debug|release) {
+    win32 {
+        DESTDIR = $$PWD
+        TARGET = Anchors
+    }
+}
+
+
+
 # libsodium comes from vcpkg. The triplet has to match the compiler: x64-mingw-dynamic
 # for the MinGW kit, x64-windows for the MSVC one (which is what Qt WebEngine forces
 # on Windows - Qt ships no QtWebEngine binaries for MinGW).
@@ -49,10 +62,6 @@ win32-msvc* {
         INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
         LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib -lsodium
     }
-}
-
-win32 {
-    RC_ICONS = ui/app.ico
 }
 
 unix {

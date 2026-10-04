@@ -160,11 +160,34 @@ jobs:
       - name: Stage deploy folder
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Recurse -Filter Anchors.exe |
-            Where-Object { $_.FullName -notmatch '\\dist-windows\\' } |
-            Select-Object -First 1
-          if (-not $exe) { throw "Anchors.exe not found after build" }
-          Write-Host "EXE: $($exe.FullName)"
+          $exe = $null
+          # Prefer common MSVC CONFIG+=release layout first
+          $candidates = @(
+            "release\Anchors.exe",
+            "Anchors.exe"
+          )
+          foreach ($c in $candidates) {
+            if (Test-Path $c) { $exe = (Get-Item $c); break }
+          }
+          if (-not $exe) {
+            # Exhaustive recursive search, exclude common source/build noise
+            $exe = Get-ChildItem -Recurse -Filter Anchors.exe -ErrorAction SilentlyContinue |
+              Where-Object {
+                $_.FullName -notmatch '\\notes-editor\\' -and
+                $_.FullName -notmatch '\\node_modules\\' -and
+                $_.FullName -notmatch '\\\.git\\' -and
+                $_.FullName -notmatch '\\dist-windows\\'
+              } |
+              Select-Object -First 1
+          }
+          if (-not $exe) {
+            Write-Error "Anchors.exe not found after build."
+            Write-Host "All .exe files found under workspace:"
+            Get-ChildItem -Recurse -Filter *.exe -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          Write-Host "Found Anchors.exe: $($exe.FullName)"
 
           $out = "dist-windows"
           if (Test-Path $out) { Remove-Item -Recurse -Force $out }
