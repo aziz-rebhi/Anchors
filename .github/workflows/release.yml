@@ -152,17 +152,26 @@ jobs:
 
           cd notes-editor && npm ci && npm run build && cd ..
 
-          qmake Anchors.pro CONFIG+=release
+          qmake Anchors.pro CONFIG+=release DESTDIR=%GITHUB_WORKSPACE%\build-win
           if errorlevel 1 exit /b 1
           nmake /NOLOGO
           if errorlevel 1 exit /b 1
 
+          echo "=== All EXEs after build ==="
+          dir /s /b *.exe 2>nul
+          echo "=== Check build-win ==="
+          if not exist "%GITHUB_WORKSPACE%\build-win\Anchors.exe" (
+            echo "Anchors.exe NOT found in build-win"
+            exit /b 1
+          )
+          echo "Found: %GITHUB_WORKSPACE%\build-win\Anchors.exe"
+
       - name: Stage deploy folder
         shell: pwsh
         run: |
-          $exe = $null
-          # Prefer common MSVC CONFIG+=release layout first
+          # Prefer explicit DESTDIR first
           $candidates = @(
+            "$env:GITHUB_WORKSPACE\build-win\Anchors.exe",
             "release\Anchors.exe",
             "Anchors.exe"
           )
@@ -170,19 +179,7 @@ jobs:
             if (Test-Path $c) { $exe = (Get-Item $c); break }
           }
           if (-not $exe) {
-            # Exhaustive recursive search, exclude common source/build noise
-            $exe = Get-ChildItem -Recurse -Filter Anchors.exe -ErrorAction SilentlyContinue |
-              Where-Object {
-                $_.FullName -notmatch '\\notes-editor\\' -and
-                $_.FullName -notmatch '\\node_modules\\' -and
-                $_.FullName -notmatch '\\\.git\\' -and
-                $_.FullName -notmatch '\\dist-windows\\'
-              } |
-              Select-Object -First 1
-          }
-          if (-not $exe) {
-            Write-Error "Anchors.exe not found after build."
-            Write-Host "All .exe files found under workspace:"
+            Write-Error "Anchors.exe not found after build. Workspace EXEs:"
             Get-ChildItem -Recurse -Filter *.exe -ErrorAction SilentlyContinue |
               ForEach-Object { Write-Host "  $($_.FullName)" }
             exit 1
