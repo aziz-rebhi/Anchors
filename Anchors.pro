@@ -60,10 +60,9 @@ win32-msvc* {
     isEmpty(VCPKG_ROOT) {
         VCPKG_ROOT = $$(VCPKG_INSTALLATION_ROOT)
     }
-    !isEmpty(VCPKG_ROOT) {
-        INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
-        LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib -lsodium
-    }
+    INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
+    # vcpkg ships libsodium.lib (not sodium.lib)
+    LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib -llibsodium
 }
 
 unix {
