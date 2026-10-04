@@ -59,6 +59,7 @@ jobs:
         with:
           name: linux-binary
           path: Anchors-linux-x86_64
+
   # ------------------------------------
   # Flatpak
   # ------------------------------------
@@ -72,13 +73,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # notes-editor/dist/ is gitignored (Vite content-hashes its filenames), so
-      # there is no way to have the bundle inside the flatpak build without
-      # either committing dist/ or building it here. Building it here keeps the
-      # gitignore intact: a flatpak-builder `dir` source is a plain recursive
-      # copy of the working tree - it does not consult .gitignore - so whatever
-      # `npm run build` leaves in notes-editor/dist/ is exactly what the anchors
-      # module sees, and the sandbox needs no Node at all.
       - name: Build notes editor bundle
         run: |
           cd notes-editor
@@ -99,8 +93,9 @@ jobs:
         with:
           name: flatpak-bundle
           path: Anchors.flatpak
+
   # ─────────────────────────────────────────
-  # Windows (MSVC - see the note on the Qt step below)
+  # Windows (MSVC)
   # ─────────────────────────────────────────
   windows:
     runs-on: windows-latest
@@ -108,16 +103,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # QtWebEngine is not published for win64_mingw: on the 6.7.3 branch the
-      # MinGW kit offers qtpositioning / qtshadertools / qtwebchannel but no
-      # qtwebengine at all, so install-qt-action could never satisfy
-      # `QT += webenginequick` with that arch. Only the MSVC kits carry
-      # QtWebEngine on Windows.
-      #
-      # There is no win64_msvc2022_64 package on 6.7.3 either - win64_msvc2019_64
-      # is the only x64 MSVC kit on that branch. It is built with the v142
-      # toolset and links fine from the v143 (VS2022) toolset windows-latest
-      # ships; Qt ships one msvc2019 kit for both IDE generations on purpose.
       - name: Install Qt (MSVC)
         uses: jurplel/install-qt-action@v4
         with:
@@ -158,11 +143,14 @@ jobs:
           if errorlevel 1 exit /b 1
           call npm run build
           if errorlevel 1 exit /b 1
-          cd "%GITHUB_WORKSPACE%"
+          cd /d "%GITHUB_WORKSPACE%"
 
           if exist "%GITHUB_WORKSPACE%\build-win" rmdir /s /q "%GITHUB_WORKSPACE%\build-win"
-          qmake Anchors.pro CONFIG+=release DESTDIR=%GITHUB_WORKSPACE%\build-win QMAKE_MSC_VER=1929
+
+          REM -early: set MSC_VER before msvc-version.conf loads (required on VS18 runners)
+          qmake -early QMAKE_MSC_VER=1929 Anchors.pro CONFIG+=release DESTDIR=%GITHUB_WORKSPACE%\build-win
           if errorlevel 1 exit /b 1
+
           nmake /NOLOGO
           if errorlevel 1 exit /b 1
 
@@ -219,10 +207,6 @@ jobs:
               ForEach-Object { Copy-Item $_.FullName $out }
           }
 
-          # No MinGW runtime DLLs to add by hand: this is an MSVC build, and
-          # windeployqt already copies the VC redistributables (vcruntime140,
-          # msvcp140, concrt140) alongside QtWebEngineProcess.exe.
-
           Compress-Archive -Path "$out\*" -DestinationPath Anchors-windows-x64.zip -Force
           Write-Host "Created Anchors-windows-x64.zip"
 
@@ -276,6 +260,7 @@ jobs:
             - **Windows installer:** `Anchors-Setup-*.exe` — full install, optional desktop shortcut
             - **Windows portable:** `Anchors-windows-x64.zip` — extract and run
             - **Linux:** `Anchors-linux-x86_64` — needs system Qt 6 + libsodium
+            - **Flatpak:** `Anchors.flatpak`
           files: |
             artifacts/linux-binary/Anchors-linux-x86_64
             artifacts/windows-zip/Anchors-windows-x64.zip
