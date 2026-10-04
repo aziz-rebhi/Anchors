@@ -15,9 +15,7 @@ QT += widgets core quick qml sql
 
 # Notes editor canvas is an embedded web app (notes-editor/) hosted in a
 # WebEngineView. WebChannel carries the page -> host calls.
-# webchannelquick is what provides QQmlWebChannel - WebEngineView's `webChannel`
-# property is typed as that, not as the plain QWebChannel from `webchannel`.
-QT += webenginequick webchannel webchannelquick
+QT += webenginequick webchannel
 
 CONFIG += c++17
 

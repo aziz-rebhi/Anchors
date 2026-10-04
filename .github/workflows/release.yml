@@ -24,8 +24,7 @@ jobs:
           version: '6.7.3'
           host: linux
           target: desktop
-          arch: linux_gcc_64
-          modules: 'qtshadertools'
+          modules: 'qtshadertools qtwebengine qtpositioning qtwebchannel'
           cache: true
 
       - name: Install dependencies
@@ -42,6 +41,8 @@ jobs:
       - name: Build
         run: |
           export PATH="${Qt6_DIR}/bin:${PATH}"
+          cd notes-editor && npm ci && npm run build
+          cd ..
           qmake Anchors.pro CONFIG+=release
           make -j"$(nproc)"
 
@@ -99,8 +100,7 @@ jobs:
           host: windows
           target: desktop
           arch: win64_mingw
-          tools: 'tools_mingw1310'
-          modules: 'qtshadertools'
+          modules: 'qtshadertools qtwebengine qtpositioning qtwebchannel'
           cache: true
 
       - name: Install libsodium (vcpkg mingw)
@@ -118,6 +118,8 @@ jobs:
           where g++
           where mingw32-make
           where qmake
+
+          cd notes-editor && npm ci && npm run build && cd ..
 
           qmake Anchors.pro CONFIG+=release
           if errorlevel 1 exit /b 1
