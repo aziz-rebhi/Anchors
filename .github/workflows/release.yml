@@ -161,10 +161,10 @@ jobs:
           dir /s /b *.exe 2>nul
           echo "=== Check build-win ==="
           if not exist "%GITHUB_WORKSPACE%\build-win\Anchors.exe" (
-            echo "Anchors.exe NOT found in build-win"
+            echo Anchors.exe NOT found in build-win
             exit /b 1
           )
-          echo "Found: %GITHUB_WORKSPACE%\build-win\Anchors.exe"
+          echo Found: %GITHUB_WORKSPACE%\build-win\Anchors.exe
 
       - name: Stage deploy folder
         shell: pwsh
